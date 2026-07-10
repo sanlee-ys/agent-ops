@@ -31,6 +31,37 @@ It compares the *inputs* to detection and cannot prove detection is correct.
 Ground truth needs a functional probe driving a pane through a known
 working→idle cycle. Not built.
 
+## check-generated-drift.py — stale build output, caught in CI
+
+For any repo that commits build output next to its source (a static site's
+`index.html`, a generated SVG): rebuild from source, fail if the committed
+output drifted. Generalizes learning-notes' repo-local `generated-files` job
+per the [ADR-003 backlog disposition](../decisions/ADR-003-delegation-maturity.md).
+The per-repo variables — build commands + watched paths — live in the consumer
+repo's `.generated-drift.toml`:
+
+```toml
+[check.site]
+build = ["python build_site.py", "python build_graph.py"]
+watch = ["index.html", "concept-map.html", "assets/category-map.svg"]
+```
+
+Run locally from the consumer's root
+(`python path/to/check-generated-drift.py`), or wire CI with one job via the
+reusable workflow:
+
+```yaml
+jobs:
+  generated-drift:
+    uses: sanlee-ys/claude-ops/.github/workflows/generated-drift.yml@main
+    # with:
+    #   setup: pip install -r requirements.txt   # only if the build needs deps
+```
+
+Exit codes are the interface: 0 clean, 1 drift (rebuild and commit), 2
+operator/config error (dirty watched path before the build, broken build
+command, missing config). Test suite: `tests/test_generated_drift.py`.
+
 ## redline-guard.py — the publication boundary, enforced
 
 This repo is public **and canonical** ([ADR-002](../decisions/ADR-002-public-first-canonicality.md)):

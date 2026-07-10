@@ -37,6 +37,10 @@ Claude operating layer (see
   this fleet does not have yet (a custom file-edit tool's matching algorithm; a
   hand-written terminal renderer). Not rules; nothing there needs doing. Read
   one only when about to build the thing it describes.
+- **Stale-generated-file gate** — reusable CI check for repos that commit
+  build output: [`scripts/check-generated-drift.py`](scripts/check-generated-drift.py)
+  + the `workflow_call` wrapper in `.github/workflows/generated-drift.yml`
+  (consumer wiring: [`scripts/README.md`](scripts/README.md)).
 - **Delegation policy** — task classes × autonomy levels, each gated on a
   verifier: [`delegation-policy.md`](delegation-policy.md).
 - **Decisions:** [`decisions/`](decisions/). **Incidents:** [`incidents/`](incidents/) —
