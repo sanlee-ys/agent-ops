@@ -1,7 +1,7 @@
 # Postmortem: a killed SessionEnd hook wedged cross-machine memory sync — silently, for an hour
 
 **Date:** 2026-07-25 | **Duration:** ~65 min wedged (09:14–10:19), diagnosed and fixed same morning | **Severity:** Low-Medium (no data loss; cross-machine memory sync silently dead, and a dirty shared git index left where an unrelated commit could have swept it up)
-**Status:** Resolved (hook v4 shipped with a regression suite)
+**Status:** Resolved as v4, then reopened and resolved again as v5 — the same root cause in a different window of the same sequence. See [Follow-up](#follow-up-the-same-root-cause-a-second-window-v5).
 
 ## Summary
 
@@ -107,6 +107,60 @@ real bare remote, no mocking of git, since all three of this hook's bugs
 lived in the seam between its file handling and git's actual behaviour,
 which is what a mock would hide. Test 1 reconstructs the incident state
 (stale lock + staged files) and asserts recovery.
+
+## Follow-up: the same root cause, a second window (v5)
+
+Later the same day the hook stranded memory again — three times — with none
+of v4's symptoms. No stale lock. No line in the new failure log. v4's logging
+worked exactly as designed and still said nothing, because **nothing failed**:
+the process was killed outright, in a *different* window of the same git
+sequence.
+
+The sequence is `add` → `commit` → `fetch` → `merge --ff-only` → `push`. v4
+hardened the `add`/`commit` window, because that is the one whose death leaves
+a lock behind. But a kill *after* the commit and before the push leaves no
+wreckage at all — and for observability that is worse, not better. The commit
+sits on the local branch, the working tree is clean, `git log` looks perfectly
+healthy, and the memory silently never reaches the other machine. The
+condition self-heals only by accident: whenever some *later* run produces
+another commit, its push carries the backlog along. That is why all three
+strandings eventually reached the remote and not one of them was ever
+reported.
+
+**v5** applies this postmortem's own Lesson 4 to that second window: at the
+next session start, if the local branch is ahead of its remote, push it. Two
+guards keep a catch-up push from becoming a licence to push whatever it finds
+— it is skipped unless *every* path touched by the unpushed commits lies
+inside the hook's own narrow pathspec, and skipped if the branch has
+**diverged** rather than merely advanced, since a fast-forward is the only
+push it will ever make. A successful catch-up is logged *even though nothing
+failed*, because it is the only evidence that the kill ever happened.
+
+The pathspec guard earned its keep within the hour. While v5 was being built,
+a parallel session in the same clone moved the checkout, and the fix's own
+commit briefly landed on the local `main` branch — precisely the ahead-by-one
+condition the catch-up fires on. The guard refused it: a hook-code change is
+not memory. Without it, the next session start would have silently pushed
+unreviewed code to `main`.
+
+The regression suite grew from 11 checks to 21. The new ones assert against
+the **bare remote** rather than a local tracking ref, because a tracking ref
+can look correct when nothing was actually sent.
+
+### What this changes about the lessons above
+
+Lesson 4 was right, and was under-applied. This postmortem named "prefer
+healing over preventing for teardown-time work" and then healed exactly one
+window — the window that had just bitten. The generalisation it should have
+drawn:
+
+6. **When a teardown-time failure mode turns up in one window, enumerate
+   every window in the sequence.** A kill can land between any two steps of a
+   multi-step external-command sequence. The step whose death is *loudest* is
+   the one you notice and fix; the step whose death is *silent* is the one
+   that keeps costing you, and it will not announce itself next time either.
+   Walk the whole sequence and ask of each step: "if the process dies here,
+   what says so?" Where the answer is "nothing," that is the next incident.
 
 ## What went well
 
