@@ -16,18 +16,18 @@ incident response at a company that isn't going to publish its postmortems.
 
 This repo is neither. It's the operating layer that grew out of actually
 running Claude Code day to day on one machine: a security posture, a
-`PreToolUse` hook that enforces part of it mechanically, six incident
+`PreToolUse` hook that enforces part of it mechanically, seven incident
 postmortems written in blameless format with the failures left in, five
 reusable skills, and the working agreements (how work gets scoped, how
 parallel sessions stay out of each other's way) that the posture and the
 incidents both assume.
 
-Three of the six postmortems are credential exposures — one of them covering
-two separate leaks of the same GitHub PAT — for four exposure events in one
-week, three of them the *same* credential leaking through a *different* tool
-or command shape each time, because the guard that closed the previous gap
-was scoped to the surface someone had thought to enumerate, not to the
-surface that actually existed. That pattern — a mechanical control that's
+Three of those are credential exposures — one covering two separate leaks
+of the same GitHub PAT — for four exposure events in one week, three of
+them the *same* credential leaking through a *different* tool or command
+shape each time, because the guard that closed the previous gap was scoped
+to the surface someone had thought to enumerate, not to the surface that
+actually existed. That pattern — a mechanical control that's
 only as complete as its author's imagination — is the throughline of this
 repo, and it's also the reason the guard's own source is published here
 rather than kept private. Security through "attacker doesn't know the rules"
@@ -62,14 +62,23 @@ nothing and might get the next gap found by a reader instead of a leak.
   and postmortems describing the incidents quote those flags verbatim, so it
   strips heredoc bodies and tokenizes rather than grepping for a flag. Tested
   both ways in `tests/`.
-- **`incidents/`** — six blameless postmortems, each with a 5-whys and a
-  fixes-applied table:
+- **`incidents/`** — seven blameless postmortems. They share a spine —
+  summary, impact, root cause, the fixes actually applied, lessons learned —
+  but the format follows the failure rather than a template: four drive the
+  root cause out through an explicit 5-whys, and the most recent is prose
+  throughout, because the reusable part of it wasn't a cause table but the
+  two plausible fixes that were both wrong.
   - `2026-07-02-plaintext-api-key-exposure.md`
   - `2026-07-02-uncapped-premium-fanout.md`
   - `2026-07-03-github-pat-plaintext-recurrence.md`
   - `2026-07-03-credential-guard-interpreter-bypass.md`
   - `2026-07-04-github-pat-read-grep-leak.md`
   - `2026-07-04-graphify-console-flash-three-surfaces.md`
+  - `2026-07-25-memory-sync-orphaned-index-lock.md` — a `SessionEnd` hook
+    killed mid-git-sequence, twice: first leaving an orphaned `index.lock`
+    that silently wedged every later sync, then — after that window was
+    hardened — killed in a *different* window of the same sequence, where
+    death leaves no wreckage at all and the memory just never arrives.
 - **`skills/`** — five custom skills (`dcb`, `descope-sweep`, `park`,
   `proglog`, `handoff`) published as patterns, with a `README.md` explaining
   what each does and when it fires.
@@ -80,6 +89,13 @@ nothing and might get the next gap found by a reader instead of a leak.
     ADR-001's sync model: this repo is the system of record, written
     public-first, because "redact carefully" is a behavioral rule and this
     repo's whole thesis is that behavioral rules get mechanical backstops.
+  - `ADR-003-delegation-maturity.md` — the plan to close the last point of a
+    self-rated 9/10, in three phases that each trade prose for a mechanical
+    control or a measured number, plus a backlog deliberately gated shut
+    until they land. Kept honest by its own measurements: the 40%
+    rule-surface reduction the draft floated was falsified by the audit it
+    called for — the real figure was ~16%, because the duplication it
+    assumed was mostly not there.
   - `ADR-004-ref-explicit-git-in-shared-clones.md` — automation that commits
     to `HEAD` but pushes a named ref assumes the two are the same object.
     In a clone shared by parallel sessions that assumption is someone else's
