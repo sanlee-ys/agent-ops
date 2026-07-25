@@ -80,6 +80,11 @@ nothing and might get the next gap found by a reader instead of a leak.
     ADR-001's sync model: this repo is the system of record, written
     public-first, because "redact carefully" is a behavioral rule and this
     repo's whole thesis is that behavioral rules get mechanical backstops.
+  - `ADR-004-ref-explicit-git-in-shared-clones.md` — automation that commits
+    to `HEAD` but pushes a named ref assumes the two are the same object.
+    In a clone shared by parallel sessions that assumption is someone else's
+    variable, and when it breaks the wrong way a squash-merge deletes the
+    commit. Target the ref explicitly, or refuse to act.
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned
