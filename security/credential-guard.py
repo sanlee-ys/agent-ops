@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.3 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.4 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -7,6 +7,8 @@
 # matched `$env:NAME` used as a path, not just the drive root.
 # 2.3 (2026-07-26): metadata ops nested in a substitution or group are no longer
 # default-denied, and an SSH `.pub` file is not a private key.
+# 2.4 (2026-07-26): `Get-Variable` naming one variable is a targeted read, not a
+# dump; `Variable:` gets the same drive-root treatment as `Env:`.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, claude-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -213,10 +215,15 @@ def _has_sensitive_path(text):
 #
 # Covers `Get-ChildItem Env:`, `gci env:`, `ls Env:\`, `Get-ChildItem -Path
 # Env:`, `Get-Item Env:*`, and the quoted forms (case-insensitive).
-_PS_ENV_DRIVE = (
+#
+# v2.4 generalises the same shape to `Variable:`, the other PSDrive whose root
+# enumerates values. It was covered by a bare `\b(dir|ls)\s+variable:`, which
+# both missed the real dump `Get-ChildItem Variable:` and blocked the targeted
+# `ls Variable:PATH` — the same two-way error the `Env:` fix corrected.
+_PS_DRIVE_DUMP = (
     r"(?:^|[\s;(])(?:Get-ChildItem|Get-Item|gci|gi|dir|ls)\s+"
     r"(?:-\w+\s+)*"                      # -Path / -LiteralPath / -Force / ...
-    r"['\"]?Env:[\\/]?\*?['\"]?(?![\w$-])"
+    r"['\"]?(?:Env|Variable):[\\/]?\*?['\"]?(?![\w$-])"
 )
 
 ENV_DUMP_PATTERN = re.compile(
@@ -225,11 +232,83 @@ ENV_DUMP_PATTERN = re.compile(
     r"|^\s*set\s*$"                      # bare `set` (not `set -e` / `set -o`)
     r"|\bexport\s+-p\b"                  # `export -p`
     r"|\bdeclare\s+-\w*p\b"              # `declare -p` / `-px`
-    + r"|" + _PS_ENV_DRIVE +             # PowerShell Env: PSDrive dump
-    r"|\bGet-Variable\b(?![^|]*-Name)"   # `Get-Variable` with no -Name = dump
-    r"|\b(dir|ls)\s+variable:",
+    + r"|" + _PS_DRIVE_DUMP,             # PowerShell Env:/Variable: PSDrive dump
     re.IGNORECASE,
 )
+
+# --- `Get-Variable`: dump vs. targeted read ---------------------------------
+# `Get-Variable` prints EVERY shell variable unless a specific one is named, so
+# v2 blocked it via `\bGet-Variable\b(?![^|]*-Name)` — "no `-Name` flag anywhere
+# in the segment, so it must be a dump." That rule was wrong in three directions
+# at once, all confirmed empirically before this change (2026-07-26):
+#
+#   1. It BLOCKED targeted reads. `Get-Variable PATH` names one variable
+#      positionally; there is no `-Name`, so it was read as a dump.
+#   2. It BLOCKED plain text. `\b...\b` matches anywhere, so `git checkout -b
+#      fix/get-variable-fp` and even `rg 'Get-Variable' security/` were blocked
+#      — you could not grep for the rule's own name. (The `git worktree add -b
+#      fix/get-variable-...` form is how this was found: it blocked the branch
+#      being created to fix it.)
+#   3. It ALLOWED real dumps. `-Name` anywhere was an unconditional escape
+#      hatch, so `Get-Variable -Name *` — a full dump — passed. So did the `gv`
+#      alias, which the pattern never named.
+#
+# The posture question this raises is whether narrowing (1) costs protection:
+# the `Variable:` drive holds arbitrary shell variables, so a laundered secret
+# (`$k = $env:ANTHROPIC_API_KEY; Get-Variable k`) is invisible to the name-based
+# CRED_VAR_READ screen. The answer is that the breadth was never buying that
+# protection: `Get-Variable -Name k` — the same read, more idiomatically spelled
+# — was already allowed. It caught laundering only when the caller happened to
+# use positional syntax. Variable-laundering is the copy-launder shape
+# (`cp secret x; cat x`) that posture.md already bounds OUT of scope for exactly
+# this reason, so this makes an existing boundary consistent rather than moving
+# it. See security/README.md, "`Get-Variable`: naming one variable is a read".
+#
+# The rule is now the natural one: a dump is an invocation that names no
+# specific variable, or names a wildcard.
+_GET_VARIABLE = re.compile(r"(?:^|[\s;(])(?:Get-Variable|gv)(?![\w-])",
+                           re.IGNORECASE)
+# Flags whose next token is the flag's own value, not a variable name.
+_GV_VALUE_FLAGS = {
+    "-scope", "-erroraction", "-errorvariable", "-warningaction",
+    "-warningvariable", "-informationaction", "-informationvariable",
+    "-outvariable", "-outbuffer", "-pipelinevariable",
+}
+# Flags whose value IS the variable name (or a pattern for it).
+_GV_NAME_FLAGS = {"-name", "-include", "-exclude"}
+
+
+def _is_wildcard_name(token):
+    """A variable name that globs — `*`, `AWS_*`, `-Name '*'` — enumerates many
+    variables, so it is a dump however it was spelled."""
+    name = token.strip().strip("'\"")
+    return not name or "*" in name or "?" in name
+
+
+def _get_variable_is_dump(seg):
+    """True if a `Get-Variable` in `seg` prints every variable rather than a
+    named one. Walks the tokens after the cmdlet: the first token that is a
+    variable name (positional, or the value of -Name/-Include/-Exclude) decides
+    it; switches and flag values are skipped. No name at all = full dump."""
+    m = _GET_VARIABLE.search(seg)
+    if not m:
+        return False
+    toks = seg[m.end():].split()
+    i = 0
+    while i < len(toks):
+        tok = toks[i]
+        low = tok.lower()
+        if low in _GV_NAME_FLAGS:
+            # `-Name` with nothing after it is a malformed dump, not a read.
+            return i + 1 >= len(toks) or _is_wildcard_name(toks[i + 1])
+        if low in _GV_VALUE_FLAGS:
+            i += 2                           # flag consumes its value
+            continue
+        if tok.startswith("-"):
+            i += 1                           # a switch (-ValueOnly, -Force)
+            continue
+        return _is_wildcard_name(tok)        # first positional = the name
+    return True                              # nothing named = every variable
 
 # A CLI subcommand that prints a registered server's stored env (incl. secrets)
 # by design — pure command-shape, no file/path involved (the 07-03 addendum).
@@ -265,7 +344,7 @@ CRED_VAR_READ = re.compile(
     # `$env:`-as-a-path false positive forced us to tighten (_PS_ENV_DRIVE).
     # Without this line that tightening would have opened a real hole.
     + r"|(?:Get-Item|Get-Content|Get-ChildItem|gi|gc|gci|dir|ls)\s+"
-    + r"(?:-\w+\s+)*Env:\\?" + _CRED_VAR
+    + r"(?:-\w+\s+)*(?:Env|Variable):\\?" + _CRED_VAR
     # herestring feeding a credential var to a command's stdin — round 1, M2.
     + r"|<<<\s*['\"]?\$(?:\{)?(?:env:)?" + _CRED_VAR,
     re.IGNORECASE,
@@ -827,7 +906,7 @@ def main():
             # blanking and are still scanned.
             scan = _strip_prose_flag_values(seg)
             if not _GIT_MSG_CMD.match(scan):
-                if ENV_DUMP_PATTERN.search(scan):
+                if ENV_DUMP_PATTERN.search(scan) or _get_variable_is_dump(scan):
                     block(_MSG_ENV)
                 if CRED_VAR_READ.search(scan):
                     block(_MSG_VAR)
