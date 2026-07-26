@@ -123,7 +123,12 @@ branch on the remote. Everything below follows from that one fact.
   asked about before it expands, not absorbed silently.
 - **Branch from a freshly-pulled main, merge fast, delete the branch on
   merge.** The longer a branch lives, the more main moves out from under it,
-  and the more painful the eventual merge.
+  and the more painful the eventual merge. "Delete on merge" is two jobs, not
+  one: `delete_branch_on_merge` handles the remote ref, and nothing handles the
+  local branch — under squash-merge `git branch -d` refuses it as unmerged, so
+  it survives in a clone that looks clean from GitHub. The sweep, and the rules
+  that make a forced delete safe, are in
+  [`conventions/branch-hygiene.md`](conventions/branch-hygiene.md).
 - **Parallelize by independent file, not by task.** Two sessions can safely
   work side by side if they touch disjoint files. They cannot safely both
   write to a generated or aggregated file — a build output, an index, a

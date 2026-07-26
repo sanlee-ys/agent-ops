@@ -13,7 +13,9 @@ Claude operating layer (see
   `python scripts/sync-shared-blocks.py [--check]`. A convention with no marker
   block is claude-ops-local, e.g.
   [`agent-success-signals.md`](conventions/agent-success-signals.md) — ask what
-  an agent tool's green is actually measuring before trusting it.
+  an agent tool's green is actually measuring before trusting it — and
+  [`branch-hygiene.md`](conventions/branch-hygiene.md) — `delete_branch_on_merge`
+  cleans the remote ref only; sweep the local branches at session close.
 - **Delegation policy** — task classes × autonomy levels, each gated on a
   verifier: [`delegation-policy.md`](delegation-policy.md).
 - **Decisions:** [`decisions/`](decisions/). **Incidents:** [`incidents/`](incidents/).
