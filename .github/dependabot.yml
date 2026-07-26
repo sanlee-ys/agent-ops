@@ -1,0 +1,22 @@
+# Dependabot: automated dependency-update PRs.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
+#
+# github-actions only. This repo's Python is stdlib-only by design (the guards
+# and their test suite install nothing), so there is no manifest for the `pip`
+# ecosystem to track — unlike the architecture repo, whose config carries both.
+#
+# Added after the actions here were hand-carried through two bumps in one day
+# (checkout v4 -> v7, setup-python v5 -> v6 -> v7, PRs #29 and #30) while
+# architecture's Dependabot did the same work on its own.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        update-types: ["minor", "patch"]
