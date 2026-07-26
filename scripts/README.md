@@ -1,5 +1,36 @@
 # scripts
 
+## herdr-awareness-check — does herdr still understand Claude Code?
+
+Herdr decides whether an agent is working or idle by regex-matching Claude
+Code's *cosmetics* — a braille spinner in the terminal title, literal strings
+like `esc to interrupt`. Nothing Claude Code reports is authoritative
+([ADR-005](../decisions/ADR-005-herdr-persistence-not-agent-awareness.md)), so
+the two sides can drift apart. When they do, herdr does not error. It reports a
+confident, wrong `idle`.
+
+This compares Claude Code's version against the cached detection manifest and
+the fetch's own health, and says so when they diverge. Install and login-hook
+instructions are in the script header:
+
+```
+install -m 755 scripts/herdr-awareness-check ~/.local/bin/
+```
+
+Two design points worth keeping:
+
+- **On drift it deliberately does not update its baseline**, so the warning
+  persists until the pairing has been verified by hand and explicitly acked with
+  `--ack`. A check that silently accepts the new state on first sight is a check
+  that fires once and then lies.
+- **Exit 3 means "not applicable"**, distinct from exit 2 "fault", so the login
+  hook stays quiet on a host where herdr was never installed rather than
+  training you to ignore it.
+
+It compares the *inputs* to detection and cannot prove detection is correct.
+Ground truth needs a functional probe driving a pane through a known
+working→idle cycle. Not built.
+
 ## redline-guard.py — the publication boundary, enforced
 
 This repo is public **and canonical** ([ADR-002](../decisions/ADR-002-public-first-canonicality.md)):
