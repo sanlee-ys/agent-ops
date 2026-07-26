@@ -560,6 +560,148 @@ class TestEnvDriveFalsePositive(GuardTestCase):
             self.assertBlocked(*self.bash(cmd), msg=cmd)
 
 
+class TestNestedMetadataFalsePositive(GuardTestCase):
+    """2026-07-26 confirmed false positive: a metadata-only check on a
+    credential-shaped path, blocked because of WHERE it sat in the command.
+
+    Repro: `"ed25519: $(Test-Path $HOME\\.ssh\\id_ed25519.pub)"` was blocked with
+    the path message — whose own remediation text recommends Test-Path. Two
+    independent defects produced that contradiction:
+
+      1. `.pub` is the PUBLIC half of an SSH keypair and matched the private-key
+         pattern. Public keys are not secrets.
+      2. The metadata exemption was POSITIONAL. v2 classified a segment by its
+         leading command, so bare `Test-Path <path>` passed, but wrapped in a
+         substitution the leading token was a quoted string and the segment fell
+         to default-deny. (Confirmed by probe: the bare form already passed, so
+         the exemption existed and was simply unreachable here.)
+
+    v2.3 classifies each nested command unit on its own terms. The blocked cases
+    below are the guard rails: recursion must not let a reader hide inside a
+    substitution, and clearing a metadata unit must not launder a path that is
+    then handed to a real reader.
+    """
+
+    def test_metadata_ops_on_credential_paths_allowed(self):
+        for cmd in [
+            # the exact reported repro
+            r'"ed25519: $(Test-Path $HOME\.ssh\id_ed25519.pub)";'
+            r' "rsa: $(Test-Path $HOME\.ssh\id_rsa.pub)";'
+            r' "ecdsa: $(Test-Path $HOME\.ssh\id_ecdsa.pub)"',
+            r"Test-Path $HOME\.ssh\id_ed25519.pub",
+            # ...and the same shapes on the PRIVATE key: a metadata op is safe
+            # regardless of the exemption in (1), which is the point of (2).
+            r'"$(Test-Path $HOME\.ssh\id_ed25519)"',
+            r'"ed25519: $(Test-Path $HOME\.ssh\id_ed25519)"',
+            "Get-Item ~/.ssh/id_rsa",
+            "if (Test-Path ~/.ssh/id_rsa) { 'present' }",
+            "[bool](Test-Path ~/.ssh/id_ed25519)",
+            "Write-Output (Test-Path /home/user/.env)",
+            "Test-Path ('$HOME/.env')",
+        ]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+        for cmd in [
+            "stat ~/.ssh/id_ed25519",
+            'echo "present: $(test -f /home/user/.env && echo yes)"',
+            "test -f ~/.ssh/id_rsa",
+        ]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+    def test_content_reads_still_blocked(self):
+        for cmd in [
+            "Get-Content ~/.ssh/id_ed25519",
+            r"type $HOME\.ssh\id_ecdsa",
+            "Get-Content ~/.ssh/id_ed25519.pub.bak",
+            r'"$(Get-Content $HOME\.ssh\id_ed25519)"',
+            "if (Test-Path ~/.ssh/id_rsa) { Get-Content ~/.ssh/id_rsa }",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        for cmd in [
+            "cat ~/.ssh/id_rsa",
+            'echo "key: $(cat ~/.ssh/id_rsa)"',
+            "echo `cat /home/user/.env`",
+            "echo $(base64 ~/.ssh/id_ed25519)",
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+    def test_cleared_unit_must_not_launder_a_path_to_a_reader(self):
+        # The property that keeps unit-recursion honest: a metadata unit yields
+        # a boolean, but `echo`/`ls`/a bare quoted path yield the path TEXT, so
+        # the enclosing command is still scrutinised. Blanking must not hide the
+        # path from a reader that receives it.
+        for cmd in [
+            "cat $(echo ~/.ssh/id_rsa)",
+            "xxd $(echo /home/user/.env)",
+            "base64 `echo ~/.claude.json`",
+            "cat $(ls ~/.ssh/id_rsa)",
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+        self.assertBlocked(*self.ps(
+            '[System.IO.File]::ReadAllText("$HOME/.claude.json")'))
+        # ...but the same handoff into a NON-reader stays allowed.
+        self.assertAllowed(*self.bash("echo $(ls ~/.ssh/id_rsa)"))
+
+    def test_reader_chained_behind_a_metadata_op_inside_a_unit(self):
+        # Found by an adversarial pass on this very fix, before it shipped: a
+        # unit body is a command LIST. Classifying it by its leading command
+        # alone let a reader ride in behind a metadata op — and the top-level
+        # splitter can't catch it, because it leaves separators inside quotes
+        # alone, which is exactly where this shape lives.
+        for cmd in [
+            r'"$(Test-Path ~/.ssh/id_rsa; cat ~/.ssh/id_rsa)"',
+            r'"$(Test-Path /home/user/.env && cat /home/user/.env)"',
+            r'"$(Test-Path ~/.env; Get-Content ~/.env)"',
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        self.assertBlocked(*self.bash(
+            "(test -f /home/user/.env; cat /home/user/.env)"))
+        # the metadata-only list stays allowed
+        self.assertAllowed(*self.ps(
+            r'"$(Test-Path ~/.ssh/id_rsa; Test-Path ~/.ssh/id_ed25519)"'))
+
+    def test_paren_recursion_does_not_split_quoted_code(self):
+        # A paren inside a quoted string is literal text, not a command unit —
+        # diving into it would tear an interpreter one-liner into fragments that
+        # each look harmless.
+        self.assertBlocked(*self.bash(
+            "python3 -c \"print(open('/home/user/.claude.json').read())\""))
+        self.assertBlocked(*self.bash(
+            "perl -e 'print `cat /home/user/.env`'"))
+
+
+class TestPublicKeyNotASecret(GuardTestCase):
+    """An SSH `.pub` file is the public half of a keypair: routinely printed,
+    pasted into GitHub, appended to authorized_keys. Blocking it is a pure false
+    positive, and one that teaches reaching for MASK-OK on a non-secret."""
+
+    def test_public_keys_allowed(self):
+        for path in ["/home/user/.ssh/id_ed25519.pub",
+                     "/home/user/.ssh/id_rsa.pub",
+                     "/home/user/.ssh/id_ecdsa.pub"]:
+            self.assertAllowed("Read", {"file_path": path}, msg=path)
+        for cmd in ["cat ~/.ssh/id_ed25519.pub",
+                    "ssh-keygen -lf ~/.ssh/id_rsa.pub",
+                    "cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys"]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+        # `.pub` is unambiguous by convention, so unlike `.pem` it is exempt
+        # even when the stem is key-ish.
+        self.assertAllowed(*self.bash("cat ~/.ssh/deploy-key.pub"))
+
+    def test_private_halves_still_blocked(self):
+        for path in ["/home/user/.ssh/id_ed25519",
+                     "/home/user/.ssh/id_rsa",
+                     "/home/user/.ssh/id_ecdsa",
+                     "/home/user/.ssh/id_ed25519_work"]:
+            self.assertBlocked("Read", {"file_path": path}, msg=path)
+        for cmd in ["cat ~/.ssh/id_ed25519", "xxd ~/.ssh/id_rsa"]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+        # a `.pub` mention must not launder the private read beside it
+        self.assertBlocked(*self.bash("cat ~/.ssh/id_ed25519.pub ~/.ssh/id_ed25519"))
+        # the exemption is anchored to the whole basename, not a substring
+        self.assertBlocked("Read", {"file_path": "/home/user/.ssh/id_rsa.pub.bak"})
+        self.assertBlocked("Read", {"file_path": "/home/user/.ssh/id_rsa_pub"})
+
+
 class TestFalsePositives(GuardTestCase):
     """The discipline that killed v1's first over-broad draft: routine work
     that merely NAMES a sensitive path, or checks its existence, must pass."""

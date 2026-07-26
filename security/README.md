@@ -65,8 +65,10 @@ named — a tool the matcher doesn't route to is a tool the guard never sees.
    `tail`/`xxd`/`base64`/`strings`/`jq`/`awk`/…, interpreter one-liners
    (`python -c open().read()`, `node`, `perl`, PowerShell `[IO.File]::…`),
    `< file` redirection into a reader, the `Read` tool, content-mode `Grep`, or
-   any other tool's path field. Anything whose leading command isn't on the
-   safe allowlist and that names a sensitive path is denied.
+   any other tool's path field. Anything that names a sensitive path and whose
+   governing command isn't on the safe allowlist is denied — "governing" being
+   per nested command unit as of v2.3, so a metadata check is safe wherever it
+   sits (see "Metadata operations, wherever they sit").
 4. **`claude mcp get <name>`** — prints a registered server's stored env vars
    (secrets) by design. Use `claude mcp list` to check status without values.
 
@@ -77,7 +79,8 @@ SSH and other private keys (`id_rsa`/`id_ed25519`/`id_ecdsa`/`*.pem`/`*.key`/
 (`.npmrc`, `.pypirc`, `.netrc`, `.docker/config.json`), infra
 (`.kube/config`, `.pgpass`, `*.tfstate`), `.git-credentials`, the GitHub CLI
 `hosts.yml`, shell history, and `/proc/*/environ`. Non-secret dotenv templates
-(`.env.example`, `.env.sample`, …) are explicitly allowed.
+(`.env.example`, `.env.sample`, …), public certificates, and SSH **`.pub`**
+public keys are explicitly allowed — see "`.pub` is not a private key" below.
 
 ### What it deliberately does *not* block
 
@@ -192,6 +195,58 @@ exposed to this class — they are whole-segment anchored or flag-bearing, so a
 literal `env` inside a path or argument (`.venv/`, `env/`, `--env-file`,
 `/usr/bin/env`, `conda env list`) never matched. That's now asserted rather than
 assumed, so a future widening of those rules fails a test on purpose.
+
+## Metadata operations, wherever they sit (v2.3)
+
+The guard has always recommended a metadata command as the safe alternative to a
+read — its own block message says so. Until v2.3 that advice could be wrong,
+because the exemption was **positional**: a segment was classified by its
+*leading* command, so `Test-Path ~/.ssh/id_ed25519` passed, but the same call
+wrapped in a substitution did not — the leading token was then a quoted string,
+which is not a safe command, so the segment fell to default-deny.
+
+The result was a self-contradicting block (confirmed false positive, 2026-07-26):
+
+```
+"ed25519: $(Test-Path $HOME\.ssh\id_ed25519.pub)"
+  -> blocked, advising "use a metadata command (ls / stat / Test-Path)"
+```
+
+v2.3 classifies each **nested command unit** on its own terms — `$( )`, `` ` ` ``,
+`<( )`, and bare `( )` groups — and then judges the outer command with those
+units blanked. A metadata-only operation is therefore safe wherever it appears,
+and these all pass now:
+
+```
+"$(Test-Path $HOME\.ssh\id_ed25519)"      if (Test-Path ~/.ssh/id_rsa) { ... }
+[bool](Test-Path ~/.ssh/id_rsa)           Write-Output (Test-Path ~/.env)
+```
+
+Two properties keep the recursion from becoming a laundering hole, and both are
+pinned in `TestNestedMetadataFalsePositive`:
+
+| Shape | Why it still blocks |
+| --- | --- |
+| `cat $(echo ~/.ssh/id_rsa)` | Clearing a unit must not hide the path from a reader that **receives** it. Only a unit whose output is a bare value (`Test-Path`, `test`) stops the outer command from being scrutinised; `echo`/`ls`/a bare quoted path hand the path text onward, so the outer command is still judged. |
+| `"$(Test-Path ~/.ssh/id_rsa; cat ~/.ssh/id_rsa)"` | A unit body is a command **list**, so it is re-split before classifying — otherwise a reader rides in behind the metadata op. The top-level splitter can't catch this: it leaves separators inside quotes alone, which is where the shape lives. |
+
+A paren inside a *quoted* string stays literal text and is not treated as a
+unit, so `python3 -c "print(open('~/.claude.json').read())"` is not torn into
+fragments that each look harmless.
+
+### `.pub` is not a private key
+
+The same report surfaced a second, independent defect: `id_ed25519.pub` matched
+the private-key pattern. A `.pub` file is the **public** half of a keypair —
+printed, pasted into GitHub, appended to `authorized_keys` as a matter of
+routine. Blocking it was a pure false positive, and the kind that teaches
+reaching for `MASK-OK` on a non-secret, which erodes the guard.
+
+`.pub` is now exempt. Unlike `.pem` — ambiguous between a certificate and a
+private key, hence the `key`/`priv` guard on the cert exemption — `.pub` is
+unambiguous by convention, so `deploy-key.pub` is exempt too. The exemption is
+still anchored to the **whole basename**: `id_rsa.pub.bak` does not qualify, the
+same discipline that keeps `ca-key.pem` out of the certificate exemption.
 
 ## Installing it (standalone)
 

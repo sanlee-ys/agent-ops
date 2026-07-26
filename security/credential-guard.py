@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-# hook-version: 2.2 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.3 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
 # 2.2 (2026-07-26): `Env:` PSDrive false-positive fix — the env-dump pattern
 # matched `$env:NAME` used as a path, not just the drive root.
+# 2.3 (2026-07-26): metadata ops nested in a substitution or group are no longer
+# default-denied, and an SSH `.pub` file is not a private key.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, claude-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -38,7 +40,7 @@ unless this is a recognised *safe* operation?" Concretely:
      line, so `files_with_matches` / `count` stay allowed (they are the
      recommended existence check).
   3. Bash / PowerShell: a segment that names a sensitive path is blocked unless
-     its leading command is on a small SAFE allowlist (metadata/existence,
+     the command governing it is on a small SAFE allowlist (metadata/existence,
      pure file management, string/echo, and version control). So `xxd`, `jq`,
      `base64`, `python3 -c`, and any unknown reader are denied by *default*;
      `git commit -m "... .env ..."`, `echo`, heredoc prose, `ls`, `rm`,
@@ -46,7 +48,9 @@ unless this is a recognised *safe* operation?" Concretely:
      first over-broad draft violated (it blocked its own commit message for
      quoting the example); requiring the sensitive path to sit in an actual
      command position, and treating VCS/echo/heredoc as safe, keeps prose
-     committable.
+     committable. "Governing" is per nested command unit as of v2.3: a
+     substitution or paren group is classified on its own leading command, so a
+     metadata check is safe wherever it sits (see "Nested command units").
   4. Bulk and targeted environment reads: `env`/`printenv`/`set`/`declare -p`/
      the PowerShell `Env:` dumps, AND a single credential-shaped variable being
      printed (`echo $ANTHROPIC_API_KEY`, `printenv GITHUB_TOKEN`,
@@ -100,8 +104,15 @@ SENSITIVE_FILE_PATTERN = re.compile(
     r"|credentials[\w.-]*\.json"
     r"|application_default_credentials\.json"
     r"|access_tokens\.db|credentials\.db"
-    # Private keys / keystores.
-    r"|id_(rsa|ed25519|ecdsa|dsa)\w*"
+    # Private keys / keystores. The trailing `.pub...` is matched so the
+    # exemption below can SEE it — `\w*` stops at the dot, so without this the
+    # matched text for `id_ed25519.pub` was the bare `id_ed25519` and the public
+    # half was indistinguishable from the private one (2026-07-26 false
+    # positive). It runs over the WHOLE remaining suffix, not just `.pub`, so
+    # PUBLIC_KEY still judges a complete basename: `id_rsa.pub.bak` must not be
+    # exempted by a name that merely starts like a public key (the anchoring
+    # discipline PUBLIC_CERT learned in red-team round 2, H1).
+    r"|id_(rsa|ed25519|ecdsa|dsa)\w*(\.pub[\w.-]*)?"
     r"|[\w.-]+\.(pem|key|ppk|p12|pfx|jks)"
     # Cloud CLIs.
     r"|\.aws[/\\](credentials|config)(?![\w.-])"
@@ -145,6 +156,14 @@ PUBLIC_CERT = re.compile(
     r"\d*\.(pem|crt|cer)$", re.IGNORECASE  # \d*: certbot's cert1.pem/fullchain2.pem
 )
 _KEYISH = re.compile(r"key|priv", re.IGNORECASE)
+# An OpenSSH `.pub` file is the PUBLIC half of a keypair. It is not a secret —
+# it is routinely printed, pasted into GitHub, and appended to authorized_keys —
+# so blocking it is a pure false positive, and one that teaches the reflex of
+# reaching for MASK-OK on a non-secret (2026-07-26). Unlike `.pem` (ambiguous
+# between a cert and a private key, hence the _KEYISH guard on PUBLIC_CERT),
+# `.pub` is unambiguous by convention, so it is exempt even when the stem is
+# key-ish: `deploy-key.pub` is still a public key.
+PUBLIC_KEY = re.compile(r"^[\w.-]+\.pub$", re.IGNORECASE)
 
 
 def _basename(matched):
@@ -152,9 +171,12 @@ def _basename(matched):
 
 
 def _match_exempt(matched):
-    """A sensitive-pattern hit that's actually a public template/cert — judged
-    on the basename, and never when the name looks like a private key."""
+    """A sensitive-pattern hit that's actually a public key/template/cert —
+    judged on the basename, and (except for `.pub`, see above) never when the
+    name looks like a private key."""
     name = _basename(matched)
+    if PUBLIC_KEY.match(name):
+        return True
     if _KEYISH.search(name):
         return False
     return bool(ENV_TEMPLATE.match(name) or PUBLIC_CERT.match(name))
@@ -345,7 +367,115 @@ GREP_SAFE_FLAG = re.compile(
 # Prefixes that wrap a command without changing what it does.
 _WRAPPERS = {"sudo", "command", "time", "nice", "nohup", "exec", "builtin",
              "\\", "then", "do", "else", "elif"}
-_SUBSTITUTION = re.compile(r"\$\(|`|<\(")  # command / process substitution
+
+# --- Nested command units (v2.3) -------------------------------------------
+# 2026-07-26 false positive: `"ed25519: $(Test-Path $HOME\.ssh\id_ed25519.pub)"`
+# was blocked with a message recommending Test-Path. Both halves of that
+# contradiction were real bugs. The `.pub` half is fixed by PUBLIC_KEY above;
+# this is the other half.
+#
+# v2 classified a segment by its LEADING command only, and treated the mere
+# PRESENCE of `$(` as disqualifying. So the metadata exemption was positional:
+# `Test-Path ~/.ssh/id_rsa` reached it, but `"$(Test-Path ~/.ssh/id_rsa)"` and
+# `if (Test-Path ~/.ssh/id_rsa)` did not — the leading token was a quoted string
+# or `if`, neither of which is a safe command, so both fell to default-deny.
+#
+# v2.3 classifies every nested command unit on its own terms instead: each
+# substitution / group body is recursively classified, and the outer command is
+# then judged with those bodies blanked out. A metadata-only operation is
+# therefore permitted wherever it appears, while a content read anywhere inside
+# still denies the whole segment.
+#
+# The property that keeps this from becoming a laundering hole: blanking a unit
+# must not hide a path from a reader that RECEIVES it. `cat $(echo ~/.ssh/id_rsa)`
+# has no literal path in its outer text, but `echo` emits the path for `cat` to
+# read. So a cleared unit only stops the outer command from being scrutinised
+# when its output is a bare value — a boolean or a status — rather than the path
+# text itself (_VALUE_ONLY below).
+
+
+def _balanced(seg, start):
+    """Scan from `start` (just past an opening paren) to its match. Returns
+    (index after the closing paren, body). An unbalanced group — which happens
+    because _split_segments cuts on `|`/`&` without regard for parens — runs to
+    end of segment, the conservative direction (more text gets classified)."""
+    depth, j, n = 1, start, len(seg)
+    while j < n and depth:
+        if seg[j] == "(":
+            depth += 1
+        elif seg[j] == ")":
+            depth -= 1
+        j += 1
+    return j, (seg[start:j - 1] if depth == 0 else seg[start:])
+
+
+def _sub_units(seg):
+    """(start, end, body) for each command unit nested in `seg`.
+
+    `$( )`, `<( )` and backticks are recognised inside double quotes as well as
+    outside, because both shells expand them there — that is exactly the
+    reported shape. A bare `( )` group is a unit only OUTSIDE quotes: a paren
+    inside a quoted string is literal text, and diving into it would tear
+    `python3 -c "print(open('~/.claude.json').read())"` apart into fragments
+    that individually look harmless."""
+    units, i, n, quote = [], 0, len(seg), None
+    while i < n:
+        c = seg[i]
+        if c == "\\" and quote != "'" and i + 1 < n:
+            i += 2                      # escaped char, same rule as the splitter
+            continue
+        if quote:
+            if c == quote:
+                quote = None
+                i += 1
+                continue
+            if quote == "'":
+                i += 1                  # single quotes suppress all expansion
+                continue
+            # inside "..." — fall through; $( and ` still expand
+        elif c in ("'", '"'):
+            quote = c
+            i += 1
+            continue
+        if seg.startswith("$(", i) or seg.startswith("<(", i):
+            j, body = _balanced(seg, i + 2)
+            units.append((i, j, body))
+            i = j
+        elif c == "`":
+            j = seg.find("`", i + 1)
+            end = n if j == -1 else j + 1
+            units.append((i, end, seg[i + 1:n if j == -1 else j]))
+            i = end
+        elif c == "(" and not quote:
+            j, body = _balanced(seg, i + 1)
+            units.append((i, j, body))
+            i = j
+        else:
+            i += 1
+    return units
+
+
+def _blank_units(seg, units):
+    """`seg` with every nested unit removed, leaving the outer command alone."""
+    for start, end, _ in reversed(units):
+        seg = seg[:start] + seg[end:]
+    return seg
+
+
+# Sub-unit commands whose output is a bare VALUE — a boolean or an exit status,
+# never the path text and never the file content. Only these let a cleared unit
+# stop the enclosing command from being scrutinised. Everything else (`ls`,
+# `echo`, `realpath`, or a unit that is just a quoted path) is assumed to hand
+# the path onward, so `cat $(echo ~/.ssh/id_rsa)` and
+# `[IO.File]::ReadAllText("$HOME/.claude.json")` still reach default-deny.
+_VALUE_ONLY = {"test-path", "test", "[", "[[", "true", "false", ":"}
+
+# An outer that is nothing but one quoted string runs no reader: PowerShell
+# emits the literal, and a shell can only fail to exec it. This is what makes
+# `"ed25519: $(Test-Path ...)"` inert once its substitution has been cleared.
+_WHOLLY_QUOTED = re.compile(
+    r"""^\s*(?:'[^']*'|"[^"\\]*(?:\\.[^"\\]*)*")\s*$"""
+)
 
 # git subcommands that never print file/object content (they only NAME paths,
 # e.g. in a `-m` message) vs. those that do. A git segment naming a sensitive
@@ -480,28 +610,58 @@ _TAR_TO_STDOUT = re.compile(
 )
 
 
-def _reads_sensitive_path(seg):
-    """True if the segment reads a sensitive target's content (default-deny)."""
+def _reads_sensitive_path(seg, _depth=0):
+    """True if the segment reads a sensitive target's content (default-deny).
+
+    Nested units are classified first, then the outer command is judged with
+    them blanked — so a metadata-only operation is safe wherever it sits, and a
+    content read anywhere inside denies the whole segment."""
     if not _has_sensitive_path(seg):
         return False
-    lead = _leading_command(seg)
+
+    # 1. A reader nested anywhere inside denies the segment outright. A unit
+    #    body is a command LIST, so it is re-split before classifying: without
+    #    that, `"$(Test-Path ~/.ssh/id_rsa; cat ~/.ssh/id_rsa)"` would be judged
+    #    on `Test-Path` alone and the chained reader would ride in behind it.
+    #    (The top-level splitter can't do this for us — it leaves separators
+    #    inside quotes alone, which is where this shape lives.)
+    units = _sub_units(seg)
+    hands_path_outward = False
+    for _, _, body in units:
+        for part in _split_segments(body):
+            if not part.strip():
+                continue
+            if _depth < 8 and _reads_sensitive_path(part, _depth + 1):
+                return True
+            if (_has_sensitive_path(part)
+                    and _leading_command(part) not in _VALUE_ONLY):
+                hands_path_outward = True
+
+    # 2. Judge the outer command with those units removed.
+    outer = _blank_units(seg, units)
+    if _WHOLLY_QUOTED.match(outer):
+        return False                                   # a literal, not a command
+    if not _has_sensitive_path(outer) and not hands_path_outward:
+        return False                                   # every path sat in a
+        # cleared unit that emits only a boolean — `if (Test-Path ~/.ssh/id_rsa)`
+    lead = _leading_command(outer)
     if lead in GREP_FAMILY:
-        return not GREP_SAFE_FLAG.search(seg)          # content grep = read
+        return not GREP_SAFE_FLAG.search(outer)        # content grep = read
     if lead == "tar":
-        return bool(_TAR_TO_STDOUT.search(seg) or _SUBSTITUTION.search(seg))
+        return bool(_TAR_TO_STDOUT.search(outer))
     if lead == "git":
         # git prints object/file content via show/cat-file/grep/diff/config -f,
         # `-c core.pager=cat`, or `log -p`. commit/add/etc. only name the path.
-        if _SUBSTITUTION.search(seg) or _GIT_DANGER_FLAG.search(seg):
+        if _GIT_DANGER_FLAG.search(outer):
             return True
-        sub = _git_subcommand(seg)
+        sub = _git_subcommand(outer)
         if sub in _GIT_READ_SUB:
             return True
         return sub not in _GIT_SAFE_SUB                # unknown subcommand → deny
     if lead in SAFE_COMMANDS:
-        if lead == "find" and re.search(r"-exec(dir)?\b", seg):
+        if lead == "find" and re.search(r"-exec(dir)?\b", outer):
             return True                                # find -exec <reader>
-        return bool(_SUBSTITUTION.search(seg))         # echo $(cat secret) etc.
+        return False
     return True                                        # unknown cmd → default deny
 
 
