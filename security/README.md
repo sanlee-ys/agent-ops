@@ -89,8 +89,10 @@ attacker — anyone with local code execution has already won (see `posture.md`)
 So a handful of shapes are left to the permission allowlist (no `$(...)`, no
 arbitrary shell control-flow) and to Layer 4 (rotate any credential that
 touches a transcript), not to this hook: copy-then-read laundering (`cp secret
-x; cat x`), indirection through a script the guard can't see into (`bash
-leak.sh`), wildcard/variable-assembled path names (`cat ~/.claud*.json`), and
+x; cat x`), **variable laundering** (`$k = $env:SECRET; Get-Variable k` — the
+same shape one container down, see the `Get-Variable` section below),
+indirection through a script the guard can't see into (`bash leak.sh`),
+wildcard/variable-assembled path names (`cat ~/.claud*.json`), and
 `MASK-OK` forgery. These are asserted as *allowed* in the test suite so the
 boundary is explicit — a well-meaning future change that blocks them (and
 starts causing false positives) fails a test on purpose.
@@ -247,6 +249,63 @@ private key, hence the `key`/`priv` guard on the cert exemption — `.pub` is
 unambiguous by convention, so `deploy-key.pub` is exempt too. The exemption is
 still anchored to the **whole basename**: `id_rsa.pub.bak` does not qualify, the
 same discipline that keeps `ca-key.pem` out of the certificate exemption.
+
+## `Get-Variable`: naming one variable is a read (v2.4)
+
+`Get-Variable` prints every shell variable unless you ask for a specific one, so
+v2 blocked it with `\bGet-Variable\b(?![^|]*-Name)` — *"no `-Name` flag anywhere
+in the segment, so it must be a dump."* Measured against real commands, that
+rule was wrong in three directions at once:
+
+| Command | v2 | Correct |
+| --- | --- | --- |
+| `Get-Variable PATH` | blocked | allow — names one variable, positionally |
+| `git checkout -b fix/get-variable-fp` | blocked | allow — it's a branch name |
+| `rg 'Get-Variable' security/` | blocked | allow — you couldn't grep for the rule's own name |
+| `Get-Variable -Name *` | **allowed** | block — `-Name` was an unconditional escape hatch, so a wildcard dump walked through it |
+| `gv` | **allowed** | block — the alias was never named |
+
+The `\b...\b` anchors matched the literal text anywhere in the segment rather
+than in a command position — the same mistake as the v2.2 `Env:` bug one section
+up. This one was found when the guard blocked the `git worktree add -b
+fix/get-variable-...` that was creating the branch to fix it.
+
+### The posture call
+
+Narrowing row 1 raises a real question. The `Variable:` drive holds arbitrary
+shell variables, so a laundered secret is invisible to `CRED_VAR_READ`, which
+screens by *name*:
+
+```powershell
+$k = $env:ANTHROPIC_API_KEY   # the secret is now in a variable called `k`
+Get-Variable k                # ...and `k` looks nothing like a credential
+```
+
+Blocking every unnamed `Get-Variable` did catch that. But it was never buying
+the protection it appeared to: **`Get-Variable -Name k` — the same read, more
+idiomatically spelled — was already allowed.** The rule caught laundering only
+when the caller happened to use positional syntax, which is a coin flip, not a
+control.
+
+So the decision is to narrow, on the grounds that this makes an existing
+boundary consistent rather than moving it. Variable laundering *is*
+copy-then-read laundering (`cp secret x; cat x`) one container down, and that is
+already explicitly out of scope for exactly this reason: the threat model is
+non-adversarial agent mistakes, and an agent that assigns a secret to `$k` and
+prints `$k` is not the failure this hook exists to stop. It is now listed with
+the other bounded-out shapes above, and asserted as allowed in the suite, so the
+boundary is a decision on the record instead of an accident of regex breadth.
+
+The rule is now the natural one — **a dump is an invocation that names no
+specific variable, or names a wildcard** — implemented as a token walk
+(`_get_variable_is_dump`) rather than a lookahead, so `-Scope Global` (a flag
+value) and `-ValueOnly PATH` (a switch plus a name) are read correctly. Closing
+rows 4 and 5 means the change removes two false positives *and* two real gaps.
+
+`Variable:` also gets the drive-root treatment `Env:` got in v2.2 (they share
+`_PS_DRIVE_DUMP` now): `Get-ChildItem Variable:` blocks — it didn't before, since
+only `dir`/`ls` were named — while `ls Variable:PATH` is a targeted read, and
+`ls Variable:ANTHROPIC_API_KEY` still blocks on the credential-name screen.
 
 ## Installing it (standalone)
 

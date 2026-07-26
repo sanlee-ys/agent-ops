@@ -165,6 +165,18 @@ class TestBoundedOutOfScope(GuardTestCase):
     def test_shape11_script_indirection_allowed(self):
         self.assertAllowed(*self.bash("bash leak.sh"))
 
+    def test_variable_laundering_allowed(self):
+        # Copy-launder one container down: the secret is moved into a variable
+        # whose NAME isn't credential-shaped, so the name-based screen can't see
+        # it. Bounded out for the same reason as `cp secret x; cat x` — and note
+        # the `-Name` spelling was already allowed even when v2 blocked the
+        # positional one, so v2.4 made this boundary consistent rather than
+        # moving it (see security/README.md, the Get-Variable posture call).
+        self.assertAllowed(*self.ps(
+            "$k = $env:ANTHROPIC_API_KEY; Get-Variable k"))
+        self.assertAllowed(*self.ps(
+            "$k = $env:ANTHROPIC_API_KEY; Get-Variable -Name k"))
+
     def test_shape15_mask_ok_override(self):
         self.assertAllowed(*self.bash("cat ~/.claude.json  # MASK-OK"))
 
@@ -700,6 +712,96 @@ class TestPublicKeyNotASecret(GuardTestCase):
         # the exemption is anchored to the whole basename, not a substring
         self.assertBlocked("Read", {"file_path": "/home/user/.ssh/id_rsa.pub.bak"})
         self.assertBlocked("Read", {"file_path": "/home/user/.ssh/id_rsa_pub"})
+
+
+class TestGetVariableTargetedRead(GuardTestCase):
+    """2026-07-26 (v2.4): `Get-Variable` naming ONE variable is a targeted read,
+    not a dump.
+
+    The v2 rule was `\\bGet-Variable\\b(?![^|]*-Name)` — "no `-Name` anywhere in
+    the segment, so it must be a dump." Measured against real commands it was
+    wrong in three directions at once, which is why this is a narrowing that
+    also CLOSES holes rather than a safety-for-convenience trade:
+
+      1. blocked targeted reads   — `Get-Variable PATH` (positional name)
+      2. blocked plain text       — `\\b...\\b` matches anywhere, so
+                                    `git checkout -b fix/get-variable-fp` and
+                                    `rg 'Get-Variable' security/` were blocked
+      3. allowed real dumps       — `-Name` was an unconditional escape hatch,
+                                    so `Get-Variable -Name *` passed, as did the
+                                    unnamed `gv` alias
+
+    On the posture question (does narrowing (1) lose protection against
+    `$k = $env:SECRET; Get-Variable k`, which CRED_VAR_READ cannot screen by
+    name?): the breadth was never buying it — `Get-Variable -Name k`, the same
+    read, was already allowed. That is the copy-launder shape posture.md bounds
+    out of scope, so this makes an existing boundary consistent. Both halves are
+    pinned below so the reasoning is a test, not a comment.
+    """
+
+    def test_naming_one_variable_is_a_read(self):
+        for cmd in [
+            "Get-Variable PATH",
+            "Get-Variable -Name PATH",
+            "Get-Variable -ValueOnly PATH",
+            "Get-Variable PATH -ValueOnly",
+            "(Get-Variable PATH).Value",
+            "Get-Variable -Scope Global PATH",
+            "gv PATH",
+        ]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+
+    def test_naming_nothing_or_a_wildcard_is_a_dump(self):
+        for cmd in [
+            "Get-Variable",
+            "Get-Variable *",
+            "Get-Variable -Name *",          # was ALLOWED before v2.4
+            "Get-Variable -Name 'AWS_*'",
+            "Get-Variable -Scope Global",
+            "Get-Variable | Format-Table",
+            "Get-Variable -ValueOnly",
+            "gv",                            # was ALLOWED before v2.4
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_the_literal_text_in_prose_and_identifiers(self):
+        # Found the hard way: the guard blocked the `git worktree add` that
+        # created the branch to fix it. `Get-Variable` must be in a command
+        # position, not merely present in the segment.
+        for cmd in [
+            "git worktree add ../wt -b fix/get-variable-targeted-read origin/main",
+            "git checkout -b fix/get-variable-fp",
+            "rg 'Get-Variable' security/",
+            "git switch -c chore/get-variable-cleanup",
+        ]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+    def test_variable_psdrive_gets_the_env_treatment(self):
+        # Dumps — `Get-ChildItem Variable:` was ALLOWED before v2.4 (only
+        # `dir`/`ls` were named).
+        for cmd in [
+            "ls Variable:",
+            "dir variable:",
+            "Get-ChildItem Variable:",
+            "Get-ChildItem Variable:\\*",
+            "Get-ChildItem -Path Variable:",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        # ...and naming one variable through the drive is a targeted read.
+        self.assertAllowed(*self.ps("ls Variable:PATH"))
+        self.assertAllowed(*self.ps("Get-ChildItem Variable:PATH"))
+        # ...but not when the name is credential-shaped (the guard rail that
+        # keeps this tightening from opening a hole, same as the Env: fix).
+        self.assertBlocked(*self.ps("ls Variable:ANTHROPIC_API_KEY"))
+        self.assertBlocked(*self.ps("Get-ChildItem Variable:GITHUB_TOKEN"))
+
+    def test_env_drive_behaviour_unchanged_by_the_generalisation(self):
+        # _PS_ENV_DRIVE became _PS_DRIVE_DUMP with `Variable:` added; the v2.2
+        # Env: contract must be untouched by that edit.
+        self.assertAllowed(*self.ps('Get-ChildItem "$env:USERPROFILE\\.ssh"'))
+        self.assertBlocked(*self.ps("Get-ChildItem Env:"))
+        self.assertBlocked(*self.ps("ls Env:GITHUB_TOKEN"))
+        self.assertAllowed(*self.ps("Get-ChildItem Env:PATH"))
 
 
 class TestFalsePositives(GuardTestCase):
