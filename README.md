@@ -101,6 +101,12 @@ nothing and might get the next gap found by a reader instead of a leak.
     In a clone shared by parallel sessions that assumption is someone else's
     variable, and when it breaks the wrong way a squash-merge deletes the
     commit. Target the ref explicitly, or refuse to act.
+  - `ADR-005-herdr-persistence-not-agent-awareness.md` — a trialled agent
+    multiplexer keeps sessions alive beautifully and reports on them badly:
+    the `done` state exists for when you're away and only appears while
+    you're there, and the drive-from-outside call logs success for input it
+    never submitted. Adopt the persistence, depend on none of the awareness,
+    and test any status signal under the condition it exists for.
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned
