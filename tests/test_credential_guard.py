@@ -572,6 +572,135 @@ class TestEnvDriveFalsePositive(GuardTestCase):
             self.assertBlocked(*self.bash(cmd), msg=cmd)
 
 
+class TestNestedEnvDump(GuardTestCase):
+    """A bare environment dump one container down: `echo $(env)` ran a full
+    dump while `env` was blocked. Pre-existing gap, not a regression — it
+    predates v2.2 and v2.3 and was confirmed on the pre-2.2 baseline.
+
+    The bare-dump rules are anchored to a WHOLE segment (`^\\s*env\\s*$`,
+    `^\\s*printenv\\s*$`, `^\\s*set\\s*$`), and that anchoring is load-bearing:
+    it is the only reason `.venv/`, `--env-file`, `conda env list` and
+    `/usr/bin/env` don't match (pinned in
+    TestEnvDriveFalsePositive.test_bash_paths_containing_the_word_env). So the
+    fix is NOT to loosen the anchor — that resurrects those false positives —
+    but to hand each nested unit body to it as a segment in its own right,
+    which is what it is.
+
+    Only ENV_DUMP_PATTERN needs the extra pass. CRED_VAR_READ and
+    MCP_GET_PATTERN are un-anchored, so their search already sees inside a
+    substitution; running CRED_VAR_READ per unit would newly break
+    `[bool]($env:API_KEY)`, asserted below.
+    """
+
+    def test_nested_dumps_blocked(self):
+        for cmd in [
+            '"$(env)"',
+            "echo $(env)",
+            "echo $(printenv)",
+            "x=$(env)",
+            "echo `env`",
+            "echo $(set)",
+            "(env)",
+            "echo $(echo $(env))",
+            # a unit body is a command LIST, and the splitter must hold the
+            # substitution together or this arrives as the fragment `env)`
+            "echo $(cd /tmp; env)",
+            "echo $(true && env)",
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+        self.assertBlocked(*self.ps('"$(Get-ChildItem Env:)"'))
+
+    def test_nested_get_variable_dump_blocked(self):
+        # `_get_variable_is_dump` walks the tokens after the cmdlet to the END of
+        # what it is handed, so on `echo $(Get-Variable)` it read the trailing
+        # `)` as the variable being named and called it a targeted read. It needs
+        # the unit body as a segment for the same reason the anchors do.
+        for cmd in ["echo $(Get-Variable)", '"$(Get-Variable)"',
+                    "echo $(gv)", "echo $(Get-Variable -Scope Global)",
+                    "$all = $(Get-Variable)"]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        # a nested NAMED read stays a read (the v2.4 posture call)
+        for cmd in ["echo $(Get-Variable PATH)",
+                    "echo $(Get-Variable -Name PATH)"]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+
+    def test_bare_and_targeted_forms_still_blocked(self):
+        for cmd in ["env", "printenv", "set", "declare -p", "export -p",
+                    "echo $(declare -p)", "echo $(printenv GITHUB_TOKEN)",
+                    "echo $(claude mcp get github)",
+                    "echo $(git -c alias.x='!printenv KEY' x)",
+                    "echo $(echo ~/.env | xargs cat)"]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+    def test_whole_word_false_positives_still_allowed(self):
+        # The set the segment anchoring exists to protect. If a future change
+        # widens those rules instead of recursing, these fail on purpose.
+        for cmd in [
+            "ls .venv/bin",
+            "ls env/",
+            "source .venv/bin/activate",
+            "uv run --env-file .env.example python x.py",
+            "env -u UV_ENV_FILE uv run python x.py",
+            "conda env list",
+            "docker run --env FOO=bar img",
+            "ls /usr/bin/env",
+            "set -euo pipefail",
+            "(set -e; make)",
+            "(cd x && env -u FOO make)",
+            "echo $(ls .venv/bin)",
+        ]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+    def test_cred_var_rules_not_run_per_unit(self):
+        # `[bool]$env:NAME` is the existence check the guard itself recommends.
+        # Its standalone-statement alternatives describe a statement that EMITS
+        # a value; a unit body's value is consumed by the expression around it,
+        # so running them per unit would block the parenthesised spelling.
+        for cmd in ["[bool]$env:ANTHROPIC_API_KEY",
+                    "[bool]($env:ANTHROPIC_API_KEY)",
+                    "$key = $env:ANTHROPIC_API_KEY",
+                    "Get-Item Env:PATH"]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+        # ...while the genuine prints stay blocked, via the un-anchored forms.
+        for cmd in ['"$env:ANTHROPIC_API_KEY"',
+                    '"$($env:ANTHROPIC_API_KEY)"',
+                    "Write-Output $env:GITHUB_TOKEN"]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_git_message_prose_vs_executed_substitution(self):
+        # The _GIT_MSG_CMD prose skip exempts a MESSAGE. A substitution body is
+        # executed code whatever encloses it, so it is not covered by the skip.
+        self.assertAllowed(*self.bash(
+            "git commit -m \"use GetValue('env:MY_API_KEY') helper\""))
+        self.assertAllowed(*self.bash(
+            "git commit -m 'document $(env) in the runbook'"))  # single: inert
+        self.assertBlocked(*self.bash(
+            'git commit -m "document $(env) in the runbook"'))  # double: runs
+
+    def test_paren_aware_splitter_hides_nothing(self):
+        # An unbalanced `(` stops the splitter for the rest of the command.
+        # The trailing text still lands in a unit body, so a reader or dump
+        # behind one must not escape.
+        for cmd in [
+            "echo ( ; cat /home/user/.env",
+            "true ( & cat ~/.claude.json",
+            "echo ( && cat ~/.ssh/id_rsa",
+            "echo ( ; env",
+            "echo ( | cat /home/user/.env",
+            "( ; printenv",
+            # a quoted paren is literal and must not suppress the split
+            'echo "(" ; cat /home/user/.env',
+            'echo "(" ; env',
+            # a stray close paren must not corrupt the depth counter
+            "echo ) ; cat /home/user/.env",
+            "foo() ; cat /home/user/.env",
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+        for cmd in ["(cd x && make) ; ls", "echo done && ls",
+                    "cat README.md 2>&1"]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+
 class TestNestedMetadataFalsePositive(GuardTestCase):
     """2026-07-26 confirmed false positive: a metadata-only check on a
     credential-shaped path, blocked because of WHERE it sat in the command.
