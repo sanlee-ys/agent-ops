@@ -307,6 +307,53 @@ rows 4 and 5 means the change removes two false positives *and* two real gaps.
 only `dir`/`ls` were named — while `ls Variable:PATH` is a targeted read, and
 `ls Variable:ANTHROPIC_API_KEY` still blocks on the credential-name screen.
 
+## An anchored rule needs a segment to anchor to (v2.5)
+
+`env` was blocked. `echo $(env)` was not — and it runs the same full dump. Also
+allowed: `"$(env)"`, `echo $(printenv)`, `x=$(env)`, ``echo `env` ``. A
+pre-existing gap, older than every fix above and confirmed on the pre-v2.2
+baseline.
+
+The cause is **not** a rule that is too narrow. The bare-dump rules are anchored
+to a whole segment (`^\s*env\s*$`, `^\s*printenv\s*$`, `^\s*set\s*$`), and that
+anchoring is load-bearing — it is the only reason `.venv/bin`, `--env-file`,
+`conda env list`, `/usr/bin/env` and `env -u VAR cmd` don't match. Loosening it
+would trade this gap for that whole family of false positives.
+
+The cause is that the rules were only ever handed the **top-level** segment, so
+a dump one container down never got the anchor's attention. A substitution body
+is a command in its own right, so it is now offered to them as a segment —
+recursively, and re-split first, because a body is a command *list*
+(`$(cd /tmp; env)`).
+
+Two narrower calls inside that fix, both pinned in `TestNestedEnvDump`:
+
+- **Only the env-dump rule gets the extra pass.** `CRED_VAR_READ` and
+  `MCP_GET_PATTERN` are un-anchored, so their search already sees inside a
+  substitution. Running `CRED_VAR_READ` per unit would *newly break*
+  `[bool]($env:API_KEY)` — its standalone-statement alternatives describe a
+  statement that emits a value, and a unit body's value is consumed by the
+  expression around it. The parenthesised spelling of the guard's own
+  recommended existence check must not become a block.
+- **The `git commit -m` prose skip does not extend to unit bodies.** That skip
+  exempts a *message*; a substitution body is executed code whatever encloses
+  it. So `git commit -m "document $(env) in the runbook"` blocks (double quotes
+  run it) while the single-quoted spelling stays allowed (they don't).
+
+### The splitter no longer cuts inside parentheses
+
+Half the fix is in `_split_segments`. It used to split on `;`/`|`/`&` without
+regard for parens, so `echo $(cd /tmp; env)` arrived as `echo $(cd /tmp` and
+`env)` — and `^\s*env\s*$` cannot match `env)`. A fragment defeats an anchored
+rule just as thoroughly as never being shown the text.
+
+Segments now hold parentheses together. Nested units are re-split from their
+bodies anyway, so nothing is lost. An unbalanced `(` stops splitting for the
+rest of the command, which is safe rather than blinding: the trailing text still
+lands inside a unit body (`_balanced` runs an unterminated group to end of
+segment) and both callers re-split what they find. `echo ( ; cat ~/.env`,
+`echo ( ; env`, and a quoted `echo "(" ; cat ~/.env` are all pinned as blocked.
+
 ## Installing it (standalone)
 
 `credential-guard.py` is a self-contained, **stdlib-only** Python 3 script

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.4 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.5 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -9,6 +9,9 @@
 # default-denied, and an SSH `.pub` file is not a private key.
 # 2.4 (2026-07-26): `Get-Variable` naming one variable is a targeted read, not a
 # dump; `Variable:` gets the same drive-root treatment as `Env:`.
+# 2.5 (2026-07-26): a bare env dump nested in a substitution (`echo $(env)`) is
+# now seen — the whole-segment anchors get offered each unit body as a segment,
+# and the splitter no longer cuts a substitution into fragments.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, claude-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -57,7 +60,9 @@ unless this is a recognised *safe* operation?" Concretely:
      the PowerShell `Env:` dumps, AND a single credential-shaped variable being
      printed (`echo $ANTHROPIC_API_KEY`, `printenv GITHUB_TOKEN`,
      `[Environment]::GetEnvironmentVariable("...KEY")`) — the founding 07-02
-     incident, which v1 never caught.
+     incident, which v1 never caught. As of v2.5 the bulk forms are checked
+     against nested command units too, so `echo $(env)` is seen and not just a
+     bare `env` (see _nested_command_units).
 
 Deliberately OUT of scope, per the posture's threat model (non-adversarial
 agent mistakes; anyone with local code-execution has already won — see
@@ -534,6 +539,36 @@ def _sub_units(seg):
     return units
 
 
+def _nested_command_units(seg, _depth=0):
+    """Every nested unit body in `seg`, recursively, re-split into segments.
+
+    Used by the COMMAND-SHAPE rules, which the path rules don't need: several of
+    them are anchored to a whole segment (`^\\s*env\\s*$`, `^\\s*printenv\\s*$`,
+    `^\\s*set\\s*$`), and that anchoring is load-bearing — it is the only reason
+    `.venv/bin`, `--env-file`, `conda env list` and `/usr/bin/env` don't match.
+    But main() only ever handed those rules the top-level segment, so a dump one
+    container down never got the anchor's attention: `echo $(env)` and `"$(env)"`
+    ran a full environment dump while a bare `env` was blocked (gap predating
+    v2.2/v2.3, confirmed against the pre-2.2 baseline).
+
+    The fix is not to loosen the anchor — that would resurrect the false
+    positives it exists to prevent — but to offer each unit body to it as a
+    segment in its own right, which is what it is. Bodies are re-split because a
+    body is a command LIST (`$(cd x; env)`), the same reason
+    _reads_sensitive_path re-splits them."""
+    out = []
+    if _depth >= 8:
+        return out
+    for _, _, body in _sub_units(seg):
+        for part in _split_segments(body):
+            part = part.strip()
+            if not part:
+                continue
+            out.append(part)
+            out.extend(_nested_command_units(part, _depth + 1))
+    return out
+
+
 def _blank_units(seg, units):
     """`seg` with every nested unit removed, leaving the outer command alone."""
     for start, end, _ in reversed(units):
@@ -613,8 +648,21 @@ def _split_segments(command):
     """Split a command into pipeline/list segments on shell operators
     (`&&`, `||`, `|`, `;`, `&`, newline) but NOT inside quotes — a `&` or `|`
     within a "..." commit message must not create a spurious segment
-    (red-team round 4, #3)."""
-    segs, buf, quote, i, n = [], [], None, 0, len(command)
+    (red-team round 4, #3) — and NOT inside parentheses.
+
+    The paren rule (v2.5) keeps a substitution intact. Cutting through one left
+    FRAGMENTS, and a fragment defeats the whole-segment anchors the command-shape
+    rules rely on: `echo $(cd /tmp; env)` used to split into `echo $(cd /tmp` and
+    `env)`, and `^\\s*env\\s*$` cannot match `env)` because of the orphaned paren.
+    Nested units are re-split from their bodies anyway (_nested_command_units,
+    _reads_sensitive_path), so holding the substitution together here loses no
+    coverage and gains the anchor.
+
+    An unbalanced `(` therefore stops splitting for the rest of the command. That
+    is safe rather than blinding: the trailing text still lands inside a unit
+    body via _sub_units, whose _balanced() runs an unterminated group to end of
+    segment, and both callers re-split what they find there."""
+    segs, buf, quote, depth, i, n = [], [], None, 0, 0, len(command)
     while i < n:
         c = command[i]
         # A backslash escapes the next char outside single quotes, so `\"`
@@ -632,6 +680,17 @@ def _split_segments(command):
             i += 1
         elif c in ("'", '"'):
             quote = c
+            buf.append(c)
+            i += 1
+        elif c == "(":
+            depth += 1
+            buf.append(c)
+            i += 1
+        elif c == ")":
+            depth = max(0, depth - 1)
+            buf.append(c)
+            i += 1
+        elif depth:                        # inside ( ... ): not a separator
             buf.append(c)
             i += 1
         elif command[i:i + 2] in ("&&", "||"):
@@ -912,6 +971,30 @@ def main():
                     block(_MSG_VAR)
                 if MCP_GET_PATTERN.search(scan):
                     block(_MSG_MCP)
+            # A dump one container down (`echo $(env)`) never reached the rules
+            # above, because they need a whole segment to work on. Two do:
+            # ENV_DUMP_PATTERN's bare forms are segment-anchored, and
+            # _get_variable_is_dump walks the tokens after the cmdlet TO THE END
+            # of what it is given — so on `echo $(Get-Variable)` it reads the
+            # trailing `)` as the variable being named and calls it a targeted
+            # read. Both need the unit body handed to them as a segment.
+            #
+            # CRED_VAR_READ and MCP_GET_PATTERN do NOT: they are un-anchored, so
+            # the search over `scan` already sees inside a substitution. Running
+            # CRED_VAR_READ per unit would newly break `[bool]($env:API_KEY)`,
+            # since its standalone-statement alternatives (`^\s*\$env:NAME\s*$`)
+            # describe a statement that EMITS a value, and a unit body's value is
+            # consumed by the expression around it.
+            #
+            # The _GIT_MSG_CMD prose skip is deliberately NOT applied here: it
+            # exempts a commit MESSAGE, and a substitution body is executed code
+            # whatever encloses it, so `git commit -m "$(env)"` really does dump
+            # the environment into the message. Prose can't reach this pass
+            # anyway — single quotes suppress expansion, and a paren inside a
+            # double-quoted string is not treated as a unit.
+            for unit in _nested_command_units(scan):
+                if ENV_DUMP_PATTERN.search(unit) or _get_variable_is_dump(unit):
+                    block(_MSG_ENV)
             if _reads_sensitive_path(scan):
                 block(_MSG_PATH)
         sys.exit(0)
