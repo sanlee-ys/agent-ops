@@ -102,11 +102,13 @@ nothing and might get the next gap found by a reader instead of a leak.
     variable, and when it breaks the wrong way a squash-merge deletes the
     commit. Target the ref explicitly, or refuse to act.
   - `ADR-005-herdr-persistence-not-agent-awareness.md` — a trialled agent
-    multiplexer keeps sessions alive beautifully and reports on them badly:
-    the `done` state exists for when you're away and only appears while
-    you're there, and the drive-from-outside call logs success for input it
-    never submitted. Adopt the persistence, depend on none of the awareness,
-    and test any status signal under the condition it exists for.
+    multiplexer keeps sessions alive beautifully and can't be driven: its
+    drive-from-outside call logs success for input it never submitted, and
+    the path that does work isn't logged at all. Amended the same day after a
+    parallel session found the `done` state this ADR had called a defect was
+    documented behaviour — which is the more useful lesson, since a revisit
+    condition waiting on a fix nobody is writing reads like a plan while
+    nothing happens.
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned

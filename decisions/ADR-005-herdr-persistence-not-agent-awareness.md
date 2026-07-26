@@ -5,9 +5,16 @@ Herdr 0.7.5 as a persistent agent workspace.
 **Scope:** This repo (the Claude operating layer). The trial ran inside the
 public `netops-lab` repo, but the decision is about how long agent sessions are
 run generally, not about that lab.
+**Amended:** 2026-07-26, same day. A parallel session dug further into the same
+trial and established that `done` behaves as designed rather than as a defect,
+and that `agent prompt` has a working substitute. Both corrections are folded in
+below and marked. The original claims are named rather than silently replaced,
+because "we called documented behaviour a bug" is the more instructive record.
 **Related:** [`ADR-004-ref-explicit-git-in-shared-clones.md`](ADR-004-ref-explicit-git-in-shared-clones.md)
 — a sibling case of automation that does exactly what it was written to do, on
-the wrong object.
+the wrong object. The lab-side application of this decision lives in the public
+`netops-lab` repo as its ADR-007, which records what the trial means for that
+lab's hardware cycles; this ADR holds the general rule.
 
 ## Context
 
@@ -42,30 +49,57 @@ differentiator, and it works.
 *unsubmitted* text in its prompt box was correctly reported idle rather than
 working.
 
-## What the trial found broken
+## What the trial found broken, and what it found merely misunderstood
 
-1. **`done` is inverted.** The state whose entire purpose is "this finished
-   while you were away" appeared only while attached, was cleared at the instant
-   of detach, and never appeared at all across a detached run. The one signal
-   worth having when absent is the one that requires presence.
+1. **`done` requires presence — by design, not by defect.** *(Amended. The first
+   version of this ADR called it "inverted" and treated it as a fixable bug.
+   That was wrong.)* `done` means "the agent finished while you weren't
+   looking," and it appears only while a client is attached, clearing at the
+   instant of detach. The reason is that it feeds `[ui.toast]`, a client-side
+   concept: with nobody attached there is nobody to notify. It was built for
+   "attached, looking at another pane," not "away from the machine." Compounding
+   it, `[ui.toast] delivery` defaults to `"off"` and the trial host had no
+   config file, so `done` was firing into the void even while attached.
+
+   The correction matters more than the fact. A capability can be absent because
+   it is broken or because it was never the tool's job, and only the first is
+   worth waiting on. Calling this a defect set up a revisit condition that would
+   never have been met.
 2. **`agent prompt` fails silently and logs success.** On Claude Code 2.1.220 it
    delivers keystrokes without submitting them, and the server records
    `outcome="ok"`. A caller that checks the return value learns nothing.
-3. **Detection is entirely screen-scrape.** The winning rule regexes a braille
+   *(Amended: a working substitute exists — following it with
+   `herdr pane send-keys <pane> enter` submits correctly. The call is therefore
+   usable by hand; it remains unfit for unattended automation, because the thing
+   that is broken is its truthfulness, not its delivery.)*
+3. **Agent state cannot be made event-driven.** `pane.report_agent` accepts an
+   explicit state, but pushing one — using the official `herdr:claude` source
+   string and a fresh sequence number — was ignored. The screen manifest is the
+   sole authority for Claude Code, and nothing the agent reports can override
+   it. This closes the obvious repair: you cannot fix the heuristic by feeding
+   the tool ground truth.
+4. **Detection is entirely screen-scrape.** The winning rule regexes a braille
    spinner out of the terminal title; others grep literal interface strings such
    as `esc to interrupt`. It is coupled to the agent's cosmetics, so a UI change
    degrades it silently.
-4. **The detection manifest is fetched unpinned at server start**, over the
+5. **The detection manifest is fetched unpinned at server start**, over the
    network, unverified. Milder than executable code — it is TOML regexes — but
    inconsistent with the care taken elsewhere in the same install.
-5. **The integration hook contributes no status.** It only reports a
+6. **The integration hook contributes no status.** It only reports a
    pane-to-session mapping. The hook being installed and current says nothing
    about whether detection ever ran.
-6. **The input path that works is not audited.** Only `agent.prompt` appears in
+7. **The input path that works is not audited.** Only `agent.prompt` appears in
    the server log. The `pane.send-keys` / `pane.send-text` calls that actually
    succeed leave no trace at all.
 
-Findings 2 and 6 compose into the sharp edge: the call that lies is logged, and
+With findings 1 and 3 corrected, the honest split is three-way rather than
+two-way: **awareness works** — every state reported during the trial was
+correct, attached and detached, including a visually busy pane holding
+unsubmitted text that was rightly called idle. **Control is broken.**
+**Notification was never built for absence.** Only the second of those is a
+defect to wait on.
+
+Findings 2 and 7 compose into the sharp edge: the call that lies is logged, and
 the call that works is invisible. During the trial a write-intent instruction was
 found armed in a pane's prompt box and its provenance could not be established
 from the logs. It turned out to be benign — an agent's own drafted recap, left
@@ -80,14 +114,23 @@ awareness.** Concretely:
 - **No automation calls `agent prompt`.** Anything driving a pane from outside
   must send input and then verify the effect by reading the pane back, never by
   trusting a return value.
-- **Status is not authoritative when unattended.** `working` and `idle` are
-  usable; `done` is not, and must not be the signal a person or script waits on.
+- **Status is advisory, never a gate.** `working` and `idle` were correct in
+  every observed case and are fine to read. Nothing irreversible may branch on
+  them, because the failure mode when detection drifts is not an error but a
+  confident, wrong `idle`.
+- **Don't wait on `done`.** Not because it is broken, but because it is a
+  client-side notification and absence is exactly when it cannot fire. If
+  "finished while away" is ever wanted, it comes from a Claude Code lifecycle
+  hook, which fires detached and fires whether or not Herdr is running.
 - **No standing permission to drive agent sessions from outside.** Granting it
   would create an unauditable write path into a session that can modify a repo.
 
-Revisit when `agent prompt` submits correctly and `done` survives detach. Both
-look like defects rather than architecture in a fast-moving 0.7.5, and both were
-reported upstream.
+**Revisit when `agent prompt` submits correctly** — that one is a defect in a
+fast-moving 0.7.5 and was reported upstream. Do *not* wait on `done`; the
+original version of this ADR set that as a revisit condition, and since the
+behaviour is designed rather than broken, it would have waited forever. A
+revisit condition that can never be met is worse than none, because it reads
+like a plan.
 
 ## Options considered
 
@@ -108,8 +151,10 @@ is a large commitment to buy one status signal.
 **(d) Adopt persistence, own the status signal separately.** Not chosen now, but
 the natural next step if the signal is ever needed unattended. Claude Code's own
 hook system fires on session lifecycle events, so a hook can write durable state
-that survives detach. Finding 5 means this does not conflict with Herdr's hook,
-which is not doing that job.
+that survives detach. Finding 6 means this does not conflict with Herdr's hook,
+which is not doing that job, and finding 3 means it is the *only* route: state
+cannot be pushed into Herdr, so a parallel signal is the sole way to get an
+event-driven one.
 
 **(e) Adopt persistence only. — CHOSEN.** Takes the part that is proven, depends
 on nothing that was found broken, and costs nothing to reverse.
@@ -122,7 +167,7 @@ on nothing that was found broken, and costs nothing to reverse.
 > condition it exists for — which is usually the condition where nobody is
 > watching.**
 
-Two things generalise beyond this tool.
+Three things generalise beyond this tool.
 
 **Test the signal under absence.** Every failure here was invisible while
 attached. `done` looked correct, and `agent prompt` looked correct, precisely
@@ -130,6 +175,15 @@ because a person was present to see the outcome directly. A signal that exists
 for unattended use has to be tested unattended, or the test confirms only that
 it works when it is not needed. This is the same shape as a green check that
 means the job ran rather than that the work happened.
+
+**Separate "broken" from "not its job" before writing a revisit condition.**
+This ADR originally filed `done` as a defect and promised to revisit when it was
+fixed. It is documented, intended behaviour, so that revisit would never have
+arrived — and the plan would have looked healthy the whole time it wasn't
+happening. Absence of a capability has at least two causes and only one of them
+is worth waiting on. Reading the tool's own design docs, rather than only its
+behaviour, is what distinguishes them, and it is cheap relative to waiting on a
+fix nobody is writing.
 
 **Verifying the front door is not verifying the software.** This install checked
 the binary's SHA-256 against the publisher's digest and the package repository's
@@ -153,7 +207,7 @@ session-scoped and is not preserved — the findings above are the artifact.
 An earlier draft of this trial's brief asserted the observing session ran inside
 a Herdr pane. It did not, and the correction is recorded here because the
 conflation is easy to repeat: the integration hook reporting itself as installed
-and current was read as evidence that detection had run, which finding 5 shows
+and current was read as evidence that detection had run, which finding 6 shows
 it is not.
 
 ## Consequences
