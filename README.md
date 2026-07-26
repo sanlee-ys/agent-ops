@@ -102,13 +102,13 @@ nothing and might get the next gap found by a reader instead of a leak.
     variable, and when it breaks the wrong way a squash-merge deletes the
     commit. Target the ref explicitly, or refuse to act.
   - `ADR-005-herdr-persistence-not-agent-awareness.md` — a trialled agent
-    multiplexer keeps sessions alive beautifully and can't be driven: its
-    drive-from-outside call logs success for input it never submitted, and
-    the path that does work isn't logged at all. Amended the same day after a
-    parallel session found the `done` state this ADR had called a defect was
-    documented behaviour — which is the more useful lesson, since a revisit
-    condition waiting on a fix nobody is writing reads like a plan while
-    nothing happens.
+    multiplexer, adopted. Kept mostly as a record of how it was nearly
+    rejected for things it doesn't do: the "it reports success for input it
+    never submitted" finding came from one log line correlated with one
+    composer, and both halves were wrong — the call worked, and the text was
+    dim placeholder nobody had typed. Corrected twice on the day of writing.
+    A defect claimed from a single correlated observation is a hypothesis;
+    reproduce it before writing decisions on top of it.
   - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
     same decision the same afternoon, on different machines, and the
     in-flight scan that should have caught it returned nothing truthfully:
