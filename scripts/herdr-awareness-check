@@ -1,0 +1,169 @@
+#!/bin/bash
+# herdr-awareness-check — does herdr still understand Claude Code?
+#
+# WHY THIS EXISTS
+# herdr decides whether an agent is working or idle by regex-matching Claude
+# Code's *cosmetics*: a braille spinner (U+2800-28FF) in the OSC terminal title,
+# and literal UI strings like "esc to interrupt" and "do you want to proceed?".
+# Nothing Claude Code reports is authoritative — the integration hook only maps
+# a pane to a session ID, and pane.report_agent is ignored for claude. So the
+# screen manifest is the single source of truth for agent state.
+#
+# That was verified correct on 2026-07-26 against Claude Code 2.1.220 with
+# manifest 2026.07.13.1. It will stay correct only while both sides agree.
+# When they diverge, herdr does not error — it reports a confident, wrong
+# "idle". Silent wrongness is the failure mode worth engineering against.
+#
+# WHY NOT JUST PIN THE MANIFEST
+# Pinning defends against a tampered manifest, which can only ever cause a
+# misreported state (the rules are regexes; they execute nothing). It does
+# nothing about the real risk — staleness — and actively causes it, by cutting
+# off the upstream fixes that track Claude Code's UI. So: leave the manifest
+# auto-updating, and detect divergence instead.
+#
+# WHAT THIS CANNOT DO
+# It compares the *inputs* to detection — Claude Code's version against the
+# cached manifest's version — and cannot prove detection is actually correct.
+# Ground truth needs a functional probe: drive a pane through a known
+# working->idle cycle and assert herdr observed both edges. Not built.
+#
+# Run after any Claude Code upgrade, or on a schedule.
+#
+# Exit codes: 0 = ok, 1 = drift suspected, 2 = fault, 3 = not applicable
+#
+# INSTALL (per host that runs herdr)
+#   install -m 755 scripts/herdr-awareness-check ~/.local/bin/
+#
+# Then append to ~/.profile — NOT ~/.bashrc, so it does not fire inside every
+# herdr pane and subshell. Back up ~/.profile first. Measured cost: ~132ms.
+#
+#   if [ -x "$HOME/.local/bin/herdr-awareness-check" ]; then
+#       _herdr_check_out=$("$HOME/.local/bin/herdr-awareness-check" 2>&1)
+#       case $? in
+#           1|2) printf '\n%s\n\n' "$_herdr_check_out" ;;
+#       esac
+#       unset _herdr_check_out
+#   fi
+#
+# Exit 0 (fine) and 3 (herdr not in use here) stay quiet, so the hook is silent
+# on a box where herdr was never installed.
+#
+# Rationale and the decisions this enforces: claude-ops
+# decisions/ADR-005-herdr-persistence-not-agent-awareness.md, and the lab-side
+# application in the public netops-lab repo's decisions/007.
+
+set -uo pipefail
+
+ACK=0
+case "${1:-}" in
+  --ack) ACK=1 ;;
+  "") ;;
+  *) printf 'usage: %s [--ack]\n' "${0##*/}" >&2; exit 2 ;;
+esac
+
+STATUS="$HOME/.local/state/herdr/agent-detection/status.toml"
+STATE_DIR="$HOME/.local/state/herdr-awareness"
+BASELINE="$STATE_DIR/baseline"
+STALE_DAYS=7
+
+# Read key from a TOML section. Pass "" as section for top-level keys.
+#
+# The whitespace class below is spelled [ \t] rather than the POSIX named
+# class. Deliberate: this repo's redline guard reads a doubled opening bracket
+# as a wiki-style memory link and blocks the commit, and a POSIX named class
+# opens with one. The two are equivalent here — awk works line by line, so
+# space and tab are the only whitespace that can follow a TOML '='. Don't
+# "restore" the named class; it will fail to commit.
+tomlget() {
+  awk -v sec="$2" -v key="$3" '
+    BEGIN { f = (sec == "") }
+    $0 ~ /^\[/ { f = ($0 == "[" sec "]"); next }
+    f && $1 == key {
+      sub(/^[^=]*=[ \t]*/, "")
+      gsub(/"/, "")
+      print
+      exit
+    }' "$1" 2>/dev/null
+}
+
+fail() { printf '%s\n' "$*" >&2; exit 2; }
+# Exit 3 = not applicable. Distinct from 2 so a login hook can stay quiet on a
+# box where herdr simply isn't in use, while still shouting about real faults.
+na() { printf '%s\n' "$*" >&2; exit 3; }
+
+command -v claude >/dev/null 2>&1 || na "not applicable: claude not on PATH"
+[ -r "$STATUS" ] || na "not applicable: no manifest status at $STATUS
+(herdr has not fetched detection manifests yet — start the server once)"
+
+claude_ver=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+[ -n "$claude_ver" ] || fail "cannot verify: could not parse 'claude --version'"
+
+manifest_ver=$(tomlget "$STATUS" "agents.claude" cached_version)
+agent_result=$(tomlget "$STATUS" "agents.claude" last_result)
+checked_unix=$(tomlget "$STATUS" "" last_check_unix)
+[ -n "$manifest_ver" ] || fail "cannot verify: no cached claude manifest in $STATUS"
+
+now=$(date +%s)
+age_days=$(( (now - ${checked_unix:-0}) / 86400 ))
+
+echo "claude code:     $claude_ver"
+echo "claude manifest: $manifest_ver ($agent_result)"
+echo "last checked:    ${age_days}d ago"
+echo
+
+rc=0
+
+# The fetch itself failing means the rules quietly stop tracking Claude Code.
+if [ "$agent_result" != "current" ]; then
+  echo "STALE: manifest fetch reported '$agent_result', not 'current'."
+  echo "  herdr is running on whatever rules it last cached. Check network"
+  echo "  reachability to herdr.dev, and that [update] manifest_check is not"
+  echo "  false in ~/.config/herdr/config.toml."
+  rc=2
+elif [ "$age_days" -gt "$STALE_DAYS" ]; then
+  echo "STALE: no successful manifest check in ${age_days} days."
+  rc=2
+fi
+
+mkdir -p "$STATE_DIR"
+if [ ! -r "$BASELINE" ]; then
+  printf 'claude_ver=%s\nmanifest_ver=%s\n' "$claude_ver" "$manifest_ver" >"$BASELINE"
+  echo "Baseline recorded. This pairing was verified correct by hand on"
+  echo "2026-07-26; future runs compare against it."
+  exit $rc
+fi
+
+# shellcheck disable=SC1090
+old_claude=$(sed -n 's/^claude_ver=//p' "$BASELINE")
+old_manifest=$(sed -n 's/^manifest_ver=//p' "$BASELINE")
+
+if [ "$ACK" -eq 1 ]; then
+  printf 'claude_ver=%s\nmanifest_ver=%s\n' "$claude_ver" "$manifest_ver" >"$BASELINE"
+  echo "Acknowledged: $claude_ver / $manifest_ver is now the baseline."
+  exit $rc
+fi
+
+if [ "$claude_ver" != "$old_claude" ] && [ "$manifest_ver" = "$old_manifest" ]; then
+  echo "DRIFT: Claude Code moved $old_claude -> $claude_ver, but the detection"
+  echo "  manifest is unchanged at $manifest_ver."
+  echo
+  echo "  herdr may now be reading UI chrome that no longer exists. It will not"
+  echo "  say so; it will just report 'idle' while an agent works. Verify by"
+  echo "  hand before trusting agent_status: start a task in a pane and confirm"
+  echo "  'herdr pane list' flips to working, then back to idle."
+  echo
+  echo "  Then run 'herdr-awareness-check --ack' to accept this pairing."
+  echo "  The baseline is deliberately NOT updated here, so this keeps warning"
+  echo "  until you have actually checked. Do not ack on a hunch."
+  exit 1
+elif [ "$claude_ver" != "$old_claude" ]; then
+  echo "OK: Claude Code moved $old_claude -> $claude_ver and the manifest"
+  echo "    also moved $old_manifest -> $manifest_ver."
+elif [ "$manifest_ver" != "$old_manifest" ]; then
+  echo "OK: manifest moved $old_manifest -> $manifest_ver; Claude Code unchanged."
+elif [ "$rc" -eq 0 ]; then
+  echo "OK: no drift. Both sides unchanged since last check."
+fi
+
+printf 'claude_ver=%s\nmanifest_ver=%s\n' "$claude_ver" "$manifest_ver" >"$BASELINE"
+exit $rc

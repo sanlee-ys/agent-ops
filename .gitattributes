@@ -1,0 +1,5 @@
+# Shell scripts here are installed onto Linux hosts. Pin LF so a clone with
+# core.autocrlf=false on Windows can't commit CRLF and produce a script that
+# fails with a bad-interpreter error on the machine it was written for.
+scripts/herdr-awareness-check text eol=lf
+*.sh text eol=lf
