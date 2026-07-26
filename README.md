@@ -109,6 +109,14 @@ nothing and might get the next gap found by a reader instead of a leak.
     documented behaviour — which is the more useful lesson, since a revisit
     condition waiting on a fix nobody is writing reads like a plan while
     nothing happens.
+  - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
+    same decision the same afternoon, on different machines, and the
+    in-flight scan that should have caught it returned nothing truthfully:
+    one session's work was an untracked file, the other's an unpushed
+    branch. The fix isn't a channel between sessions — both believed they
+    owned the concern, and peers who agree on that collide however well they
+    can talk. Push the branch before doing the work, so the claim exists
+    where the other machines can see it.
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned
