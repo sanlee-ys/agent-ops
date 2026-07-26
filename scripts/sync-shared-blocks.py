@@ -30,9 +30,15 @@ import argparse
 import re
 from pathlib import Path
 
-CANONICAL_URL = (
-    "https://github.com/sanlee-ys/claude-ops/blob/main/conventions/links-verify.md"
-)
+_CANON_BASE = "https://github.com/sanlee-ys/claude-ops/blob/main/conventions"
+
+
+def _canonical_url(slug: str) -> str:
+    """URL of the canonical convention file backing a shared block."""
+    return f"{_CANON_BASE}/{slug}.md"
+
+
+CANONICAL_URL = _canonical_url("links-verify")
 
 # Canonical compressed blocks, keyed by slug. The full text between the markers
 # is what every consumer carries verbatim — edit here and re-run to propagate.
@@ -47,6 +53,20 @@ BLOCKS = {
         "**branch links are perishable** (prefer `main` once merged). Full rule "
         f"+ rationale: [claude-ops `conventions/links-verify.md`]({CANONICAL_URL}).\n"
         "<!-- /shared:links-verify -->"
+    ),
+    "parallel-sessions": (
+        "<!-- shared:parallel-sessions v1 -->\n"
+        "## Working across parallel sessions (hard rule)\n"
+        "\n"
+        "Sessions cannot see each other's uncommitted work — **`main` is the only "
+        "shared coordination point**. So: **one concern per session → one branch → "
+        "one PR**; check open PRs and branches before starting; branch from fresh "
+        "`main` and merge fast; **serialize the collision hotspots** and parallelize "
+        "by independent *file*, not by task; keep the wiring for any generated or "
+        "aggregated file in one hand. Full rule + the triple-build incident that "
+        "produced it: [claude-ops `conventions/parallel-sessions.md`]"
+        f"({_canonical_url('parallel-sessions')}).\n"
+        "<!-- /shared:parallel-sessions -->"
     ),
 }
 
