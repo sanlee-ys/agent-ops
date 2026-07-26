@@ -171,3 +171,68 @@ A given repo can layer its own version of these rules on top for local
 specifics — its own collision-prone files, its own history of near-misses —
 but the underlying shape (shared remote main as the only coordination point)
 is the same everywhere.
+
+## 5. Reasoning effort is a second routing axis, not a synonym for model tier
+
+Picking a model answers *which* model. Reasoning effort answers *how hard it
+thinks*. These are independent knobs and they get chosen independently — the
+common mistake is treating "this task is hard" as a single dial that only moves
+the tier.
+
+Effort is the **cheaper** knob, so it is the one to reach for first. Raising
+effort on the workhorse is a smaller commitment than escalating a tier, and it
+is reversible per call.
+
+Where the knob actually exists, as of 2026-07-26: the `Workflow` tool takes a
+per-agent `effort` (`low` / `medium` / `high` / `xhigh` / `max`), and a session
+carries its own effort setting that agents inherit when the field is omitted.
+The `Agent` tool takes `model` but **not** `effort` — a subagent spawned that
+way inherits, so effort routing there means choosing the session's level, not
+the agent's.
+
+### The default
+
+| Work | Effort |
+|---|---|
+| Orchestration, design, adversarial verification — anything where being wrong compounds into later steps | `high`, `xhigh` where the fan-out is wide |
+| Ordinary implementation and review | inherit the session |
+| Mechanical passes — renames, sweeps, formatting, single-file lookups, anything already decided | `low` |
+
+The shape of that table is the point: effort tracks **how expensive it is to be
+wrong**, not how large the task is. A sweep across forty files is mechanical; a
+one-line change to a shared contract is not.
+
+### This is a heuristic and nothing here has been measured
+
+Written 2026-07-26 from an outside practitioner's stated practice, adapted. **No
+A/B has been run on this setup.** It is recorded as a starting default because
+having one beats improvising per session, not because there is evidence behind
+the specific levels.
+
+**The trigger that forces a measurement:** the moment an effort choice is used to
+justify a *decision* rather than to pick a setting — a routing rule written into
+a repo, a claim that some lane is cheaper or better, an amendment to
+[`SYS-002`](https://github.com/sanlee-ys/architecture/blob/main/decisions/SYS-002-model-tier-standard.md)
+— it gets measured first. Guidance costs nothing and can be wrong quietly; a
+number quoted as evidence cannot.
+
+### It does not extend to API call sites
+
+This governs the **harness**. It says nothing about `effort` on an
+`anthropic.messages.create` call inside a project, and the one place that *was*
+measured cuts the other way: SYS-002's resolution found effort **moot** for
+`defense-news-classifier`'s `classify()`, because the call forces `tool_choice`
+and the model therefore never enters a thinking phase — confirmed across four
+configurations. Harness practice is not evidence about API practice. Setting
+`effort` at a call site needs its own measurement, under SYS-002's bar, not this
+section's.
+
+### On the top tier
+
+The standing preference is that the most expensive tier is a last resort,
+especially in fan-outs. That stands. Note though that SYS-002's own resolution
+used an isolated top-tier call as a *judge* — given only the measured facts and
+walled off from the agents that produced them. So the tier is un-defaulted, not
+banned, and the distinction that earns it is judgment under isolation rather
+than difficulty in general. Trying more effort on a cheaper tier first is the
+practical content of this whole section.

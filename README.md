@@ -40,8 +40,10 @@ nothing and might get the next gap found by a reader instead of a leak.
 - **`operating-model.md`** — the working agreements this all runs on: DCB
   (Direction / Contracts / Bar) as the scoping discipline for ambiguous work,
   a session pre-flight checklist (sync before touching anything, one concern
-  per branch), and the protocol for running several sessions in parallel
-  across machines that only share a git remote.
+  per branch), the protocol for running several sessions in parallel
+  across machines that only share a git remote, and reasoning **effort** as a
+  routing axis independent of model tier — recorded with its own lack of
+  evidence stated, and a trigger naming when it has to be measured instead.
 - **`security/`**
   - `posture.md` — the layered security model: permission allowlist design,
     escape hatches, and the standing rule that credential-touching commands
