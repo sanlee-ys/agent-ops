@@ -160,6 +160,39 @@ contain a `$`), the workaround is to move the text into a file and pass it with
 `--body-file` / `-F` — a non-sensitive path there is allowed, and it keeps the
 default-deny posture intact rather than widening the flag allowlist.
 
+## `Env:` the drive vs. `$env:` the variable (v2.2)
+
+PowerShell spells two different things `env:`, and until v2.2 the env-dump
+pattern could not tell them apart:
+
+| Form | What it is | Guard |
+| --- | --- | --- |
+| `Get-ChildItem Env:` | The **Env: PSDrive** enumerated as a path argument — every variable, values included. | Blocked (dump) |
+| `Get-ChildItem "$env:USERPROFILE\.ssh"` | A **variable dereference** used to build a path. Lists a directory; touches no variable's value. | Allowed |
+| `Get-ChildItem Env:GITHUB_TOKEN` | One **named** variable printed. Not a dump, but still a credential print. | Blocked (targeted read) |
+| `Get-ChildItem Env:PATH` | One named non-credential variable. | Allowed |
+
+The rule was `\bGet-ChildItem\b[^|]*\bEnv:` — any `Get-ChildItem` followed
+anywhere in the segment by the text `Env:` — so row 2 was blocked as an
+environment dump (confirmed false positive, 2026-07-26). The tightened pattern
+anchors **both ends** of the token: `Env:` must sit in the path-argument
+position (following whitespace and any `-Flag`s, optionally quoted, never a
+`$`), and must end there bar a `\`/`/` root separator and a `*` wildcard.
+
+Narrowing "dump" to the bare drive root moves `Env:NAME` out of the dump rule,
+so the credential-variable rule was widened to cover the listing cmdlets
+(`Get-ChildItem`/`gci`/`dir`/`ls`, alongside the `Get-Item`/`Get-Content` forms
+it already had). That pairing is the point: **a tightening that removes a false
+positive has to be checked for the true positives it was incidentally
+catching**, or the fix ships a hole. Both directions are pinned in
+`TestEnvDriveFalsePositive`.
+
+The Bash-side dump rules (`env`, `printenv`, `set`, `declare -p`) are not
+exposed to this class — they are whole-segment anchored or flag-bearing, so a
+literal `env` inside a path or argument (`.venv/`, `env/`, `--env-file`,
+`/usr/bin/env`, `conda env list`) never matched. That's now asserted rather than
+assumed, so a future widening of those rules fails a test on purpose.
+
 ## Installing it (standalone)
 
 `credential-guard.py` is a self-contained, **stdlib-only** Python 3 script

@@ -472,6 +472,94 @@ class TestProseFlagFalsePositive(GuardTestCase):
             'xxd --body ".env docs" /home/user/.env'))
 
 
+class TestEnvDriveFalsePositive(GuardTestCase):
+    """2026-07-26 confirmed false positive: `$env:NAME` used as part of a
+    filesystem path, read as a PowerShell environment dump.
+
+    Repro: `Get-ChildItem "$env:USERPROFILE\\.ssh" -Filter *.pub` was blocked
+    with the env-dump message. The pattern was
+    `\\bGet-ChildItem\\b[^|]*\\bEnv:` — any `Get-ChildItem` followed anywhere in
+    the segment by the text `Env:`. But `$env:USERPROFILE` is a variable
+    dereference used to BUILD a path; the command lists a directory and never
+    enumerates the Env: PSDrive.
+
+    The fix anchors both ends of the token: `Env:` must sit in the path-argument
+    position (following whitespace, never a `$`) and must END there. The blocked
+    cases below are the guard rails — every real drive-enumeration form still
+    blocks, and a targeted `Env:CREDENTIAL_NAME` read (no longer a "dump" under
+    the tighter pattern) is held by CRED_VAR_READ instead.
+    """
+
+    def test_env_var_in_a_path_is_not_a_dump(self):
+        for cmd in [
+            # the exact reported repro
+            'Get-ChildItem "$env:USERPROFILE\\.ssh" -Filter *.pub'
+            ' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name',
+            'Get-ChildItem "$env:USERPROFILE\\.ssh"',
+            "Get-ChildItem $env:TEMP",
+            "Test-Path $env:APPDATA\\foo",
+            "Get-ChildItem $env:USERPROFILE -Recurse",
+            "gci $env:LOCALAPPDATA",
+            'Get-ChildItem -Path "$env:ProgramData\\logs"',
+            'ls "$env:TEMP"',
+        ]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+
+    def test_env_psdrive_enumeration_still_blocked(self):
+        for cmd in [
+            "Get-ChildItem Env:",
+            "gci env:",
+            "ls Env:\\",
+            "Get-ChildItem -Path Env:",
+            'Get-ChildItem "Env:"',
+            "Get-ChildItem Env:\\*",
+            "dir env:",
+            "Get-Item Env:*",
+            "Get-ChildItem Env: | Format-Table",
+            "(Get-ChildItem Env:).Count",
+            "Get-ChildItem -Force Env:",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_targeted_credential_var_via_listing_cmdlet_still_blocked(self):
+        # `Env:NAME` is no longer a "dump" under the tighter pattern, so these
+        # must be held by CRED_VAR_READ — otherwise the fix opens a hole.
+        for cmd in [
+            "Get-ChildItem Env:ANTHROPIC_API_KEY",
+            "ls Env:GITHUB_TOKEN",
+            "dir Env:GH_TOKEN",
+            "gci Env:AWS_SECRET_ACCESS_KEY",
+            "Get-ChildItem -Path Env:OPENAI_API_KEY",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        # ...while a non-credential named variable stays a targeted read.
+        self.assertAllowed(*self.ps("Get-ChildItem Env:PATH"))
+        self.assertAllowed(*self.ps("Get-Item Env:PATH"))
+
+    def test_bash_paths_containing_the_word_env(self):
+        # The Bash-side dump rules are whole-segment anchored (`^\s*env\s*$`) or
+        # flag-bearing (`declare -p`), so a literal `env` inside a path or an
+        # argument was never the same false-positive class. Pinned so a future
+        # widening of those rules has to fail a test on purpose.
+        for cmd in [
+            "ls .venv/bin",
+            "ls env/",
+            "source .venv/bin/activate",
+            "python -m venv env",
+            "uv run --env-file .env.example python x.py",
+            "env -u UV_ENV_FILE uv run python x.py",
+            "docker run --env FOO=bar img",
+            "conda env list",
+            "cat docs/env-setup.md",
+            "ls /usr/bin/env",
+            "declare -a arr",
+        ]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+        # the genuine dumps stay blocked
+        for cmd in ["env", "printenv", "set", "declare -p", "export -p"]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+
 class TestFalsePositives(GuardTestCase):
     """The discipline that killed v1's first over-broad draft: routine work
     that merely NAMES a sensitive path, or checks its existence, must pass."""
