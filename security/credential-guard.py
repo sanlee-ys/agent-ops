@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-# hook-version: 2.1 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.2 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
+# 2.2 (2026-07-26): `Env:` PSDrive false-positive fix — the env-dump pattern
+# matched `$env:NAME` used as a path, not just the drive root.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, claude-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -170,15 +172,38 @@ def _has_sensitive_path(text):
 
 # --- Environment dumps and targeted credential-var reads -------------------
 
+# The PowerShell `Env:` PSDrive enumerated as a PATH ARGUMENT.
+#
+# 2026-07-26 false positive: the old form was `\bGet-ChildItem\b[^|]*\bEnv:`,
+# which matched ANY `Get-ChildItem` followed anywhere in the segment by the text
+# `Env:` — so `Get-ChildItem "$env:USERPROFILE\.ssh"` was blocked as an
+# environment dump. That command lists a directory; it never touches the Env:
+# drive. `$env:NAME` is a variable DEREFERENCE that happens to spell `env:`;
+# `Env:` as the drive root is the dump. Both ends of the token distinguish them:
+#
+#   - it must FOLLOW whitespace (after the cmdlet and any `-Flag`s), optionally
+#     quoted — never a `$`. That alone kills `"$env:USERPROFILE\.ssh"`, and it
+#     is why the `(dir|ls|gci)\s+env:` alternatives never had this bug.
+#   - it must END there, bar a `\`/`/` drive-root separator and a `*` wildcard.
+#     `Env:PATH` names ONE variable, so it is a targeted read rather than a
+#     dump — see CRED_VAR_READ, which covers the listing cmdlets too so this
+#     tightening cannot unblock `Get-ChildItem Env:GITHUB_TOKEN`.
+#
+# Covers `Get-ChildItem Env:`, `gci env:`, `ls Env:\`, `Get-ChildItem -Path
+# Env:`, `Get-Item Env:*`, and the quoted forms (case-insensitive).
+_PS_ENV_DRIVE = (
+    r"(?:^|[\s;(])(?:Get-ChildItem|Get-Item|gci|gi|dir|ls)\s+"
+    r"(?:-\w+\s+)*"                      # -Path / -LiteralPath / -Force / ...
+    r"['\"]?Env:[\\/]?\*?['\"]?(?![\w$-])"
+)
+
 ENV_DUMP_PATTERN = re.compile(
     r"^\s*env\s*$"                       # bare `env`
     r"|^\s*printenv\s*$"                 # bare `printenv`
     r"|^\s*set\s*$"                      # bare `set` (not `set -e` / `set -o`)
     r"|\bexport\s+-p\b"                  # `export -p`
     r"|\bdeclare\s+-\w*p\b"              # `declare -p` / `-px`
-    r"|\bGet-ChildItem\b[^|]*\bEnv:"     # PowerShell env dump
-    r"|\b(dir|ls|gci)\s+env:"
-    r"|\bGet-Item\b[^|]*\bEnv:\*"
+    + r"|" + _PS_ENV_DRIVE +             # PowerShell Env: PSDrive dump
     r"|\bGet-Variable\b(?![^|]*-Name)"   # `Get-Variable` with no -Name = dump
     r"|\b(dir|ls)\s+variable:",
     re.IGNORECASE,
@@ -212,7 +237,13 @@ CRED_VAR_READ = re.compile(
     + r"|^\s*\"[^\"\n]*\$(?:\{)?env:" + _CRED_VAR
     # PowerShell single-var reads: Get-Item / Get-Content / gi / gc Env:NAME
     # (the dump forms need `*`; a single named read printed the value) — M1.
-    + r"|(?:Get-Item|Get-Content|gi|gc)\s+Env:\\?" + _CRED_VAR
+    # The LISTING cmdlets belong here too: `Get-ChildItem Env:GITHUB_TOKEN` and
+    # `ls Env:GH_TOKEN` print one variable's value, and until 2026-07-26 they
+    # were caught only incidentally, by the over-broad env-dump pattern that the
+    # `$env:`-as-a-path false positive forced us to tighten (_PS_ENV_DRIVE).
+    # Without this line that tightening would have opened a real hole.
+    + r"|(?:Get-Item|Get-Content|Get-ChildItem|gi|gc|gci|dir|ls)\s+"
+    + r"(?:-\w+\s+)*Env:\\?" + _CRED_VAR
     # herestring feeding a credential var to a command's stdin — round 1, M2.
     + r"|<<<\s*['\"]?\$(?:\{)?(?:env:)?" + _CRED_VAR,
     re.IGNORECASE,
