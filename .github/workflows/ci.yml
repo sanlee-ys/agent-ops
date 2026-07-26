@@ -26,6 +26,7 @@ jobs:
         run: |
           python -m py_compile security/credential-guard.py
           python -m py_compile hooks/git-staging-guard.py
+          python -m py_compile hooks/published-history-guard.py
           python -m py_compile scripts/redline-guard.py
           python -m py_compile scripts/sync-shared-blocks.py
 

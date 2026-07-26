@@ -43,6 +43,49 @@ exist as far as another session is concerned.
 7. **If many sessions run at once, designate an integrator** that owns merging
    to `main` and keeping it green; the others stay feature-scoped and rebase on
    its merges.
+8. **Diverged from `main`? Rebase onto it. Never reset back to where you
+   started.** See below — this is the rule that was missing on 2026-07-26.
+
+## Recovering from a diverged branch
+
+Added 2026-07-26, after two sessions in one clone raced on `main` and one of them
+destroyed the other's pushed commit. That repo is direct-to-main by its own house
+rule, so no PR gate stood between the mistake and the remote.
+
+A session that started from an older `main` and finds the remote has moved has
+exactly one correct move:
+
+```bash
+git -C <repo> pull --rebase        # replay your work on top of theirs
+git -C <repo> log --oneline -5     # confirm BOTH sides survived
+git -C <repo> push                 # a plain push now suffices
+```
+
+**`git reset` back to your starting point is not a recovery from divergence.**
+It looks like one — the tree ends up clean and your work is still staged — but
+it silently drops whatever landed on the branch while you were working, and the
+force-push that necessarily follows is what publishes the loss. That is the
+2026-07-26 sequence exactly: a `--soft` reset (locally harmless, correctly
+allowed by every gate) followed three minutes later by a
+`push --force-with-lease` that erased a sibling session's commit.
+
+Two things follow from that incident, and both are counter-intuitive enough to
+be worth stating:
+
+- **`--force-with-lease` is not a safety net here.** Its lease compares the
+  remote-tracking ref, and background fetches refresh that ref, so the lease
+  passes and the clobber proceeds. Verify with `git ls-remote` — the actual
+  remote — or don't claim to have verified.
+- **Never `git reset` past a commit you did not author.** In a shared clone you
+  cannot tell by looking, so the operative habit is: before any reset that moves
+  the branch pointer backwards on `main`, run `git log --oneline @{u}..` and
+  `git ls-remote origin main` and know what is in the range.
+
+This is enforced, not just written down: `hooks/published-history-guard.py`
+blocks both shapes when the discarded range holds a published commit, with a
+`REWRITE-MAIN-OK` override for deliberate rewrites. The reasoning, the options
+weighed, and what the permission layer actually did that day are in
+[`../decisions/ADR-007-guard-the-invariant-not-the-verb.md`](../decisions/ADR-007-guard-the-invariant-not-the-verb.md).
 
 ## On branch names
 

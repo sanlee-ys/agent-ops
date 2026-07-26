@@ -62,6 +62,15 @@ nothing and might get the next gap found by a reader instead of a leak.
   and postmortems describing the incidents quote those flags verbatim, so it
   strips heredoc bodies and tokenizes rather than grepping for a flag. Tested
   both ways in `tests/`.
+- **`hooks/published-history-guard.py`** — a `PreToolUse` hook that blocks a
+  force-push or a backward `reset` on `main` when the discarded range holds a
+  commit the remote already has, so one session cannot erase another's pushed
+  work in a direct-to-main repo. Unlike the guards above it is *stateful*: the
+  fact that condemns the command ("that range contains someone else's published
+  commit") is in the repository, not in the command string, so it asks git —
+  and asks `ls-remote`, never the tracking ref, since a stale-then-refreshed
+  tracking ref is what defeated `--force-with-lease` in the incident behind it.
+  Reasoning in [`decisions/ADR-007`](decisions/ADR-007-guard-the-invariant-not-the-verb.md).
 - **`incidents/`** — seven blameless postmortems. They share a spine —
   summary, impact, root cause, the fixes actually applied, lessons learned —
   but the format follows the failure rather than a template: four drive the
