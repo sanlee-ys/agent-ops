@@ -5,7 +5,7 @@ v6 fix and the rule generalised from it.
 **Scope:** This repo (the Claude operating layer). Repo-local ADR per the
 two-tier convention — a cross-repo SYS entry would be a follow-up, not part of
 this ADR.
-**Related:** [`incidents/2026-07-25-memory-sync-orphaned-index-lock.md`](../incidents/2026-07-25-memory-sync-orphaned-index-lock.md)
+**Related:** [`debug-notes/2026-07-25-memory-sync-orphaned-index-lock.md`](../debug-notes/2026-07-25-memory-sync-orphaned-index-lock.md) (reclassified from `incidents/` 2026-08-01)
 — the same hook, a **different** root cause. See
 [Why this is a decision and not a second postmortem](#why-this-is-a-decision-and-not-a-second-postmortem).
 

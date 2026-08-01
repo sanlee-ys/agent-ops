@@ -39,7 +39,7 @@ in `~/.claude/settings.json`, no guard script on disk. The guard existing in
 principle in the config repo did nothing for sessions run from an
 un-provisioned machine. This is a config-drift / incomplete-rollout problem,
 not a flaw in the guard's logic. (See also
-incidents/2026-07-04-graphify-console-flash-three-surfaces.md, which turned
+debug-notes/2026-07-04-graphify-console-flash-three-surfaces.md, which turned
 up the same class of "wrote the fix" vs. "the fix is deployed everywhere"
 gap.)
 

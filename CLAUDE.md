@@ -26,7 +26,10 @@ Claude operating layer (see
   — output from a run that hit a limit is suspect even where it parses.
 - **Delegation policy** — task classes × autonomy levels, each gated on a
   verifier: [`delegation-policy.md`](delegation-policy.md).
-- **Decisions:** [`decisions/`](decisions/). **Incidents:** [`incidents/`](incidents/).
+- **Decisions:** [`decisions/`](decisions/). **Incidents:** [`incidents/`](incidents/) —
+  held to a severity bar (real exposure, real spend, or a live control
+  failing); write-ups below that bar go in [`debug-notes/`](debug-notes/),
+  and new entries get classified against that bar at filing time.
 
 This repo is public and guarded by a pre-commit redline check
 (`scripts/redline-guard.py`): no credentials, private-repo names, or local

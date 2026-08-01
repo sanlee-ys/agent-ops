@@ -1,0 +1,28 @@
+# Debug notes
+
+Write-ups that were worth keeping but did not clear the incident bar.
+
+**The bar** (2026-08-01): an entry goes in `incidents/` only if there was real
+exposure (a credential or private data reached somewhere it shouldn't), real
+spend (money or a usage window burned), or a live control failing in
+production use. Everything else — however instructive the debugging was — is
+a debug note.
+
+The distinction is the point. A log where every annoying bug becomes an
+"incident" is a log where severity stops meaning anything, and the next
+reader (including a future session of the agent this repo operates) can no
+longer tell the credential leak from the console flash. Both of the entries
+below were originally filed as incidents and demoted when the log was held
+to the bar above; the write-ups are unchanged apart from the
+reclassification note, because what they record is still true and still
+useful — it just isn't an incident.
+
+- [`2026-07-04-graphify-console-flash-three-surfaces.md`](2026-07-04-graphify-console-flash-three-surfaces.md)
+  — a console window flashing at unpredictable moments turned out to be
+  three unrelated processes with three different fixes, plus one wrong
+  diagnosis along the way. UX annoyance; no exposure, no spend.
+- [`2026-07-25-memory-sync-orphaned-index-lock.md`](2026-07-25-memory-sync-orphaned-index-lock.md)
+  — a `SessionEnd` hook killed mid-git-sequence wedged cross-machine memory
+  sync silently for an hour, twice, in two different windows of the same
+  sequence. No data lost; the reusable part is that two plausible fixes
+  were both wrong and a ten-minute empirical probe killed both.
