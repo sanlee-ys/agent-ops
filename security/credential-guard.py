@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.5 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.6 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
