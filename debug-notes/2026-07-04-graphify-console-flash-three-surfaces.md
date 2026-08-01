@@ -2,6 +2,7 @@
 
 **Date:** 2026-07-03 to 2026-07-04 | **Duration:** ~1 day across three separate diagnostic passes | **Severity:** Low (UX annoyance — unexpected console windows popping during git/graphify operations, including mid-game; no data exposure)
 **Status:** Resolved (one known durability gap remains, accepted as-is)
+**Reclassified 2026-08-01:** debug note, not an incident — no exposure, no spend, nothing at risk beyond attention. Originally filed under `incidents/`; see [README.md](README.md) for the bar.
 
 ## Summary
 

@@ -61,7 +61,7 @@ incidents/2026-07-02-uncapped-premium-fanout.md,
 incidents/2026-07-03-github-pat-plaintext-recurrence.md,
 incidents/2026-07-03-credential-guard-interpreter-bypass.md,
 incidents/2026-07-04-github-pat-read-grep-leak.md, and
-incidents/2026-07-04-graphify-console-flash-three-surfaces.md.
+debug-notes/2026-07-04-graphify-console-flash-three-surfaces.md.
 The standing rule from this incident is one input into the credential-guard
 hook (`security/credential-guard.py` in this repo), built out further in the
 later incidents in this series.

@@ -139,6 +139,6 @@ exempt from a fix — it makes it a second thing to remember every time,
 which is exactly the kind of thing that gets forgotten under the pressure
 of fixing the "real" copy. Same root pattern as the console-flash
 incident's generated-file drift (see
-incidents/2026-07-04-graphify-console-flash-three-surfaces.md), one layer over:
+debug-notes/2026-07-04-graphify-console-flash-three-surfaces.md), one layer over:
 that one was a fix living in a place nobody version-controlled; this one
 was a fix living in only one of two version-controlled places.

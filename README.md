@@ -15,12 +15,13 @@ about it is either marketing ("agents are safe by design") or after-the-fact
 incident response at a company that isn't going to publish its postmortems.
 
 This repo is neither. It's the operating layer that grew out of actually
-running Claude Code day to day on one machine: a security posture, a
-`PreToolUse` hook that enforces part of it mechanically, seven incident
-postmortems written in blameless format with the failures left in, five
-reusable skills, and the working agreements (how work gets scoped, how
-parallel sessions stay out of each other's way) that the posture and the
-incidents both assume.
+running Claude Code day to day on one machine: a security posture, the
+`PreToolUse` guards that enforce part of it mechanically, five incident
+postmortems written in blameless format with the failures left in — plus
+two write-ups deliberately demoted to debug notes when the log was held to
+an honest severity bar — five reusable skills, and the working agreements
+(how work gets scoped, how parallel sessions stay out of each other's way)
+that the posture and the incidents both assume.
 
 Three of those are credential exposures — one covering two separate leaks
 of the same GitHub PAT — for four exposure events in one week, three of
@@ -38,12 +39,12 @@ nothing and might get the next gap found by a reader instead of a leak.
 ## Map
 
 - **`operating-model.md`** — the working agreements this all runs on: DCB
-  (Direction / Contracts / Bar) as the scoping discipline for ambiguous work,
-  a session pre-flight checklist (sync before touching anything, one concern
-  per branch), the protocol for running several sessions in parallel
-  across machines that only share a git remote, and reasoning **effort** as a
-  routing axis independent of model tier — recorded with its own lack of
-  evidence stated, and a trigger naming when it has to be measured instead.
+  (Direction / Contracts / Bar) as the scoping discipline, the session
+  pre-flight, the parallel-session protocol, and reasoning effort as a
+  routing axis (recorded with its own lack of evidence stated). Compressed
+  2026-08-01 to the parts that are load-bearing as prose — every practice
+  that mattered enough either earned a mechanical backstop in `hooks/` and
+  `conventions/`, or it was ceremony; the long form is in git history.
 - **`security/`**
   - `posture.md` — the layered security model: permission allowlist design,
     escape hatches, and the standing rule that credential-touching commands
@@ -73,23 +74,26 @@ nothing and might get the next gap found by a reader instead of a leak.
   and asks `ls-remote`, never the tracking ref, since a stale-then-refreshed
   tracking ref is what defeated `--force-with-lease` in the incident behind it.
   Reasoning in [`decisions/ADR-007`](decisions/ADR-007-guard-the-invariant-not-the-verb.md).
-- **`incidents/`** — seven blameless postmortems. They share a spine —
+- **`incidents/`** — five blameless postmortems, held to a deliberate bar:
+  real exposure, real spend, or a live control failing. They share a spine —
   summary, impact, root cause, the fixes actually applied, lessons learned —
-  but the format follows the failure rather than a template: four drive the
-  root cause out through an explicit 5-whys, and the most recent is prose
-  throughout, because the reusable part of it wasn't a cause table but the
-  two plausible fixes that were both wrong.
+  but the format follows the failure rather than a template. Four of the
+  five are one story told honestly: the same credential surface leaking
+  through a different tool or command shape each time, each guard scoped to
+  the surface its author had imagined rather than the one that existed. The
+  fifth is a multi-agent fan-out with no cost cap spending a usage window in
+  minutes.
   - `2026-07-02-plaintext-api-key-exposure.md`
   - `2026-07-02-uncapped-premium-fanout.md`
   - `2026-07-03-github-pat-plaintext-recurrence.md`
   - `2026-07-03-credential-guard-interpreter-bypass.md`
   - `2026-07-04-github-pat-read-grep-leak.md`
-  - `2026-07-04-graphify-console-flash-three-surfaces.md`
-  - `2026-07-25-memory-sync-orphaned-index-lock.md` — a `SessionEnd` hook
-    killed mid-git-sequence, twice: first leaving an orphaned `index.lock`
-    that silently wedged every later sync, then — after that window was
-    hardened — killed in a *different* window of the same sequence, where
-    death leaves no wreckage at all and the memory just never arrives.
+- **`debug-notes/`** — two write-ups that were originally filed as incidents
+  and demoted on 2026-08-01 when the log was held to the bar above: the
+  console-flash hunt (three root causes, one wrong diagnosis) and the killed
+  `SessionEnd` hook that silently wedged memory sync. Worth keeping, not
+  incidents — a log where every annoying bug is an "incident" is a log where
+  severity means nothing. The demotion is the posture.
 - **`skills/`** — five custom skills (`dcb`, `descope-sweep`, `park`,
   `proglog`, `handoff`) published as patterns, with a `README.md` explaining
   what each does and when it fires.

@@ -2,6 +2,7 @@
 
 **Date:** 2026-07-25 | **Duration:** ~65 min wedged (09:14–10:19), diagnosed and fixed same morning | **Severity:** Low-Medium (no data loss; cross-machine memory sync silently dead, and a dirty shared git index left where an unrelated commit could have swept it up)
 **Status:** Resolved as v4, then reopened and resolved again as v5 — the same root cause in a different window of the same sequence. See [Follow-up](#follow-up-the-same-root-cause-a-second-window-v5).
+**Reclassified 2026-08-01:** debug note, not an incident — no data lost, no exposure, an hour of silent sync lag. Originally filed under `incidents/`; see [README.md](README.md) for the bar.
 
 ## Summary
 
