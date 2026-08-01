@@ -1032,5 +1032,167 @@ class TestFalsePositives(GuardTestCase):
         self.assertEqual(proc.returncode, ALLOW)
 
 
+class TestVariableBindingFalsePositive(GuardTestCase):
+    """claude-ops#14: a segment that BINDS a sensitive path to a variable, or
+    names it in a loop header, was default-denied even when every operation
+    actually applied to it is on SAFE_COMMANDS. The inline form passed and the
+    identical operation via a variable blocked.
+
+    The reported A-F reproducer set is pinned below. The fix has two halves and
+    neither is safe alone: a pure value binding is not a read (so `$f = '...'`
+    and `foreach ($f in @(...))` stop being "unknown commands"), AND the bound
+    literal is substituted back into the rest of the command (so whatever
+    consumes the variable is still judged against the real path).
+    """
+
+    BAK = "$HOME/.claude/settings.json.bak"
+    CFG = "$HOME/.claude/settings.json"
+
+    def test_reproducers_a_to_f(self):
+        # A / E are the inline CONTROLS — they passed before the fix too, and
+        # are what B-D and F are supposed to be equivalent to.
+        self.assertAllowed(*self.ps(f"Remove-Item '{self.BAK}' -Force"),
+                           msg="A inline Remove-Item (control)")
+        self.assertAllowed(*self.ps(f"Test-Path '{self.CFG}'"),
+                           msg="E inline Test-Path (control)")
+        # B: same delete, path bound to a variable first.
+        self.assertAllowed(*self.ps(
+            f"$f = '{self.BAK}'\nRemove-Item $f -Force"), msg="B")
+        # C: same delete, paths in an array literal + foreach.
+        self.assertAllowed(*self.ps(
+            f"foreach ($f in @('{self.BAK}',"
+            f"'$HOME/.claude/settings.local.json.bak'))"
+            " { Remove-Item $f -Force }"), msg="C")
+        # D: Test-Path in a loop header — the sharpest case, because the block
+        # message recommends Test-Path as the remediation and then blocked it.
+        self.assertAllowed(*self.ps(
+            f"foreach ($p in @('{self.CFG}')) {{ Test-Path $p }}"), msg="D")
+        self.assertAllowed(*self.ps(
+            f"foreach ($p in @('{self.CFG}'))"
+            " { if (Test-Path $p) { Write-Host 'yes' } }"), msg="D nested if")
+        # F: get-filehash is on SAFE_COMMANDS precisely as a digest-not-content
+        # read; bound to a variable it blocked.
+        self.assertAllowed(*self.ps(f"$h = Get-FileHash '{self.CFG}'"), msg="F")
+
+    def test_must_keep_blocking(self):
+        """The three shapes the issue itself flagged as non-negotiable."""
+        self.assertBlocked(*self.ps(f'$x = Get-Content "{self.CFG}"'),
+                           msg="reader on the RHS")
+        self.assertBlocked(*self.ps('$x = "$(cat $HOME/.env)"'),
+                           msg="substitution in the value")
+        self.assertBlocked(*self.ps("foreach ($f in @('~/.env')) { Get-Content $f }"),
+                           msg="safe header, reader in body")
+
+    def test_binding_and_read_split_across_segments(self):
+        """The association must survive the split, in BOTH directions — this is
+        what the substitution buys. Without it, allowing the binding would just
+        move the read one segment to the right."""
+        for cmd in [
+            "$f = '~/.env'; Get-Content $f",
+            "foreach ($f in @('~/.env')) { }; Get-Content $f",
+            "foreach ($f in @('~/.env')) { Test-Path $f }; cat $f",
+            "foreach ($f in @('~/.env')) { Test-Path $f; Get-Content $f }",
+            "foreach ($f in @('~/.env')) { Get-Content $f | Out-Null }",
+            # a read BEFORE the binding is blocked too — order-independent is
+            # the conservative direction
+            "Get-Content $f; $f = '~/.env'",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_rebinding_chain_cannot_launder_the_path(self):
+        # Resolved to a fixpoint, so the path can't be walked out one hop at a
+        # time. Adjacent to the copy-launder class posture.md bounds out of
+        # scope, but this change is what would have opened it, so it's held.
+        self.assertBlocked(*self.ps("$a = '~/.env'; $b = $a; Get-Content $b"))
+        self.assertBlocked(*self.ps(
+            "$a = '~/.env'; $b = $a; $c = $b; Get-Content $c"))
+        # rebinding in either order stays blocked
+        self.assertBlocked(*self.ps("$f = 'notes.md'; $f = '~/.env'; cat $f"))
+        self.assertBlocked(*self.ps("$f = '~/.env'; $f = 'notes.md'; cat $f"))
+
+    def test_variable_spelling_variants(self):
+        """A binding is stored scope-stripped and matched with the scope
+        prefix optional, so neither direction of the mismatch opens a hole.
+        `$env:` is NOT a scope prefix — it is a different namespace."""
+        for cmd in [
+            "$f = '~/.env'; Get-Content ${f}",
+            "$F = '~/.env'; Get-Content $f",              # PS is case-insensitive
+            "$global:f = '~/.env'; Get-Content $f",       # scoped write
+            "$f = '~/.env'; Get-Content $global:f",       # scoped read
+            "$script:f = '~/.env'; Get-Content $f",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_only_a_pure_literal_counts_as_a_binding(self):
+        """The safety of the whole rule rests on _is_literal_value being narrow.
+        Anything whose right-hand side can EXECUTE is not a binding and keeps
+        its default-deny — these are not resolved, they are refused."""
+        for cmd in [
+            "$f = @((Get-Content '~/.env'))",            # call inside an array
+            "$f = @($(cat ~/.env))",                     # subexpression
+            "$f = `cat ~/.env`",                         # backtick
+            "$a = $b = '~/.env'",                        # nested assignment
+            "$x = @{p='~/.env'}; Get-Content $x.p",      # hashtable
+            "$f += '~/.env'; Get-Content $f",            # compound assignment
+            "$f[0] = '~/.env'; Get-Content $f[0]",       # indexed target
+            "foreach ($l in (Get-Content '~/.env')) { $l }",   # reader in header
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        # ...but a genuinely pure value, however deeply nested, runs nothing.
+        self.assertAllowed(*self.ps("$f = @(@(@('~/.env')))"))
+        self.assertAllowed(*self.ps("$f = '~/.env'"))
+        self.assertAllowed(*self.ps("$f = '~/.env','~/.aws/credentials'"))
+
+    def test_bound_path_still_reaches_every_reader_rule(self):
+        """Substitution feeds the real path back to the ordinary checks, so the
+        binding form inherits ALL of them, not just the leading-command one."""
+        for cmd in [
+            "$f = '~/.env'; base64 $f",
+            "$f = '~/.env'; cat < $f",
+            "$f = '~/.env'; echo $f | xargs cat",         # cross-stage producer
+            "$f = '~/.env'; Select-String -Path $f -Pattern KEY",
+            "$f = '~/.env'; tar -O -xf $f",
+            "$f = '~/.env'; git show HEAD:$f",
+            '$f = \'~/.env\'; python3 -c "print(open($f).read())"',
+            "$f = \"$HOME/.env\"; Get-Content $f",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_control_flow_header_and_body_judged_separately(self):
+        """A loop/conditional keyword must not condemn a safe body, and must
+        not shelter an unsafe one. Both halves are classified."""
+        self.assertAllowed(*self.ps(
+            "if (Test-Path '~/.env') { Remove-Item '~/.env' }"))
+        self.assertAllowed(*self.ps(
+            "foreach ($f in @('~/.env')) { foreach ($g in @($f))"
+            " { Remove-Item $g } }"), msg="nested loop, safe body")
+        for cmd in [
+            "if ($true) { cat ~/.env }",
+            "if (cat ~/.env) { }",
+            "while (Get-Content '~/.env') { }",
+            "switch ('x') { default { Get-Content '~/.env' } }",
+            "foreach ($f in @('~/.env')) { foreach ($g in @($f))"
+            " { Get-Content $g } }",
+            # an unbalanced group/brace must fail toward BLOCK
+            "foreach ($f in @('~/.env')) { Get-Content $f",
+            "foreach ($f in @('~/.env') { Get-Content $f }",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_binding_allowances_do_not_leak_to_non_sensitive_or_bash(self):
+        # Only a SENSITIVE literal is ever registered, so a template binding
+        # stays allowed and does not arm the substitution for anything else.
+        self.assertAllowed(*self.ps("$f = '.env.example'; Get-Content $f"))
+        # bash `VAR=val` handling is untouched
+        self.assertAllowed(*self.bash("FOO=bar ls"))
+        self.assertBlocked(*self.bash("VAR=$(cat ~/.env)"))
+        # the safe verbs the issue was actually trying to use
+        for cmd in ["$f = '~/.env'; Remove-Item $f",
+                    "$f = '~/.env'; ls $f",
+                    "$f = '~/.env'; stat $f",
+                    "$f = '~/.env'; git add $f"]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

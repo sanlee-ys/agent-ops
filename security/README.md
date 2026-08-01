@@ -354,6 +354,90 @@ lands inside a unit body (`_balanced` runs an unterminated group to end of
 segment) and both callers re-split what they find. `echo ( ; cat ~/.env`,
 `echo ( ; env`, and a quoted `echo "(" ; cat ~/.env` are all pinned as blocked.
 
+## A binding is not a read (v2.6)
+
+`Remove-Item '~/.claude/settings.json.bak' -Force` was allowed. Bind the path to
+a variable first and the identical delete blocked:
+
+```powershell
+$f = '~/.claude/settings.json.bak'
+Remove-Item $f -Force            # BLOCKED, same semantics
+```
+
+So did `foreach ($f in @(...)) { Remove-Item $f }`, and — sharpest —
+`Test-Path` sitting in a loop header, which is the remediation the block message
+itself recommends. `Get-FileHash`, on `SAFE_COMMANDS` precisely as a
+digest-not-content read, blocked the same way.
+
+`_leading_command` skipped the *bash* `VAR=val` prefix but not PowerShell's
+`$var = ...` (leading `$`, and with spaces the `=` is its own token), nor a
+`foreach (...)` header. So `lead` came back as `$f` — not a known command — and
+fell to default-deny.
+
+**The block was not buying coverage.** It is lexical, so the workaround is just
+"don't write the literal": enumerate with `Get-ChildItem -Filter '*.bak'` and
+delete `$_.FullName`, and the same file is removed with the string never
+appearing. What it did buy was the reflex of reaching for `MASK-OK` on an
+operation that reads nothing — which is the failure mode the posture cares
+about most, and the reason a false positive on a security control is a real
+cost rather than a cosmetic one.
+
+Two rules, and **neither is safe without the other**:
+
+1. **A pure value binding runs nothing**, so it is not a read. `$f = <literal>`
+   and `foreach ($f in <literal>)` are inert. "Pure literal" is deliberately
+   narrow (`_is_literal_value`): a quoted string, a bare path token, or an array
+   literal of those, and nothing that can execute — no `$(`, no backtick, no
+   `@(`-nested call. `$x = "$(cat ~/.env)"` is therefore *not* a binding and
+   keeps blocking on its nested reader.
+2. **The association survives.** Allowing the binding while ignoring what the
+   body does with it would be a straight hole, so the bound literal is
+   substituted back into the rest of the command before classification.
+   `foreach ($f in @('~/.env')) { Get-Content $f }` is judged as
+   `Get-Content @('~/.env')` and blocks; the same loop with `Remove-Item` is
+   judged as `Remove-Item @('~/.env')` and passes. That is the whole point:
+   the *verb* decides, not whether a variable was involved.
+
+Substitution runs to a **fixpoint**, so a re-binding chain cannot walk the path
+out one hop at a time (`$a = '~/.env'; $b = $a; Get-Content $b`). Bindings are
+stored scope-stripped and matched with the scope prefix optional, because
+`$global:f` and `$f` are the same variable and fixing only one direction leaves
+the other open. Only a **sensitive** literal is ever registered, so nothing else
+is rewritten.
+
+Because the substituted path flows into the *ordinary* checks, the variable form
+inherits all of them rather than just the leading-command one — `base64 $f`,
+`cat < $f`, `tar -O -xf $f`, `git show HEAD:$f`, `python3 -c "...open($f)..."`
+and the cross-stage `echo $f | xargs cat` all block.
+
+### Header and body, separately but not independently
+
+Loop and conditional headers are now classified apart from their bodies, which
+is what lets a benign header carry a sensitive path without condemning the
+segment (and fixes `if (Test-Path ~/.env) { Remove-Item ~/.env }`, previously
+denied on the `if`). The trap in splitting them is losing the association: the
+header is benign and the *body* is the read. Both halves are classified, and the
+body against the path the header bound, so `foreach ($f in @('~/.env'))
+{ Get-Content $f }` still blocks. An unbalanced group or brace fails toward
+BLOCK.
+
+A related classification gap fell out of this: an array literal is a paren
+group, so its body is offered up as a segment of its own. A single element
+already passed as a whole-quoted literal, but two or more (`'~/.env','~/.aws/
+credentials'`) were judged on a "leading command" of the element list itself and
+default-denied — which is why a two-file cleanup loop blocked while the one-file
+version passed. A segment that is nothing but a value expression is now
+recognised as data (`_is_literal_data`); a *bare word* is deliberately excluded,
+since a bare word in command position is a command.
+
+### What this deliberately is not
+
+It is not a dataflow analyser. Anything whose right-hand side is not a pure
+literal stays default-denied rather than being resolved — `$f = @{p='~/.env'}`,
+`$a = $b = '~/.env'`, `$f += ...`, `$f[0] = ...`, backtick line-continuation
+across segments. None of those is newly allowed; they keep their pre-2.6
+behaviour or block. Pinned in `TestVariableBindingFalsePositive`.
+
 ## Installing it (standalone)
 
 `credential-guard.py` is a self-contained, **stdlib-only** Python 3 script

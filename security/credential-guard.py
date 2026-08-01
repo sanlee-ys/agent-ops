@@ -12,6 +12,12 @@
 # 2.5 (2026-07-26): a bare env dump nested in a substitution (`echo $(env)`) is
 # now seen — the whole-segment anchors get offered each unit body as a segment,
 # and the splitter no longer cuts a substitution into fragments.
+# 2.6 (2026-07-31): a PowerShell VALUE BINDING (`$f = '~/.env'`, `foreach ($f in
+# @(...))`) is no longer read as an unknown command and default-denied; the
+# bound path is instead SUBSTITUTED into the rest of the command, so the safe
+# verb the issue reported (Remove-Item / Test-Path / Get-FileHash via a
+# variable) passes while a reader reached through the same variable still
+# blocks. Loop/conditional headers are classified separately from their bodies.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, claude-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -704,9 +710,304 @@ def _split_segments(command):
     return segs
 
 
+# --- Value bindings and control-flow headers (v2.6) ------------------------
+# 2026-07-31 false-positive class (claude-ops#14): a segment that BINDS a
+# sensitive path to a variable, or names it in a loop header, was default-denied
+# even when every operation actually applied to it is on SAFE_COMMANDS. The
+# inline form passed and the identical operation via a variable blocked:
+#
+#     Remove-Item '~/.claude/settings.json.bak' -Force          # ALLOWED
+#     $f = '~/.claude/settings.json.bak'; Remove-Item $f -Force # BLOCKED
+#
+# _leading_command skipped the *bash* `VAR=val` prefix but not PowerShell's
+# `$var = ...` (leading `$`, and with spaces the `=` is its own token), so `lead`
+# came back as `$f` / `foreach($f` — not a known command — and fell to
+# default-deny. Case D was the sharpest: the block message recommends Test-Path,
+# and then blocked Test-Path for sitting in a foreach header.
+#
+# The block was not buying coverage there. It is lexical, so the workaround is
+# just "don't write the literal" (`Get-ChildItem -Filter '*.bak'` then delete
+# `$_.FullName` removes the same file and passes). What it did buy was the
+# reflex of reaching for MASK-OK on a non-read, which is the failure mode the
+# posture cares about most.
+#
+# Two rules, and they only work together:
+#
+#   1. A binding is not a read. `$f = <pure literal>` and `foreach ($f in
+#      <pure literal>)` run no command at all, so they are inert. "Pure literal"
+#      is deliberately narrow (_is_literal_value): a quoted string, a bare path
+#      token, or an array literal of those, and NOTHING that can execute — no
+#      `$(`, no backtick, no `@(`-nested call. `$x = "$(cat ~/.env)"` therefore
+#      is NOT a binding and keeps blocking on its nested reader.
+#   2. The association must survive. Allowing the binding while ignoring what
+#      the body does with it would be a straight hole, so the bound literal is
+#      SUBSTITUTED back into every other segment before classification
+#      (_collect_bindings / _apply_bindings). `foreach ($f in @('~/.env')) {
+#      Get-Content $f }` is judged as `Get-Content @('~/.env')` and blocks; the
+#      same loop with `Remove-Item` is judged as `Remove-Item @('~/.env')` and
+#      passes, which is the whole point.
+#
+# Substitution is run to a FIXPOINT so a re-binding chain can't launder the path
+# one hop at a time (`$a = '~/.env'; $b = $a; Get-Content $b`) — that shape is
+# adjacent to the copy-launder class posture.md bounds out of scope, but it is
+# cheap to hold here and this change is what would have opened it.
+#
+# NOTE (conservative call): this does NOT make the guard a dataflow analyser.
+# Anything whose right-hand side is not a pure literal stays default-denied
+# rather than being resolved — `$f = @{p='~/.env'}`, `$a = $b = '~/.env'`,
+# backtick line-continuation across segments. Those keep their pre-2.6
+# behaviour or block; none of them is newly allowed.
+
+# An optional index suffix on an assignment target (`$f[0] = ...`). Built by
+# concatenation rather than written inline: spelled as one literal, the escaped
+# open-bracket followed by a negated class reads as a private-memory wiki link
+# to scripts/redline-guard.py and blocks the commit on a false positive.
+_INDEX = r"\[" + r"[^\]]*" + r"\]"
+# `$f = `, `${f} = `, `$global:f = `, `$f[0] = ` — the assignment PREFIX only.
+_PS_ASSIGN_PREFIX = re.compile(
+    r"^\s*\$\{?([A-Za-z_][\w:.]*)\}?(?:" + _INDEX + r")?\s*=\s*"
+)
+# Anything that can RUN something inside a value. `@(` is included because an
+# array subexpression can hold a call; a literal array is handled explicitly
+# before this is consulted.
+_EXECUTES = re.compile(r"\$\(|`|@\(")
+# A bare (unquoted) value token: one word, no quoting or shell metacharacters.
+_BARE_VALUE = re.compile(r"^[^\s'\"();|&{}]+$")
+_CONTROL_KW = re.compile(
+    r"^\s*(?:foreach|for|while|if|elseif|switch)\s*\(", re.IGNORECASE)
+# `foreach ($f in <value>)` — the enumerator half of a loop header.
+_FOREACH_IN = re.compile(
+    r"^\s*\$\{?([A-Za-z_][\w:.]*)\}?\s+in\s+(.*)$", re.IGNORECASE | re.DOTALL)
+# PowerShell scope prefixes: `$global:f` and `$f` name the SAME variable, so a
+# binding is stored under the scope-STRIPPED name and every REFERENCE is matched
+# with the prefix optional. Fixing only one direction leaves the other open:
+# `$global:f = '~/.env'; Get-Content $f` needs the store side, and
+# `$f = '~/.env'; Get-Content $global:f` needs the reference side.
+# `env:` is deliberately NOT in this list — `$env:f` is a different namespace,
+# not another spelling of `$f`.
+_SCOPE_PREFIX = re.compile(r"^(?:global|script|local|private|using):",
+                           re.IGNORECASE)
+_SCOPE_ALT = r"(?:global:|script:|local:|private:|using:)?"
+
+
+def _var_ref(name):
+    """Regex matching every spelling of a reference to `name` — bare, braced,
+    and scope-qualified."""
+    return r"\$\{?" + _SCOPE_ALT + re.escape(name) + r"\}?(?![\w:])"
+
+
+def _substitute(text, name, value):
+    """Replace every reference to `name` in `text` with the literal `value`.
+    Non-recursive by construction (`re.sub` never rescans a replacement), so a
+    self-referential binding cannot loop."""
+    return re.sub(_var_ref(name), lambda _m, v=value: v, text,
+                  flags=re.IGNORECASE)
+
+
+def _split_commas(text):
+    """Top-level comma split, respecting quotes and nesting."""
+    out, buf, quote, depth = [], [], None, 0
+    for c in text:
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in ("'", '"'):
+            quote = c
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth = max(0, depth - 1)
+        elif c == "," and not depth:
+            out.append("".join(buf))
+            buf = []
+            continue
+        buf.append(c)
+    out.append("".join(buf))
+    return out
+
+
+def _is_literal_value(v, _depth=0):
+    """True if `v` is a pure PowerShell VALUE and runs nothing: a quoted string,
+    a bare path token, or an array literal of those. Deliberately narrow — the
+    whole safety of the binding rule rests on this returning False for anything
+    that could execute."""
+    v = v.strip().rstrip(";").strip()
+    if not v or _depth >= 4:
+        return False
+    parts = [p for p in _split_commas(v) if p.strip()]
+    if len(parts) > 1:                      # bare array literal: 'a','b'
+        return all(_is_literal_value(p, _depth + 1) for p in parts)
+    if v.startswith("@(") or v.startswith("("):
+        end, inner = _balanced(v, v.index("(") + 1)
+        if v[end:].strip():                 # trailing text after the array
+            return False
+        parts = [p for p in _split_commas(inner) if p.strip()]
+        return bool(parts) and all(_is_literal_value(p, _depth + 1)
+                                   for p in parts)
+    if _EXECUTES.search(v):
+        return False                        # `$(...)`, backtick, `@(`-call
+    if v[0] in "'\"":
+        return bool(_WHOLLY_QUOTED.match(v))
+    return bool(_BARE_VALUE.match(v))
+
+
+def _is_literal_list(v):
+    """A comma-separated list of pure literals — an array's ELEMENT list, which
+    is data rather than a command.
+
+    Reached because an array literal is a paren group, so `@('~/.env','~/.aws/
+    credentials')` gets its body offered up as a segment in its own right:
+    `'~/.env','~/.aws/credentials'`. A single quoted element already fell out as
+    _WHOLLY_QUOTED; two or more did not, and were classified on a "leading
+    command" of `'~/.env','~/.aws/credentials'` — an unknown command, so
+    default-deny. That is what made a two-file cleanup loop block while the
+    one-file version passed."""
+    parts = [p for p in _split_commas(v) if p.strip()]
+    return len(parts) > 1 and all(_is_literal_value(p) for p in parts)
+
+
+def _is_literal_data(v):
+    """`v` is a VALUE expression rather than a command: a quoted string, an
+    array literal, or a comma list of those.
+
+    This is _is_literal_value MINUS its bare-token branch, and the omission is
+    the point: a bare word sitting in command position IS a command, so only
+    the forms that are unambiguously data qualify. `'~/.env'` already fell out
+    as _WHOLLY_QUOTED; `@('~/.env')` and `'~/.env','~/.aws/credentials'` did
+    not, and were judged on leading "commands" of `@` and `'~/.env',...`. Array
+    literals reach this as segments in their own right because an array is a
+    paren group, so its body gets re-split and offered up — which is how a
+    nested `foreach ($g in @($f))` ended up denied on the `@`."""
+    v = v.strip().rstrip(";").strip()
+    if not v:
+        return False
+    if not (v[0] in "'\"" or v.startswith("@(") or v.startswith("(")
+            or _is_literal_list(v)):
+        return False
+    return _is_literal_value(v)
+
+
+def _control_flow_split(seg):
+    """(header, body, hstart) for `foreach (...) {...}` / `if (...) {...}` /
+    `while (...)`, else None. The header is the parenthesised enumerator or
+    condition, `hstart` its offset in `seg`, and the body everything after the
+    closing paren.
+
+    `hstart` is returned so a caller can rebuild the segment verbatim around an
+    edited header — reconstructing it by length arithmetic silently drops the
+    closing paren when the group is unbalanced, which mangles the very shape
+    this exists to read.
+
+    Splitting header from body is what lets a benign header carry a sensitive
+    path without condemning the segment — but the caller MUST classify the body
+    too, and against the path the header bound, or the split becomes the hole."""
+    m = _CONTROL_KW.match(seg)
+    if not m:
+        return None
+    open_idx = m.end() - 1                   # the `(` the pattern ended on
+    end, header = _balanced(seg, open_idx + 1)
+    return header, seg[end:], open_idx + 1
+
+
+def _strip_block_braces(text):
+    """Drop a `{ ... }` wrapper from a loop/conditional body."""
+    text = text.strip()
+    if text.startswith("{"):
+        text = text[1:]
+        if text.rstrip().endswith("}"):
+            text = text.rstrip()[:-1]
+    return text
+
+
+def _binding_name(var):
+    """The key a binding is stored under: lowercased and scope-stripped, so
+    `$global:f` and `$f` resolve to the same entry."""
+    return _SCOPE_PREFIX.sub("", var.lower())
+
+
+def _ps_binding(seg):
+    """(var, literal_value, tail) if `seg` OPENS with a pure value binding.
+
+    Two shapes: an assignment `$f = <literal>` (tail empty — the value is the
+    rest of the segment) and a `foreach ($f in <literal>)` header (tail is the
+    loop body). None if the right-hand side runs anything at all, which is what
+    keeps `$x = "$(cat ~/.env)"` and `$x = Get-Content ~/.env` out."""
+    cf = _control_flow_split(seg)
+    if cf is not None:
+        header, tail, _ = cf
+        fm = _FOREACH_IN.match(header)
+        if fm and _is_literal_value(fm.group(2)):
+            return fm.group(1), fm.group(2).strip(), tail
+        return None
+    m = _PS_ASSIGN_PREFIX.match(seg)
+    if m and _is_literal_value(seg[m.end():]):
+        return m.group(1), seg[m.end():].strip().rstrip(";").strip(), ""
+    return None
+
+
+def _apply_bindings(seg, bindings):
+    """Substitute every variable known to hold a sensitive literal with that
+    literal, so a read reached THROUGH the variable is judged against the real
+    path.
+
+    The binding's own DECLARATION position is left alone — `$f` on the left of
+    an `=`, and the `$f in` of a loop header, are inert text, and rewriting them
+    would both destroy the shape _ps_binding needs to recognise and inject a
+    bare path literal into a command position that never had one."""
+    if not bindings:
+        return seg
+    cf = _control_flow_split(seg)
+    if cf is not None:
+        header, body, hstart = cf
+        fm = _FOREACH_IN.match(header)
+        split = fm.start(2) if fm else 0      # keep `$f in ` verbatim
+        edited = header[:split] + _apply_all(header[split:], bindings)
+        # seg[hstart + len(header):] begins at the closing paren (or is empty
+        # for an unbalanced group), so this rebuilds the segment exactly.
+        close = seg[hstart + len(header):len(seg) - len(body)]
+        return (seg[:hstart] + edited + close
+                + _apply_all(body, bindings))
+    m = _PS_ASSIGN_PREFIX.match(seg)
+    if m:
+        return seg[:m.end()] + _apply_all(seg[m.end():], bindings)
+    return _apply_all(seg, bindings)
+
+
+def _apply_all(text, bindings):
+    for name, value in bindings.items():
+        text = _substitute(text, name, value)
+    return text
+
+
+def _collect_bindings(segments):
+    """Variables bound to a SENSITIVE literal anywhere in the command, resolved
+    to a fixpoint so a re-binding chain (`$a = '~/.env'; $b = $a; cat $b`)
+    cannot launder the path one hop at a time."""
+    bindings = {}
+    for _ in range(8):
+        changed = False
+        for seg in segments:
+            b = _ps_binding(_apply_bindings(seg.strip(), bindings))
+            if b is None or not _has_sensitive_path(b[1]):
+                continue
+            name = _binding_name(b[0])
+            if bindings.get(name) != b[1]:
+                bindings[name] = b[1]
+                changed = True
+        if not changed:
+            break
+    return bindings
+
+
 def _leading_command(seg):
-    """The first real command token in a segment, minus wrappers and VAR=val."""
-    toks = seg.strip().lstrip("(").strip().split()
+    """The first real command token in a segment, minus wrappers and VAR=val.
+
+    A PowerShell assignment prefix is stripped like bash's `VAR=val`, so the
+    lead resolves from the RIGHT-HAND SIDE: `$h = Get-FileHash x` leads with
+    `get-filehash` (safe) and `$x = Get-Content ~/.env` leads with `get-content`
+    (a read) instead of both coming back as `$h`/`$x` and default-denying."""
+    seg = _PS_ASSIGN_PREFIX.sub("", seg.strip().lstrip("(").strip(), count=1)
+    toks = seg.strip().split()
     i = 0
     while i < len(toks):
         t = toks[i]
@@ -756,6 +1057,46 @@ def _reads_sensitive_path(seg, _depth=0):
     content read anywhere inside denies the whole segment."""
     if not _has_sensitive_path(seg):
         return False
+
+    # 0. A pure VALUE BINDING runs nothing, so it is not a read (v2.6). It is
+    #    checked FIRST, ahead of the nested-unit pass: a `foreach ($f in @(...))`
+    #    header is a paren group, so that pass would otherwise judge it on its
+    #    leading `$f` and deny before the binding rule was ever consulted.
+    #
+    #    The body still has to be classified — against the bound path, which is
+    #    substituted in so the association survives the header/body split. That
+    #    is what keeps `foreach ($f in @('~/.env')) { Get-Content $f }` blocking
+    #    while the same loop with Remove-Item passes.
+    # A whole segment that is nothing but a VALUE runs nothing at all.
+    if _is_literal_data(seg):
+        return False
+
+    if _depth < 8:
+        bound = _ps_binding(seg)
+        if bound is not None:
+            var, value, tail = bound
+            tail = _substitute(tail, _binding_name(var), value)
+            return any(
+                _reads_sensitive_path(part, _depth + 1)
+                for part in _split_segments(_strip_block_braces(tail))
+                if part.strip()
+            )
+
+        # A loop/conditional that is NOT a binding still wants its header and
+        # body judged separately, or a safe body inherits the deny that the
+        # `if`/`foreach` keyword earns as an "unknown command":
+        # `if (Test-Path ~/.env) { Remove-Item ~/.env }`. Both halves are
+        # classified, so a reader in either still denies the whole segment.
+        cf = _control_flow_split(seg)
+        if cf is not None:
+            header, body, _ = cf
+            if _reads_sensitive_path(header, _depth + 1):
+                return True
+            return any(
+                _reads_sensitive_path(part, _depth + 1)
+                for part in _split_segments(_strip_block_braces(body))
+                if part.strip()
+            )
 
     # 1. A reader nested anywhere inside denies the segment outright. A unit
     #    body is a command LIST, so it is re-split before classifying: without
@@ -933,10 +1274,18 @@ def main():
         # actually EMITS the path (echo/printf/ls/find/…) counts — `git log --
         # .env | xargs echo` emits hashes, not the file, so it isn't a read
         # (round 4, #4).
+        segments = _split_segments(command)
+        # Variables bound to a sensitive literal anywhere in this command. The
+        # bound path is substituted back in below, so a binding and the read
+        # that consumes it can be split across segments (`$f = '~/.env'; cat
+        # $f`) without the read losing sight of the path (v2.6). Resolved up
+        # here because the xargs producer check needs it too: `$f = '~/.env';
+        # echo $f | xargs cat` has no literal path in the producer.
+        bindings = _collect_bindings(segments)
         xm = re.search(r"\|\s*xargs\b", command)
         if xm:
             producer = re.split(r"[;\n&]|&&|\|\||\|", command[:xm.start()])[-1]
-            producer = producer.split("#")[0]
+            producer = _apply_bindings(producer.split("#")[0], bindings)
             if _leading_command(producer) in (
                     "echo", "printf", "print", "ls", "find", "realpath",
                     "readlink") and _has_sensitive_path(producer):
@@ -944,7 +1293,7 @@ def main():
         # Quote-aware split on every shell separator, including a single `&`
         # (backgrounding — `true & cat ~/.env` otherwise hid the reader behind a
         # safe leading command, round 3 #1) but not inside quotes (round 4 #3).
-        for seg in _split_segments(command):
+        for seg in segments:
             seg = seg.strip()
             if not seg:
                 continue
@@ -995,7 +1344,11 @@ def main():
             for unit in _nested_command_units(scan):
                 if ENV_DUMP_PATTERN.search(unit) or _get_variable_is_dump(unit):
                     block(_MSG_ENV)
-            if _reads_sensitive_path(scan):
+            # Only the PATH check gets the binding substitution: the
+            # command-shape rules above key on verbs and variable NAMES, and
+            # splicing a path literal into them buys nothing while widening
+            # their blast radius.
+            if _reads_sensitive_path(_apply_bindings(scan, bindings)):
                 block(_MSG_PATH)
         sys.exit(0)
 
