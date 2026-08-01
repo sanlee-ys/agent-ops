@@ -548,6 +548,46 @@ class TestEnvDriveFalsePositive(GuardTestCase):
         self.assertAllowed(*self.ps("Get-ChildItem Env:PATH"))
         self.assertAllowed(*self.ps("Get-Item Env:PATH"))
 
+    def test_issue_14_reported_table(self):
+        """The full BLOCK/ALLOW table from issue #14's comment, pinned verbatim.
+
+        The comment reported these against a deployed guard still carrying the
+        v2.1 arm (`\\bGet-ChildItem\\b[^|]*\\bEnv:`) and proposed a `(?<!\\$)`
+        lookbehind. The canonical guard had already moved past that arm in v2.2
+        with a stricter shape (_PS_DRIVE_DUMP: `Env:` must FOLLOW whitespace and
+        END at the token), which subsumes the lookbehind — a `$env:` prefix
+        fails the whitespace requirement, so no lookbehind is needed. All eleven
+        rows already behave as the table's "proposed" column specifies.
+
+        So this is coverage, not a fix: it pins the reporter's exact intent
+        table against the canonical implementation, including the three rows the
+        existing tests above did not carry — the `Join-Path` form, the
+        `[bool]$env:VAR` form the block message itself recommends, and the
+        mixed-segment row.
+        """
+        for cmd in [
+            "Get-ChildItem Env:",
+            "Get-ChildItem env:",
+            "gci Env:",
+            "dir env:",
+            "Get-Item Env:*",
+            "printenv",
+            # The mixed-segment row, and the one that matters most for coverage:
+            # a benign `$env:` path expansion AND a real drive dump in the same
+            # segment must still block, because the second `Get-ChildItem` has no
+            # `$` before its `Env:`.
+            'Get-ChildItem "$env:TEMP"; Get-ChildItem Env:',
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+        for cmd in [
+            'Get-ChildItem "$env:USERPROFILE\\.claude" -Filter *.bak',
+            'Get-ChildItem (Join-Path $env:USERPROFILE ".claude\\hooks") -File',
+            "Get-ChildItem $env:TEMP",
+            # the form _MSG_ENV itself recommends as the safe alternative
+            "[bool]$env:USERPROFILE",
+        ]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+
     def test_bash_paths_containing_the_word_env(self):
         # The Bash-side dump rules are whole-segment anchored (`^\s*env\s*$`) or
         # flag-bearing (`declare -p`), so a literal `env` inside a path or an
