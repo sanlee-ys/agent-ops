@@ -89,6 +89,26 @@ class TestPrivateMemoryLinks(unittest.TestCase):
         fixture = "see " + "[" * 2 + "some-private-note" + "]" * 2
         self.assertIn("private memory link", labels(guard.scan("f.md", fixture, [])))
 
+    def test_memory_link_at_line_start_is_blocked(self):
+        """The lookbehind must not require a preceding character to exist."""
+        fixture = "[" * 2 + "some-private-note" + "]" * 2
+        self.assertIn("private memory link", labels(guard.scan("f.md", fixture, [])))
+
+    def test_escaped_bracket_regex_is_allowed(self):
+        """An escaped \\[ before a negated class is regex syntax, not a link.
+
+        The exact pattern credential-guard.py v2.6 (PR #42) had to assemble by
+        string concatenation purely to dodge this false positive. These are
+        safe to write literally here: post-fix they are not violations.
+        """
+        fixture = r'_INDEX = re.compile(r"\[[^\]]*\]")'
+        self.assertEqual(guard.scan("guard.py", fixture, []), [])
+
+    def test_escaped_double_bracket_regex_is_allowed(self):
+        """Even a regex that MATCHES wiki links is not itself one."""
+        fixture = r'PAT = re.compile(r"\[\[[^\]]+\]\]")'
+        self.assertEqual(guard.scan("guard.py", fixture, []), [])
+
     def test_ordinary_brackets_are_allowed(self):
         self.assertEqual(guard.scan("f.md", "an array like [1, 2] is fine", []), [])
 

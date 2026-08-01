@@ -53,7 +53,10 @@ LITERAL_PATTERNS = [
     ("anthropic key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{10,}")),
     ("aws access key id", re.compile(r"AKIA[0-9A-Z]{16}")),
     ("private key block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
-    ("private memory link", re.compile(r"\[\[" + r"[^\]]+" + r"\]\]")),
+    # (?<!\\): an escaped open-bracket in regex source (r"\[[^\]]*\]") puts a
+    # literal "[[" in the text without being a wiki link; a real link's opener
+    # is never preceded by a backslash.
+    ("private memory link", re.compile(r"(?<!\\)" + r"\[\[" + r"[^\]]+" + r"\]\]")),
     ("local user path", re.compile(r"(?:[Cc]:[\\/]+|/c/)Users[\\/]+\w+")),
 ]
 
