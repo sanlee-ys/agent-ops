@@ -23,7 +23,20 @@ Claude operating layer (see
   [`truncation-defers.md`](conventions/truncation-defers.md) — dual line/byte
   limits, direction chosen by where the information is, and always a path to the
   rest; [`truncated-producers-taint.md`](conventions/truncated-producers-taint.md)
-  — output from a run that hit a limit is suspect even where it parses.
+  — output from a run that hit a limit is suspect even where it parses. Three
+  more came from a second pass over the same project:
+  [`agent-facing-contracts.md`](conventions/agent-facing-contracts.md) — an
+  agent-facing doc is executed, so say agree/disagree before the diff and draw
+  the idempotency line inside every runbook;
+  [`agent-trigger-authorization.md`](conventions/agent-trigger-authorization.md)
+  — four independent checks before external input reaches a capable agent, and
+  a check that could not run is not a pass;
+  [`jsonl-splits-on-lf-only.md`](conventions/jsonl-splits-on-lf-only.md) —
+  never frame JSONL with Node `readline`.
+- **Reference shelf:** [`reference/`](reference/) — worked designs for problems
+  this fleet does not have yet (a custom file-edit tool's matching algorithm; a
+  hand-written terminal renderer). Not rules; nothing there needs doing. Read
+  one only when about to build the thing it describes.
 - **Delegation policy** — task classes × autonomy levels, each gated on a
   verifier: [`delegation-policy.md`](delegation-policy.md).
 - **Decisions:** [`decisions/`](decisions/). **Incidents:** [`incidents/`](incidents/) —

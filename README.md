@@ -94,6 +94,23 @@ nothing and might get the next gap found by a reader instead of a leak.
   `SessionEnd` hook that silently wedged memory sync. Worth keeping, not
   incidents — a log where every annoying bug is an "incident" is a log where
   severity means nothing. The demotion is the posture.
+- **`conventions/`** — the rules that outlived their essays: the
+  parallel-session protocol, branch hygiene, link verification, and a set
+  distilled from reading the public [pi](https://github.com/earendil-works/pi)
+  agent harness (MIT) — allowlists that fail in both directions, truncation as
+  a deferral rather than a loss, a truncated producer tainting everything it
+  produced, the four-check authorization gate any CI-triggered agent needs, the
+  agent-facing contract as something executed rather than read, and strict
+  LF-only JSONL framing. Reading someone else's harness is cheaper than
+  incident-driven learning, and one of those rules is filed as *independent
+  convergence*: pi's multi-session git rules match the ones written here after a
+  local near-miss, derived separately.
+- **`reference/`** — a shelf, explicitly not conventions: worked designs for
+  problems this fleet doesn't have yet (the matching algorithm a
+  string-replacement edit tool actually needs; the two primitives that make a
+  hand-written terminal UI not tear). Filed so the design isn't re-derived
+  badly under time pressure later, and marked so nobody mistakes them for
+  something to go do.
 - **`skills/`** — five custom skills (`dcb`, `descope-sweep`, `park`,
   `proglog`, `handoff`) published as patterns, with a `README.md` explaining
   what each does and when it fires.
