@@ -758,11 +758,8 @@ def _split_segments(command):
 # backtick line-continuation across segments. Those keep their pre-2.6
 # behaviour or block; none of them is newly allowed.
 
-# An optional index suffix on an assignment target (`$f[0] = ...`). Built by
-# concatenation rather than written inline: spelled as one literal, the escaped
-# open-bracket followed by a negated class reads as a private-memory wiki link
-# to scripts/redline-guard.py and blocks the commit on a false positive.
-_INDEX = r"\[" + r"[^\]]*" + r"\]"
+# An optional index suffix on an assignment target (`$f[0] = ...`).
+_INDEX = r"\[[^\]]*\]"
 # `$f = `, `${f} = `, `$global:f = `, `$f[0] = ` — the assignment PREFIX only.
 _PS_ASSIGN_PREFIX = re.compile(
     r"^\s*\$\{?([A-Za-z_][\w:.]*)\}?(?:" + _INDEX + r")?\s*=\s*"
