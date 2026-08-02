@@ -77,6 +77,15 @@ requires is the same wherever it lives:
 - **General from the first entry.** The reflex is to special-case the repo that
   just caused the argument. The next deliberate exception is already out there,
   and hardcoding one subject buys nothing for it.
+- **Its absence announces itself.** A registry that cannot be read fails *open*
+  — every suppressed question returns at once, in a report that looks entirely
+  normal. That is the worst-shaped failure available here, because the run it
+  breaks is indistinguishable from a run with nothing to suppress. So an
+  unreadable registry is reported at the top of the output, before the findings,
+  and the consumer says plainly that the filter did not run. This is the same
+  distinction the aggregate count draws, one layer down: the count separates
+  "nothing matched" from "matches were dropped", and this separates both from
+  "the filter was never applied."
 
 ## It fails both ways, and only one way is real
 
