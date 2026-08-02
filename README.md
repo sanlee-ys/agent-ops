@@ -116,9 +116,13 @@ nothing and might get the next gap found by a reader instead of a leak.
   root stays vendor-neutral canon; anything in a specific harness's format
   or dialect lives one directory per vendor. `vendors/claude/skills/` holds
   five custom skills (`dcb`, `descope-sweep`, `park`, `proglog`, `handoff`)
-  published as patterns; `vendors/codex/` documents the second-opinion
+  published as patterns;   `vendors/codex/` documents the second-opinion
   vendor's wiring, inter-agent channel, and escalation packet;
-  `vendors/gemini/` is a reserved landing pad with a definition of done.
+  `vendors/cursor/` documents the IDE lane (bounded work, UI verification,
+  parallel non-colliding concerns — see
+  [`decisions/ADR-009`](decisions/ADR-009-cursor-ide-lane-in-fleet.md));
+  `vendors/gemini/` is a reserved landing pad for the third API-metered
+  vendor (telltale quota), with a definition of done.
   The adapter contract is [`vendors/README.md`](vendors/README.md).
 - **`decisions/`** — the repo's own contract, honestly versioned:
   - `ADR-001-public-claude-ops-repo.md` — the scope contract: what gets
@@ -151,6 +155,9 @@ nothing and might get the next gap found by a reader instead of a leak.
     founding single-vendor name, why "llm-ops" and a per-vendor repo split
     were both rejected, and the `vendors/` adapter contract. Historical
     records keep the name they were written under.
+  - `ADR-009-cursor-ide-lane-in-fleet.md` — Cursor (Composer) as the IDE
+    lane: bounded work, cross-harness transfer protocol, guard gap recorded.
+    Gemini slot unchanged.
   - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
     same decision the same afternoon, on different machines, and the
     in-flight scan that should have caught it returned nothing truthfully:

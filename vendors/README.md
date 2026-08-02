@@ -31,8 +31,14 @@ harness's own format or dialect.
 - [`codex/`](codex/) — the second-opinion vendor: design challenge,
   consequential-diff review, stuck-diagnosis. Wiring and channel documented
   in its README.
-- [`gemini/`](gemini/) — reserved. A landing pad with the adapter checklist,
-  so the session that installs the third vendor knows what done looks like.
+- [`cursor/`](cursor/) — the IDE lane: bounded edit-test loops, UI
+  verification, parallel work on non-colliding files. Wiring, channel, and
+  guard gaps documented in its README
+  ([`decisions/ADR-009`](../decisions/ADR-009-cursor-ide-lane-in-fleet.md)).
+- [`gemini/`](gemini/) — reserved. A landing pad with the adapter checklist
+  for the third **API-metered** vendor (telltale quota window), so the
+  session that installs it knows what done looks like. Distinct from the
+  Cursor IDE runtime.
 
 ## Guards note
 
