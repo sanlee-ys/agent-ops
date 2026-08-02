@@ -1,0 +1,62 @@
+name: generated-drift
+
+# Reusable stale-generated-file gate (ADR-003 backlog disposition, 2026-07-06).
+# For any repo that commits build output next to its source: rebuild from
+# source, fail the run if the committed output drifted. The logic lives in
+# scripts/check-generated-drift.py; the per-repo variables (build commands +
+# watched paths) live in the CALLING repo's .generated-drift.toml.
+#
+# A consumer repo's entire CI wiring is:
+#
+#   jobs:
+#     generated-drift:
+#       uses: sanlee-ys/claude-ops/.github/workflows/generated-drift.yml@main
+#       # with:
+#       #   setup: pip install -r requirements.txt   # only if the build needs deps
+#
+# plus a .generated-drift.toml at its root — see the script docstring for the
+# format. The workflow runs in the caller's context: the first checkout is the
+# caller's repo, and this repo is checked out only to borrow the script (into a
+# dot-directory, so a caller's watch globs don't sweep it up).
+
+on:
+  workflow_call:
+    inputs:
+      config:
+        description: Path to the drift config in the calling repo
+        type: string
+        default: .generated-drift.toml
+      python-version:
+        description: Python for the gate script (and stdlib-only builds)
+        type: string
+        default: "3.11"
+      setup:
+        description: Optional shell run before the builds (install build deps)
+        type: string
+        default: ""
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the calling repo
+        uses: actions/checkout@v4
+
+      - name: Borrow the gate script from claude-ops
+        uses: actions/checkout@v4
+        with:
+          repository: sanlee-ys/claude-ops
+          path: .generated-drift-gate
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Setup (caller-provided)
+        if: inputs.setup != ''
+        run: ${{ inputs.setup }}
+
+      - name: Rebuild and check for drift
+        run: >
+          python .generated-drift-gate/scripts/check-generated-drift.py
+          --config "${{ inputs.config }}"

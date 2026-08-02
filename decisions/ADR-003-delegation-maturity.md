@@ -151,6 +151,9 @@ follow-up brainstorm of candidate claude-ops scripts was triaged with San.
 Open ≠ auto-queued, so each was dispositioned explicitly:
 
 - **Generic stale-generated-file CI gate — QUEUED for a build session.**
+  *Built 2026-07-10:* [`scripts/check-generated-drift.py`](../scripts/check-generated-drift.py)
+  + the reusable `generated-drift.yml` workflow; consumer wiring in
+  [`scripts/README.md`](../scripts/README.md).
   Generalizes the learning-notes fix (its `generated-files` CI job): run the
   repo's build, `git diff`, fail if committed generated artifacts drifted from
   source. Deterministic (no fuzzy judgment), reusable across every repo that
