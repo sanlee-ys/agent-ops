@@ -31,10 +31,10 @@ jobs:
   drift:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out claude-ops
+      - name: Check out agent-ops
         uses: actions/checkout@v7
         with:
-          path: claude-ops
+          path: agent-ops
 
       - uses: actions/setup-python@v7
         with:
@@ -51,7 +51,7 @@ jobs:
           gh api --paginate "users/$OWNER/repos?type=public&per_page=100" \
             --jq '.[] | select(.fork==false and .archived==false) | .name' \
           | while read -r repo; do
-              [ "$repo" = "claude-ops" ] && continue
+              [ "$repo" = "agent-ops" ] && continue
               # Only bother with repos that actually carry a CLAUDE.md.
               if gh api "repos/$OWNER/$repo/contents/CLAUDE.md" --jq '.path' >/dev/null 2>&1; then
                 if git clone --depth 1 "https://github.com/$OWNER/$repo.git" "$repo" >/dev/null 2>&1; then
@@ -65,6 +65,6 @@ jobs:
       - name: Check shared-block drift against canonical
         run: |
           # The script globs <root>/*/CLAUDE.md, finds shared:* marker blocks, and
-          # compares each to its canonical text. claude-ops/CLAUDE.md carries no
+          # compares each to its canonical text. agent-ops/CLAUDE.md carries no
           # marker, so it's skipped. Exits non-zero on any drift → red build.
-          python claude-ops/scripts/sync-shared-blocks.py --check --root "$PWD"
+          python agent-ops/scripts/sync-shared-blocks.py --check --root "$PWD"

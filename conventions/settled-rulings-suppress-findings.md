@@ -6,7 +6,7 @@ it dangerous: unless something tells it otherwise, a **deliberate exception**
 looks exactly like a **gap**. So the same gap gets reported every week, and the
 owner pays for the same decision again, forever.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 The rule: **a question the owner has already closed is not a finding.** Any

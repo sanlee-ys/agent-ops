@@ -1,4 +1,4 @@
 #!/bin/sh
-# claude-ops pre-commit: redline guard (decisions/ADR-002).
+# agent-ops pre-commit: redline guard (decisions/ADR-002).
 # Install once per clone: git config core.hooksPath scripts/githooks
 exec python "$(git rev-parse --show-toplevel)/scripts/redline-guard.py"

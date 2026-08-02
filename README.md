@@ -1,4 +1,4 @@
-# claude-ops
+# agent-ops
 
 Field notes on running an agentic coding CLI as a real teammate on a real
 machine, with real credentials sitting nearby — written by one engineer,
@@ -111,9 +111,15 @@ nothing and might get the next gap found by a reader instead of a leak.
   hand-written terminal UI not tear). Filed so the design isn't re-derived
   badly under time pressure later, and marked so nobody mistakes them for
   something to go do.
-- **`skills/`** — five custom skills (`dcb`, `descope-sweep`, `park`,
-  `proglog`, `handoff`) published as patterns, with a `README.md` explaining
-  what each does and when it fires.
+- **`vendors/`** — the per-vendor adapter layer (added with the rename,
+  [`decisions/ADR-008`](decisions/ADR-008-agent-ops-rename-and-vendor-layer.md)):
+  root stays vendor-neutral canon; anything in a specific harness's format
+  or dialect lives one directory per vendor. `vendors/claude/skills/` holds
+  five custom skills (`dcb`, `descope-sweep`, `park`, `proglog`, `handoff`)
+  published as patterns; `vendors/codex/` documents the second-opinion
+  vendor's wiring, inter-agent channel, and escalation packet;
+  `vendors/gemini/` is a reserved landing pad with a definition of done.
+  The adapter contract is [`vendors/README.md`](vendors/README.md).
 - **`decisions/`** — the repo's own contract, honestly versioned:
   - `ADR-001-public-claude-ops-repo.md` — the scope contract: what gets
     published here and what never does.
@@ -141,6 +147,10 @@ nothing and might get the next gap found by a reader instead of a leak.
     dim placeholder nobody had typed. Corrected twice on the day of writing.
     A defect claimed from a single correlated observation is a hypothesis;
     reproduce it before writing decisions on top of it.
+  - `ADR-008-agent-ops-rename-and-vendor-layer.md` — the rename from the
+    founding single-vendor name, why "llm-ops" and a per-vendor repo split
+    were both rejected, and the `vendors/` adapter contract. Historical
+    records keep the name they were written under.
   - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
     same decision the same afternoon, on different machines, and the
     in-flight scan that should have caught it returned nothing truthfully:

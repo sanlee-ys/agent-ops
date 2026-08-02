@@ -3,7 +3,7 @@
 
 Some guidance (e.g. the link-verification hard rule) is identical across many
 repos. Rather than copy-paste it — and let the copies drift — the canonical
-text lives here in claude-ops (the operating-layer canon, ADR-002), and each
+text lives here in agent-ops (the operating-layer canon, ADR-002), and each
 consumer repo carries a compressed restatement wrapped in marker comments:
 
     <!-- shared:links-verify v1 — canonical: <url> -->
@@ -30,7 +30,7 @@ import argparse
 import re
 from pathlib import Path
 
-_CANON_BASE = "https://github.com/sanlee-ys/claude-ops/blob/main/conventions"
+_CANON_BASE = "https://github.com/sanlee-ys/agent-ops/blob/main/conventions"
 
 
 def _canonical_url(slug: str) -> str:
@@ -51,7 +51,7 @@ BLOCKS = {
         "`github.com/<owner>/<repo>/blob/<ref>/<path>` URLs only**, **verify the "
         "path exists on the ref before sending** (unverified → say so), and "
         "**branch links are perishable** (prefer `main` once merged). Full rule "
-        f"+ rationale: [claude-ops `conventions/links-verify.md`]({CANONICAL_URL}).\n"
+        f"+ rationale: [agent-ops `conventions/links-verify.md`]({CANONICAL_URL}).\n"
         "<!-- /shared:links-verify -->"
     ),
     "parallel-sessions": (
@@ -64,7 +64,7 @@ BLOCKS = {
         "`main` and merge fast; **serialize the collision hotspots** and parallelize "
         "by independent *file*, not by task; keep the wiring for any generated or "
         "aggregated file in one hand. Full rule + the triple-build incident that "
-        "produced it: [claude-ops `conventions/parallel-sessions.md`]"
+        "produced it: [agent-ops `conventions/parallel-sessions.md`]"
         f"({_canonical_url('parallel-sessions')}).\n"
         "<!-- /shared:parallel-sessions -->"
     ),

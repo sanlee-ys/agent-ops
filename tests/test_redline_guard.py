@@ -177,7 +177,7 @@ class TestHashedTerms(unittest.TestCase):
         self.assertIn("private repo slug", labels(found))
 
     def test_owner_slug_with_public_repo_allowed(self):
-        found = guard.scan("f.md", "see sanlee-ys/claude-ops for details", [])
+        found = guard.scan("f.md", "see sanlee-ys/agent-ops for details", [])
         self.assertEqual(found, [])
 
 

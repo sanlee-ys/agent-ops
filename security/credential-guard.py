@@ -20,7 +20,7 @@
 # blocks. Loop/conditional headers are classified separately from their bodies.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
-v2 (2026-07-06, claude-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
+v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
 verbs* it knew about (cat / Get-Content / open() / a short list) and blocked
 those. Every one of the four 2026-07 credential incidents was a shape v1's
 author had not enumerated yet, so the guard trailed each leak by exactly one
@@ -711,7 +711,7 @@ def _split_segments(command):
 
 
 # --- Value bindings and control-flow headers (v2.6) ------------------------
-# 2026-07-31 false-positive class (claude-ops#14): a segment that BINDS a
+# 2026-07-31 false-positive class (agent-ops#14): a segment that BINDS a
 # sensitive path to a variable, or names it in a loop header, was default-denied
 # even when every operation actually applied to it is on SAFE_COMMANDS. The
 # inline form passed and the identical operation via a variable blocked:

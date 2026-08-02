@@ -5,7 +5,7 @@ succeeds quietly: the same green appears whether the work happened, was denied,
 crashed, or was never attempted. A green from an agent tool is therefore a
 claim, not evidence, until you know what produced it.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 Started 2026-07-24 as a single-incident note: an agentic review lane in CI went

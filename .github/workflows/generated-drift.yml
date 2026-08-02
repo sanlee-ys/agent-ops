@@ -10,7 +10,7 @@ name: generated-drift
 #
 #   jobs:
 #     generated-drift:
-#       uses: sanlee-ys/claude-ops/.github/workflows/generated-drift.yml@main
+#       uses: sanlee-ys/agent-ops/.github/workflows/generated-drift.yml@main
 #       # with:
 #       #   setup: pip install -r requirements.txt   # only if the build needs deps
 #
@@ -42,10 +42,10 @@ jobs:
       - name: Check out the calling repo
         uses: actions/checkout@v4
 
-      - name: Borrow the gate script from claude-ops
+      - name: Borrow the gate script from agent-ops
         uses: actions/checkout@v4
         with:
-          repository: sanlee-ys/claude-ops
+          repository: sanlee-ys/agent-ops
           path: .generated-drift-gate
 
       - uses: actions/setup-python@v5

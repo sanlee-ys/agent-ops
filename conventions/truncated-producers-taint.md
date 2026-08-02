@@ -6,7 +6,7 @@ that run is suspect. Including the parts that parse. Including the parts that
 validate. The consumer's only safe moves are to fail or to re-request; executing
 is not on the list.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 ## The mechanism

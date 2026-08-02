@@ -4,7 +4,7 @@ name: ci
 # (security/credential-guard.py) is a security control whose whole history is
 # bypasses found one incident too late; the adversarial suite exists so the
 # next bypass is caught by a red CI run instead of a fifth postmortem
-# (claude-ops decisions/ADR-003 Phase 1). Stdlib-only tests — no dependencies
+# (agent-ops decisions/ADR-003 Phase 1). Stdlib-only tests — no dependencies
 # to install, so this stays a fast, boring gate.
 
 on:
