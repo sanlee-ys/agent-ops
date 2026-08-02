@@ -5,7 +5,7 @@ It does not touch the local branch, and the command that would clean that up
 refuses to. Local branches therefore accumulate in a clone that looks tidy from
 GitHub.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 ## The mechanism
@@ -31,7 +31,7 @@ is the half that was fixed.
 
 ## The evidence
 
-Found 2026-07-26 while closing out an unrelated session: `claude-ops` held **18**
+Found 2026-07-26 while closing out an unrelated session: `agent-ops` held **18**
 local branches (17 squash-merged, one with no commits at all) and `netops-lab`
 held 4. Every one of the 21 had a merged pull request. Several were from that
 same day, created under the one-concern-one-branch rule in

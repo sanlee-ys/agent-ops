@@ -48,7 +48,7 @@
 # Exit 0 (fine) and 3 (herdr not in use here) stay quiet, so the hook is silent
 # on a box where herdr was never installed.
 #
-# Rationale and the decisions this enforces: claude-ops
+# Rationale and the decisions this enforces: agent-ops
 # decisions/ADR-005-herdr-persistence-not-agent-awareness.md, and the lab-side
 # application in the public netops-lab repo's decisions/007.
 

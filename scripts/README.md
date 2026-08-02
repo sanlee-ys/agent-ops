@@ -53,7 +53,7 @@ reusable workflow:
 ```yaml
 jobs:
   generated-drift:
-    uses: sanlee-ys/claude-ops/.github/workflows/generated-drift.yml@main
+    uses: sanlee-ys/agent-ops/.github/workflows/generated-drift.yml@main
     # with:
     #   setup: pip install -r requirements.txt   # only if the build needs deps
 ```

@@ -1033,7 +1033,7 @@ class TestFalsePositives(GuardTestCase):
 
 
 class TestVariableBindingFalsePositive(GuardTestCase):
-    """claude-ops#14: a segment that BINDS a sensitive path to a variable, or
+    """agent-ops#14: a segment that BINDS a sensitive path to a variable, or
     names it in a loop header, was default-denied even when every operation
     actually applied to it is on SAFE_COMMANDS. The inline form passed and the
     identical operation via a variable blocked.

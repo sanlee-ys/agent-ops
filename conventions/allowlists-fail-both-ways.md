@@ -5,7 +5,7 @@ be able to fail **twice**: once when something violates it, and once when an
 entry in it no longer has a subject. A list that only fails the first way is not
 a control, it is a comment that used to be true.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 Every entry carries a one-line reason, in the list itself. Not in a commit

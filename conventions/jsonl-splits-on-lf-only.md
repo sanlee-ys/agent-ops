@@ -6,7 +6,7 @@ nothing else. **Node's `readline` is not a JSONL reader**, and reaching for it i
 the default mistake, because it is the obvious tool and it works on every input
 anyone tests with.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 ## The mechanism

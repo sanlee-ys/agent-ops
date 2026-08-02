@@ -5,7 +5,7 @@ decision on the reader's behalf. The decision is only legitimate if the rest is
 still reachable. Truncation that drops bytes on the floor is data loss with a
 polite message attached.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 Three rules, all of which [pi](https://github.com/earendil-works/pi) (MIT)

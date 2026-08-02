@@ -450,7 +450,7 @@ point a `PreToolUse` hook at it.
 
    ```sh
    mkdir -p ~/.claude/hooks
-   curl -fsSL https://raw.githubusercontent.com/sanlee-ys/claude-ops/main/security/credential-guard.py \
+   curl -fsSL https://raw.githubusercontent.com/sanlee-ys/agent-ops/main/security/credential-guard.py \
      -o ~/.claude/hooks/credential-guard.py
    ```
 

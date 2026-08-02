@@ -4,7 +4,7 @@
 is in git history (`git log --follow -- operating-model.md`). It was thinned
 on a simple test: a practice that matters here either earned a mechanical
 backstop (a hook, a CI gate, a synced convention) or gets invoked as a skill
-— and those live in `hooks/`, `security/`, `conventions/`, and `skills/`,
+— and those live in `hooks/`, `security/`, `conventions/`, and `vendors/claude/skills/`,
 not in an essay. What follows is the part that is genuinely load-bearing as
 prose.
 
@@ -16,7 +16,7 @@ output against the real repos before anything ships.** Direction — what the
 work is for and what "done" means (not delegable). Contracts — the specific,
 checkable rules the tool is bound to, named up front. Bar — what has to be
 true before output counts as shipped, checked against the actual repo state,
-never against confident prose. Invoked as the [`dcb` skill](skills/dcb/SKILL.md).
+never against confident prose. Invoked as the [`dcb` skill](vendors/claude/skills/dcb/SKILL.md).
 
 ## Session protocol
 

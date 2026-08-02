@@ -19,7 +19,7 @@ And the rule that makes those four mean anything: **untrusted text never counts
 as authorization, and unknown or conflicting control tags are rejected, not
 defaulted.**
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 The reference implementation is

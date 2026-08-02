@@ -1,8 +1,16 @@
 # CLAUDE.md
 
-Guidance for AI agents working in **claude-ops** — the canonical home for the
-Claude operating layer (see
-[`decisions/ADR-002-public-first-canonicality.md`](decisions/ADR-002-public-first-canonicality.md)).
+Guidance for AI agents working in **agent-ops** — the canonical home for the
+agent operating layer, across every vendor in the fleet (see
+[`decisions/ADR-002-public-first-canonicality.md`](decisions/ADR-002-public-first-canonicality.md)
+for canonicality and
+[`decisions/ADR-008`](decisions/ADR-008-agent-ops-rename-and-vendor-layer.md)
+for the rename and vendor layout).
+
+- **Vendor adapters:** [`vendors/`](vendors/) — root is vendor-neutral
+  canon; harness-specific material (skills, instruction-file wiring,
+  inter-agent channels) lives per vendor. Contract:
+  [`vendors/README.md`](vendors/README.md).
 
 - **Operating model & session protocol:** [`operating-model.md`](operating-model.md).
 - **Security posture & the credential guard:** [`security/posture.md`](security/posture.md),
@@ -11,7 +19,7 @@ Claude operating layer (see
   blocks — single-sourced here, mirrored into sibling repos' `CLAUDE.md` as
   compressed pointers; propagate or drift-check with
   `python scripts/sync-shared-blocks.py [--check]`. A convention with no marker
-  block is claude-ops-local, e.g.
+  block is agent-ops-local, e.g.
   [`agent-success-signals.md`](conventions/agent-success-signals.md) — ask what
   an agent tool's green is actually measuring before trusting it — and
   [`branch-hygiene.md`](conventions/branch-hygiene.md) — `delete_branch_on_merge`

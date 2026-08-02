@@ -7,7 +7,7 @@ Written that way, they get two properties ordinary docs don't need: the model's
 **idempotency boundary** — which step must not be repeated, and what to do
 instead when it half-fails.
 
-This is a claude-ops-local convention — no consumer repo mirrors it, so there is
+This is a agent-ops-local convention — no consumer repo mirrors it, so there is
 no shared block to propagate.
 
 Distilled from a read of [pi](https://github.com/earendil-works/pi) (MIT), an
