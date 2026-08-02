@@ -26,3 +26,9 @@ useful — it just isn't an incident.
   sync silently for an hour, twice, in two different windows of the same
   sequence. No data lost; the reusable part is that two plausible fixes
   were both wrong and a ten-minute empirical probe killed both.
+- [`2026-08-02-sweep-relitigated-a-settled-ruling.md`](2026-08-02-sweep-relitigated-a-settled-ruling.md)
+  — a weekly hygiene sweep re-raised a question that had been ruled closed
+  in writing, and the chip it filed framed the settled call as an open
+  tradeoff, so a session with no history decided it. No exposure, no spend;
+  the cost was the same decision made a third time. Filed here rather than
+  as an incident because nothing failed except a process loop.

@@ -32,7 +32,11 @@ Claude operating layer (see
   — four independent checks before external input reaches a capable agent, and
   a check that could not run is not a pass;
   [`jsonl-splits-on-lf-only.md`](conventions/jsonl-splits-on-lf-only.md) —
-  never frame JSONL with Node `readline`.
+  never frame JSONL with Node `readline`. And from a sweep that re-raised a
+  closed question:
+  [`settled-rulings-suppress-findings.md`](conventions/settled-rulings-suppress-findings.md)
+  — a decided question is not a finding; drop it before it reaches a report,
+  and never let a chip restate it as an open tradeoff.
 - **Reference shelf:** [`reference/`](reference/) — worked designs for problems
   this fleet does not have yet (a custom file-edit tool's matching algorithm; a
   hand-written terminal renderer). Not rules; nothing there needs doing. Read
