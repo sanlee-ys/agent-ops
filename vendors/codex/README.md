@@ -7,6 +7,10 @@ and artifact production. Mechanical green-CI work merges with no
 second-model pass — independence pays on design-mode work, and reviewing a
 rename duplicates tokens while breaking merge-on-green cadence.
 
+**Repo exception:** Codex may contribute directly to `agent-ops` on its own
+branch; the read-only boundary below still applies when reviewing another
+agent's branch.
+
 "Demonstrably stuck" has a threshold: **two failed hypothesis-driven
 attempts, or visible looping**. First friction is not an escalation.
 
