@@ -11,11 +11,12 @@ a debug note.
 The distinction is the point. A log where every annoying bug becomes an
 "incident" is a log where severity stops meaning anything, and the next
 reader (including a future session of the agent this repo operates) can no
-longer tell the credential leak from the console flash. Both of the entries
+longer tell the credential leak from the console flash. The first two entries
 below were originally filed as incidents and demoted when the log was held
 to the bar above; the write-ups are unchanged apart from the
 reclassification note, because what they record is still true and still
-useful — it just isn't an incident.
+useful — it just isn't an incident. Everything filed since is classified
+against that bar at writing time.
 
 - [`2026-07-04-graphify-console-flash-three-surfaces.md`](2026-07-04-graphify-console-flash-three-surfaces.md)
   — a console window flashing at unpredictable moments turned out to be
@@ -32,3 +33,11 @@ useful — it just isn't an incident.
   tradeoff, so a session with no history decided it. No exposure, no spend;
   the cost was the same decision made a third time. Filed here rather than
   as an incident because nothing failed except a process loop.
+- [`2026-08-03-rename-dangled-live-hook-symlinks.md`](2026-08-03-rename-dangled-live-hook-symlinks.md)
+  — renaming the clone that hosts the guard hooks dangled all three of them
+  mid-session, and since a missing `PreToolUse` script is a hard error, every
+  `Bash`, `Read` and `Write` was refused from that call onward. The session
+  could not repair the damage it had just caused: the fix needs exactly the
+  tools the breakage removed. No exposure and no spend — but the guards were
+  unenforced for the whole window, and the recovery had to come from outside
+  the session.
