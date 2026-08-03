@@ -1,27 +1,25 @@
-# Gemini adapter — reserved
+# Gemini adapter — Google Antigravity (AGY)
 
-Nothing is installed yet. This directory exists so the session that adds
-the third vendor has a defined landing pad and a definition of done.
+Google Antigravity (`agy` / Google DeepMind) is installed and active as the Gemini-family agent adapter and contributor in the fleet.
 
-Minimum deliverables for that session:
+Role in the fleet: Antigravity acts as an active contributor for autonomous software engineering, deep codebase research, complex refactoring, and multi-agent coordination across the workspace.
 
-1. **Instruction-file wiring** — where Gemini reads standing instructions
-   on a machine, and how that file stays in sync with fleet canon (see the
-   drift warning in [`../codex/README.md`](../codex/README.md); do not
-   invent a third hand-maintained mirror without a check).
-2. **Channel probe** — how the other agents reach Gemini non-interactively
-   (CLI command, flags, auth state), verified with an actual round trip
-   before it is documented as working.
-3. **Division-of-labor amendment** — what work routes to Gemini and why,
-   recorded in the fleet contract with the other vendors, not only here.
-   The default assumption is a specialist/second-opinion role; expanding it
-   is a design decision, not a default.
-4. **Telltale entry** — the cross-vendor usage HUD
-   ([telltale](https://github.com/sanlee-ys/telltale)) tracks this vendor's
-   quota window alongside the other two.
-5. **Guard wiring or an explicit gap note** — per the guards note in
-   [`../README.md`](../README.md): if the fleet's guard policy is not
-   enforceable in Gemini's harness, record that as a known gap rather than
-   leaving it implicit.
+## Instruction-file wiring
+
+- **Global standing instructions:** Reads `AGENTS.md` and `CLAUDE.md` in workspace root and user home directory (`~/AGENTS.md`).
+- **Skills:** Loaded from `~/.gemini/antigravity-cli/builtin/skills/` and project skill directories (`.agents/skills/`).
+- **Rules & Posture:** Obey global rules defined in `AGENTS.md`.
+
+## Harness & Channel
+
+- **Harness:** Antigravity CLI and IDE (`agy`).
+- **Models:** Gemini 3.6 Flash (High) / Gemini 3.6 Pro.
+- **Subagent primitives:** `invoke_subagent`, `define_subagent`, `send_message`, `manage_subagent`.
+
+## Guard Wiring
+
+- **Redline guard:** Pre-commit hook (`scripts/redline-guard.py`) applies on `git commit`.
+- **Tool permission gating:** Enforced via CLI permission prompts and allowlists.
 
 Adapter contract: [`../README.md`](../README.md).
+

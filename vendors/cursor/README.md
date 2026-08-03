@@ -105,11 +105,23 @@ Cursor gets hook parity or a documented equivalent.
 
 ## Telltale
 
-Cursor subscription usage is **not** in telltale's Claude/Codex/Gemini HUD yet.
-Routing decisions involving Cursor are not measured by the subscription
-measurement gate until a telltale adapter exists. When built, follow the telltale
-entry checklist in [`../gemini/README.md`](../gemini/README.md) item 4 — quota
-window alongside the other vendors.
+Cursor is **in telltale's HUD** as of 2026-08-02
+([telltale ADR-007](https://github.com/sanlee-ys/telltale/blob/main/decisions/007-cursor-hud-adapter.md),
+PR [#12](https://github.com/sanlee-ys/telltale/pull/12)): session title, model,
+workspace, vendor-persisted context %, and last activity — all measured from
+Cursor's local store, zero API calls.
+
+**The checklist's "quota window" ([`../gemini/README.md`](../gemini/README.md)
+item 4) is a recorded honest gap, not a pending feature.** Cursor persists no
+consumption record on disk — only plan-entitlement constants, which telltale
+refuses to render as quota — and the docs route usage to the web dashboard and
+team Admin API only. Telltale shows measured values or absence, never estimates,
+so the measurement gate can meter Cursor **attention/context friction, but not
+subscription burn**. If Cursor ever writes local usage records, the adapter
+picks them up; until then the gap stands.
+
+Watch item: the documented Cursor Hooks surface (session/tool/subagent events)
+is telltale's future seam for liveness and needs-input state.
 
 ## Delegation ladder
 

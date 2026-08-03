@@ -35,10 +35,9 @@ harness's own format or dialect.
   verification, parallel work on non-colliding files. Wiring, channel, and
   guard gaps documented in its README
   ([`decisions/ADR-009`](../decisions/ADR-009-cursor-ide-lane-in-fleet.md)).
-- [`gemini/`](gemini/) — reserved. A landing pad with the adapter checklist
-  for the third **API-metered** vendor (telltale quota window), so the
-  session that installs it knows what done looks like. Distinct from the
-  Cursor IDE runtime.
+- [`gemini/`](gemini/) — Google Antigravity (AGY) adapter layer for Gemini
+  3.6 (Flash/Pro) CLI & IDE harness. Wiring and capabilities documented in
+  its README.
 
 ## Guards note
 
