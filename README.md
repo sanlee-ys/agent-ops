@@ -121,8 +121,10 @@ nothing and might get the next gap found by a reader instead of a leak.
   `vendors/cursor/` documents the IDE lane (bounded work, UI verification,
   parallel non-colliding concerns — see
   [`decisions/ADR-009`](decisions/ADR-009-cursor-ide-lane-in-fleet.md));
-  `vendors/gemini/` documents the Google Antigravity (AGY) / Gemini 3.6
-  adapter (instruction wiring, subagents, and channel posture).
+  `vendors/gemini/` documents Google Antigravity (AGY), the measured
+  Gemini-family research/overflow lane, including its narrower safety
+  boundary. The control-plane decision is
+  [`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md).
   The adapter contract is [`vendors/README.md`](vendors/README.md).
 - **`decisions/`** — the repo's own contract, honestly versioned:
   - `ADR-001-public-claude-ops-repo.md` — the scope contract: what gets
@@ -157,7 +159,11 @@ nothing and might get the next gap found by a reader instead of a leak.
     records keep the name they were written under.
   - `ADR-009-cursor-ide-lane-in-fleet.md` — Cursor (Composer) as the IDE
     lane: bounded work, cross-harness transfer protocol, guard gap recorded.
-    Gemini slot unchanged.
+    Its then-current Gemini and telemetry consequences are amended by ADR-010.
+  - `ADR-010-claude-led-four-vendor-orchestration.md` — one control plane,
+    three specialist lanes; harness versus model-family independence;
+    inspectable transfers; honest guard boundaries; telltale observes but
+    never routes.
   - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
     same decision the same afternoon, on different machines, and the
     in-flight scan that should have caught it returned nothing truthfully:

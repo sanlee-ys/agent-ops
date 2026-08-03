@@ -5,7 +5,8 @@ agent operating layer, across every vendor in the fleet (see
 [`decisions/ADR-002-public-first-canonicality.md`](decisions/ADR-002-public-first-canonicality.md)
 for canonicality and
 [`decisions/ADR-008`](decisions/ADR-008-agent-ops-rename-and-vendor-layer.md)
-for the rename and vendor layout).
+for the rename and vendor layout; fleet routing is
+[`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md)).
 
 - **Vendor adapters:** [`vendors/`](vendors/) — root is vendor-neutral
   canon; harness-specific material (skills, instruction-file wiring,

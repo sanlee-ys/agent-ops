@@ -3,7 +3,8 @@
 Role in the fleet (division of labor agreed 2026-08-02): Codex **challenges
 designs, reviews consequential diffs, and diagnoses when the primary agent
 is demonstrably stuck**. The primary agent drives implementation, research,
-and artifact production. Mechanical green-CI work merges with no
+and artifact production; Cursor owns bounded IDE/UI work; Antigravity is a
+measured Gemini research/overflow lane. Mechanical green-CI work merges with no
 second-model pass — independence pays on design-mode work, and reviewing a
 rename duplicates tokens while breaking merge-on-green cadence.
 
@@ -34,9 +35,10 @@ check it deliberately, don't trust it silently.
   sessions, which is why standing agreements live in instruction files and
   repos, not in either tool's memory.
 - **Transfer format:** inspectable state, not prose retellings. Reviews take
-  a branch, PR, commit range, or diff; findings come back as markdown files
-  in the session workspace's `outputs/` directory. Prose is for intent,
-  constraints, and failed hypotheses — facts a diff cannot express.
+  a branch, PR, commit range, or diff at an exact revision; findings come
+  back as markdown files in the session workspace's `outputs/` directory.
+  Prose is for intent, constraints, and failed hypotheses — facts a diff
+  cannot express.
 - **Boundary:** Codex reviews read-only; it never edits the branch under
   review. Its findings are reconciled against live repo state before any
   are acted on — the branch may have moved since the review snapshot.
@@ -48,13 +50,24 @@ Goal:
 Expected behavior:
 Observed behavior:
 What we tried (hypothesis, test, result for each attempt):
-Relevant branch/PR/diff:
+Relevant branch/PR/diff and exact revision:
 Relevant files:
 Exact error:
 Constraints:
 Please diagnose only; don't modify files.
 ```
 
-The full division-of-labor contract (allocation table, measurement gate) is
-kept privately, with pointer sections in both vendors' global instruction
-files.
+## Guard wiring
+
+The current fleet configuration mirrors and wires the credential, staging,
+published-history, fan-out, formatting, and session hooks for Codex. This is
+machine-local implementation truth, not a reason to relax the read-only
+review boundary: independence depends on separating author and reviewer, not
+only on permission controls.
+
+The full four-vendor division-of-labor contract (allocation table,
+subscription measurement gate) is kept privately, with compact pointer
+sections in the harnesses' global instruction files.
+
+Rationale:
+[`ADR-010`](../../decisions/ADR-010-claude-led-four-vendor-orchestration.md).
