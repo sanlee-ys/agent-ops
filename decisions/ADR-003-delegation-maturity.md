@@ -71,7 +71,7 @@ copy-pasted into eleven repos' `CLAUDE.md` files is the visible symptom.
    CI. **Decided in build (2026-07-06):** the canonical home is *this repo*
    (`conventions/`), public — not the private config repo the draft assumed.
    Six consumers are public and a public `CLAUDE.md` pointing at a private repo
-   both 404s for outsiders and discloses that the private repo exists; claude-ops
+   both 404s for outsiders and discloses that the private repo exists; agent-ops
    is already the operating-layer canon (ADR-002) and resolves for everyone.
 2. **Prune by the enforcement test.** For every rule, ask whether it's
    mechanically enforced (hook / CI / pre-commit). If yes, shrink the prose to a

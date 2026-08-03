@@ -111,7 +111,7 @@ feature.","status":"403"}
 
 Branch protection and rulesets are paid features for **private** repositories,
 and the repo this happened in — the one holding the most irreplaceable prose —
-is private. The same call against public `claude-ops`
+is private. The same call against public `agent-ops`
 returns `[]` and would work fine. So server-side protection is available for
 exactly the eight repos where a PR gate already exists, and unavailable for the
 four private direct-to-main ones where it is needed. Note also that even where
