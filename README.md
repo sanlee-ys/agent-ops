@@ -121,8 +121,8 @@ nothing and might get the next gap found by a reader instead of a leak.
   `vendors/cursor/` documents the IDE lane (bounded work, UI verification,
   parallel non-colliding concerns — see
   [`decisions/ADR-009`](decisions/ADR-009-cursor-ide-lane-in-fleet.md));
-  `vendors/gemini/` is a reserved landing pad for the third API-metered
-  vendor (telltale quota), with a definition of done.
+  `vendors/gemini/` documents the Google Antigravity (AGY) / Gemini 3.6
+  adapter (instruction wiring, subagents, and channel posture).
   The adapter contract is [`vendors/README.md`](vendors/README.md).
 - **`decisions/`** — the repo's own contract, honestly versioned:
   - `ADR-001-public-claude-ops-repo.md` — the scope contract: what gets
