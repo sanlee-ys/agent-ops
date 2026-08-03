@@ -88,12 +88,16 @@ nothing and might get the next gap found by a reader instead of a leak.
   - `2026-07-03-github-pat-plaintext-recurrence.md`
   - `2026-07-03-credential-guard-interpreter-bypass.md`
   - `2026-07-04-github-pat-read-grep-leak.md`
-- **`debug-notes/`** — two write-ups that were originally filed as incidents
-  and demoted on 2026-08-01 when the log was held to the bar above: the
-  console-flash hunt (three root causes, one wrong diagnosis) and the killed
-  `SessionEnd` hook that silently wedged memory sync. Worth keeping, not
-  incidents — a log where every annoying bug is an "incident" is a log where
-  severity means nothing. The demotion is the posture.
+- **`debug-notes/`** — write-ups that did not clear the incident bar. Two were
+  originally filed as incidents and demoted on 2026-08-01 when the log was
+  held to that bar: the console-flash hunt (three root causes, one wrong
+  diagnosis) and the killed `SessionEnd` hook that silently wedged memory
+  sync. Worth keeping, not incidents — a log where every annoying bug is an
+  "incident" is a log where severity means nothing. The demotion is the
+  posture. Since then, filed against the bar directly: a sweep that
+  relitigated a settled ruling, and the 2026-08-03 rename that dangled the
+  guard-hook symlinks and left the session with no tool capable of repairing
+  them.
 - **`conventions/`** — the rules that outlived their essays: the
   parallel-session protocol, branch hygiene, link verification, and a set
   distilled from reading the public [pi](https://github.com/earendil-works/pi)
@@ -104,7 +108,9 @@ nothing and might get the next gap found by a reader instead of a leak.
   LF-only JSONL framing. Reading someone else's harness is cheaper than
   incident-driven learning, and one of those rules is filed as *independent
   convergence*: pi's multi-session git rules match the ones written here after a
-  local near-miss, derived separately.
+  local near-miss, derived separately. Added 2026-08-03 from a live wedge: a
+  directory that hosts live hooks cannot be moved by the session those hooks
+  gate, because every repair is a tool call the broken hook refuses.
 - **`reference/`** — a shelf, explicitly not conventions: worked designs for
   problems this fleet doesn't have yet (the matching algorithm a
   string-replacement edit tool actually needs; the two primitives that make a
