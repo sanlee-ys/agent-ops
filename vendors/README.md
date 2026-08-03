@@ -39,6 +39,33 @@ harness's own format or dialect.
   3.6 (Flash/Pro) CLI & IDE harness. Wiring and capabilities documented in
   its README.
 
+## Commit attribution — Co-authored-by trailers
+
+Vendor-attributed commits carry a `Co-authored-by:` trailer so each vendor
+shows up on the repo's contributors graph. GitHub resolves the trailer's
+*email* — the name is cosmetic — to whatever account has that email
+attached, official or not. The canonical trailer lines, verbatim:
+
+```
+Co-authored-by: Claude <noreply@anthropic.com>
+Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>
+Co-authored-by: gemini-code-assist[bot] <176961590+gemini-code-assist[bot]@users.noreply.github.com>
+Co-authored-by: Cursor <cursoragent@cursor.com>
+```
+
+The Claude line may carry a model-specific name (same email — it resolves
+to the official `claude` account). The Gemini line covers Antigravity too:
+no Antigravity-specific bot account exists on GitHub, so
+`gemini-code-assist[bot]` is the closest official Google identity.
+
+**Rule: only use an email verified to resolve to an official vendor
+account** — check with `gh api users/<login>` before adding a new one. This
+fails both ways: an email no account owns yields no contributor tile at
+all, and an email a third party has claimed puts a stranger on the graph.
+Both happened here — `codex@openai.com` resolved to nothing, and
+`antigravity@google.com` resolved to an unrelated personal account; both
+trailers were rewritten out of `main` on 2026-08-02.
+
 ## Guards note
 
 The `PreToolUse` guards in `hooks/` and `security/` are written against
