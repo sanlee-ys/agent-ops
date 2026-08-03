@@ -18,6 +18,17 @@ checkable rules the tool is bound to, named up front. Bar — what has to be
 true before output counts as shipped, checked against the actual repo state,
 never against confident prose. Invoked as the [`dcb` skill](vendors/claude/skills/dcb/SKILL.md).
 
+## Fleet routing
+
+One control plane owns integration; specialist lanes earn handoffs through a
+different model family or a materially better surface. Harness and model
+family are separate axes: moving the same model into another product changes
+tools, not judgment independence. Routine work gets one agent plus a
+deterministic verifier; consequential work gets independent challenge and
+review. The four-vendor allocation and guard boundaries are
+[`ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md).
+Telltale observes the fleet but never routes it.
+
 ## Session protocol
 
 - **Pre-flight, every session:** sync main, check CI is green (report a red

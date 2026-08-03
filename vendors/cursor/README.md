@@ -10,14 +10,17 @@ and diagnoses when the primary agent is demonstrably stuck. Mechanical
 green-CI work merges with no second-model pass.
 
 Cursor subagent review does **not** substitute for Codex on consequential
-diffs — same model family, no independence.
+diffs. The fleet's independent-review contract assigns a separate GPT-family
+reviewer with an author/reviewer boundary; a harness-local review is not that
+pass.
 
 ## Operating rule
 
 > Claude drives implementation, research, and artifacts; Codex challenges
 > consequential designs and reviews consequential diffs; Cursor executes
-> bounded, IDE-native work on a non-colliding concern; San verifies against
-> live repo state before anything counts as shipped.
+> bounded, IDE-native work on a non-colliding concern; Antigravity supplies
+> measured Gemini research, overflow, and third-opinion value; San verifies
+> against live repo state before anything counts as shipped.
 
 ## Default allocation
 
@@ -30,9 +33,13 @@ diffs — same model family, no independence.
 | Parallel work on a different repo or non-colliding files | Cursor or Claude — pick by surface | Same parallel-session rules apply; Cursor is a legitimate second lane when file boundaries hold. |
 | Read-only portfolio hygiene (`/status-map`, drift sweeps) | Either | Cursor can invoke Claude skills from `~/.claude/skills/`; choose whichever window is open. |
 | Session handoff across harnesses | Inspectable state | Branch, PR, diff, optional `/handoff` brief — never a prose retelling. |
-| Hooks-enforced git/credential discipline | Claude Code | Guards are `PreToolUse` on Claude today — see guard gap below. |
+| Hooks-enforced git/credential discipline | Claude Code or Codex | Both have the fleet suite wired locally; see Cursor's guard gap below. |
 | Headless / CI / `codex exec` automation | Claude or Codex | Cursor is not the right host. |
 | DCB pre-flight on ambiguous or consequential work | Whichever harness opens the session | DCB is vendor-neutral; invoke via `~/.claude/skills/dcb/`. |
+
+Prefer Cursor's first-party Composer/Grok pool for this lane. Selecting Claude
+or GPT here spends the constrained third-party pool and does not turn a
+Cursor-local review into the fleet's independent Codex pass.
 
 ### Anti-routing
 
@@ -139,7 +146,7 @@ not whether a verifier covers it.
 ## Private strategy pointer
 
 The allocation table, measurement gate, and subscription economics also live
-in a private strategy file (loaded via pointer sections in both vendors'
+in a private strategy file (loaded via pointer sections in the harnesses'
 global instruction files — same pattern as
 [`../codex/README.md`](../codex/README.md)). The public adapter contract is
 this file; edit the private strategy for measurement rows and subscription
@@ -147,3 +154,5 @@ reassessment.
 
 Rationale for fleet admission:
 [`decisions/ADR-009`](../../decisions/ADR-009-cursor-ide-lane-in-fleet.md).
+Current four-vendor routing:
+[`decisions/ADR-010`](../../decisions/ADR-010-claude-led-four-vendor-orchestration.md).

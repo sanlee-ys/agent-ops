@@ -26,8 +26,8 @@ harness's own format or dialect.
 
 ## Current adapters
 
-- [`claude/`](claude/) — the primary implementation vendor; carries the
-  skills published as patterns.
+- [`claude/`](claude/) — the control plane, primary implementation vendor,
+  and final integrator; carries the skills published as patterns.
 - [`codex/`](codex/) — the second-opinion vendor: design challenge,
   consequential-diff review, stuck-diagnosis. Wiring and channel documented
   in its README.
@@ -35,9 +35,15 @@ harness's own format or dialect.
   verification, parallel work on non-colliding files. Wiring, channel, and
   guard gaps documented in its README
   ([`decisions/ADR-009`](../decisions/ADR-009-cursor-ide-lane-in-fleet.md)).
-- [`gemini/`](gemini/) — Google Antigravity (AGY) adapter layer for Gemini
-  3.6 (Flash/Pro) CLI & IDE harness. Wiring and capabilities documented in
-  its README.
+- [`gemini/`](gemini/) — Google Antigravity (AGY), the measured
+  Gemini-family research/overflow/third-opinion lane. Gemini CLI remains the
+  enterprise/API-key variant, not the consumer surface. Wiring, channel,
+  safety boundary, and capabilities are documented in its README.
+
+The fleet routes on two axes: the **harness** selects tools and working
+surface; the **model family** determines whether a second opinion is
+independent. The complete routing decision is
+[`ADR-010`](../decisions/ADR-010-claude-led-four-vendor-orchestration.md).
 
 ## Commit attribution — Co-authored-by trailers
 
@@ -68,13 +74,17 @@ trailers were rewritten out of `main` on 2026-08-02.
 
 ## Guards note
 
-The `PreToolUse` guards in `hooks/` and `security/` are written against
-Claude Code's hook contract, but the policy they enforce (credential
+The guards in `hooks/` and `security/` were written against Claude Code's
+hook contract, but the policy they enforce (credential
 non-exposure, staging hygiene, published-history protection) is fleet
 policy. Other harnesses reuse the policy with their own wiring; each vendor
 README records how, or that it is not wired yet. A policy enforced for only
 one vendor is a gap, not a default — see
 [`conventions/allowlists-fail-both-ways.md`](../conventions/allowlists-fail-both-ways.md)
 for the general principle.
+
+Current implementation truth: Claude and Codex have the fleet suite wired
+locally; Cursor and Antigravity do not. The latter two therefore keep bounded
+safety envelopes rather than treating prose rules as control parity.
 
 Rationale for this layout: [`decisions/ADR-008`](../decisions/ADR-008-agent-ops-rename-and-vendor-layer.md).
