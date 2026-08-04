@@ -1,6 +1,9 @@
 # ADR-009: Cursor as IDE lane in the agent fleet
 
-**Status:** Accepted — 2026-08-02
+**Status:** Accepted — 2026-08-02; decision 5 amended by
+[`ADR-010`](ADR-010-claude-led-four-vendor-orchestration.md) (2026-08-02),
+decision 4's routing restriction superseded by
+[`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md) (2026-08-04)
 **Amends:** the fleet division-of-labor contract referenced in
 [`ADR-008`](ADR-008-agent-ops-rename-and-vendor-layer.md) (2026-08-02)
 
@@ -30,8 +33,13 @@ of those.
    Codex to Cursor.
 4. **Guard gap is recorded, not implied.** The `PreToolUse` hooks in
    `hooks/` and `security/` are not wired in Cursor; fleet policy still
-   applies behaviorally. Consequential or credential-adjacent work stays on
-   Claude until parity exists or an equivalent is documented.
+   applies behaviorally. ~~Consequential or credential-adjacent work stays on
+   Claude until parity exists or an equivalent is documented.~~
+   **The final sentence is superseded by
+   [`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md).**
+   Recording the gap remains required — that is the durable half of this
+   decision. Routing *around* the gap is no longer the mitigation; closing it
+   is.
 5. **The Gemini slot is unchanged.** Cursor is runtime #4; Gemini remains the
    planned API vendor #3 for telltale quota tracking. They are not the same
    slot.

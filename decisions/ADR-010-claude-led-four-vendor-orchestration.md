@@ -1,6 +1,8 @@
 # ADR-010: Claude-led orchestration across four vendor surfaces
 
-**Status:** Accepted — 2026-08-02
+**Status:** Accepted — 2026-08-02; decision 4 and the guard-posture table's
+"Routing consequence" column superseded by
+[`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md) (2026-08-04)
 **Amends:** ADR-009 decision 5 and its telemetry consequences
 
 ## Context
@@ -38,12 +40,17 @@ are explicit and whose value can be measured.
    verification when the editor surface is the advantage. It is not the
    default for long refactors and its own subagent review does not satisfy the
    independent-review contract.
-4. **Antigravity is a measured Gemini-family experiment and overflow lane.**
+4. ~~**Antigravity is a measured Gemini-family experiment and overflow lane.**
    Default uses are read-only research, broad audits, browser/Google-stack
    work, and a third opinion when Claude and Codex disagree. An implementation
    prototype is allowed only in a disposable worktree with explicit review.
    Consequential, credential-adjacent, and published-history writes stay out
-   until tool-time guard parity or an equivalent is documented.
+   until tool-time guard parity or an equivalent is documented.~~
+   **Superseded by [`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md).**
+   The lane's role (research, audits, browser/Google-stack work, third
+   opinion) stands; the capability restriction does not. The trailing
+   condition proved to be a build task rather than a blocker — the
+   `PreToolUse` deny mechanism was there all along.
 5. **Harness and model family are separate routing axes.** Model-family
    independence is required when independence is the reason for the handoff.
    Selecting Claude or GPT inside Cursor or Antigravity does not satisfy that
@@ -65,11 +72,18 @@ are explicit and whose value can be measured.
 |---|---|---|
 | Claude Code | Wired | Full primary lane |
 | Codex | Locally mirrored and wired | Review/diagnosis lane remains read-only by contract |
-| Cursor | Not wired | Bounded, revertible work only |
-| Antigravity | Not wired; permissive command posture observed | Read-only by default; disposable-worktree prototypes only |
+| Cursor | Not wired | ~~Bounded, revertible work only~~ |
+| Antigravity | Not wired; permissive command posture observed | ~~Read-only by default; disposable-worktree prototypes only~~ |
 
 The table records implementation truth, not a promise that behavioral
 instructions substitute for controls.
+
+**Amendment, 2026-08-04 ([`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md)):**
+the "Routing consequence" column is retired. Capability parity is the fleet
+default, so a routing consequence no longer follows from a guard gap — the
+gap is simply an open obligation. The "Tool-time fleet guards" column stays
+accurate and becomes the entire argument. The caveat above it survives
+intact and is now the spine of the posture rather than a footnote to it.
 
 ## Consequences
 

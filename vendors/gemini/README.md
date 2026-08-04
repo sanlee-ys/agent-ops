@@ -5,15 +5,19 @@ fleet. Gemini CLI remains relevant only for Gemini Code Assist
 Standard/Enterprise or API-key use; it is not the consumer subscription
 surface.
 
-Role in the fleet (ADR-010): Antigravity is a **measured experimental and
-overflow lane**, not a co-primary implementer. Default uses are parallel
-read-only research, broad audits, browser/Google-stack work, and a Gemini
-third opinion when Claude and Codex disagree.
+Role in the fleet (ADR-010, amended by
+[`ADR-012`](../../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)):
+Antigravity is a **measured Gemini-family lane** — parallel research, broad
+audits, browser/Google-stack work, capacity overflow, and a Gemini third
+opinion when Claude and Codex disagree. It is not the default implementer,
+because Claude holds that role, not because Antigravity is held back from it.
 
-An implementation prototype is allowed only in a disposable worktree with
-explicit review. Consequential, credential-adjacent, and published-history
-writes stay out of this lane until tool-time guard parity or a documented
-equivalent exists.
+**Capability is not the boundary.** Per ADR-012 this lane reads and writes
+like every other. The earlier "read-only by default, prototypes in a
+disposable worktree" posture is retired: it was a capability restriction
+standing in for a control, and a restriction is not a control. What bounds
+this lane now is guard wiring — see [Guard wiring](#guard-wiring) below,
+which is an open obligation rather than a caveat.
 
 ## Operating rule
 
@@ -30,7 +34,9 @@ equivalent exists.
   the reason for the handoff.
 - Do not let Antigravity and another writer touch the same file or generated
   artifact in parallel.
-- Do not use an Antigravity self-report as the verifier for its own prototype.
+- Do not use an Antigravity self-report as the verifier for its own work.
+  This survives ADR-012 untouched: it is an author/reviewer independence
+  rule, not a capability limit.
 
 ## Instruction-file wiring
 
@@ -51,9 +57,21 @@ assuming another product's syntax applies here.
 - **Inbound, headless:** `agy -p "<prompt>"` (aliases `--print` and
   `--prompt`), with `--output-format text|json|stream-json` when a caller
   needs structured capture.
-- **Permissions:** headless reads/writes inside the active workspace may be
-  allowed while commands that require confirmation are soft-denied unless
-  policy grants them. Never use a permission-bypass flag as fleet wiring.
+- **Permissions:** the persisted store is `~/.gemini/antigravity-cli/settings.json`,
+  holding `permissions.{Allow,Deny,Ask}`. All three are live — deny rules are
+  CEL-evaluated with a dedicated denial reason, not decorative. The default
+  `toolPermission=request-review` is an **LLM-based** reviewer that judges
+  consequence rather than verb, so an explicit `Deny` floor is worth having
+  beneath it (ADR-007).
+- **Print mode ignores allow-rules.** In headless mode, tools requiring
+  approval are auto-denied regardless of `Allow`, and the CLI directs the
+  user to `--dangerously-skip-permissions`. Reasoning about `agy -p` from
+  `settings.json` is reasoning about the wrong file. Never use a
+  permission-bypass flag as fleet wiring.
+- **`--sandbox` and `--mode plan` do not bound writes.** `--sandbox` is
+  documented as *terminal* restrictions only; `--mode plan` was measured
+  permitting a write. Neither is a containment mechanism — see
+  [`debug-notes/2026-08-04-agy-flags-that-do-not-restrict.md`](../../debug-notes/2026-08-04-agy-flags-that-do-not-restrict.md).
 
 ## Transfer packet
 
@@ -62,7 +80,7 @@ Repo:
 Branch or PR (pushed):
 Exact revision:
 Concern:
-Mode: read-only research | third opinion | disposable prototype
+Mode: research/audit | third opinion | implementation
 Files in scope:
 Out of scope:
 Frozen brief or question:
@@ -75,16 +93,34 @@ to an inspectable file; San is never asked to relay prose between harnesses.
 
 ## Guard wiring
 
-| Fleet policy | Antigravity |
-|---|---|
-| `credential-guard.py` | **Not wired** |
-| `git-staging-guard.py` | **Not wired** |
-| `published-history-guard.py` | **Not wired** |
-| `redline-guard.py` (pre-commit) | Applies when the target repo has the hook |
+| Fleet policy | Claude Code | Antigravity |
+|---|---|---|
+| `credential-guard.py` | PreToolUse wired | **Not wired** |
+| `git-staging-guard.py` | PreToolUse wired | **Not wired** |
+| `published-history-guard.py` | PreToolUse wired | **Not wired** |
+| `redline-guard.py` (pre-commit) | Applies at commit | Applies when the target repo has the hook |
 
-The current fleet configuration also has a permissive command posture.
-Behavioral instructions are not equivalent to the missing controls; this is
-why the default lane is read-only and prototypes are disposable.
+**This table is the whole of the safety argument now.** Under ADR-012 the
+read-only default that used to compensate for these gaps is gone, so each
+**Not wired** row is an open obligation, not a caveat.
+
+**The mechanism exists; it is unbuilt.** Antigravity supports `hooks.json`
+with a `PreToolUse` event: a tool-name matcher, an external command handler
+receiving the tool call as JSON on stdin, and a `"decision": "deny"` that
+hard-blocks execution. The hook manager runs on every launch and reports
+`loaded 0 named hooks from 0 hooks.json file(s)` — zero because none exist
+here, not because none can. Guard parity is therefore a build task, and
+ADR-010's "until tool-time guard parity exists" was never the blocker it
+read as.
+
+**Interim posture, stated honestly:** between ADR-012 and wired guards, this
+lane has full capability and no tool-time controls. That is a known, dated
+risk San accepted, not an oversight.
+
+**The permission store is un-versioned machine state.** `settings.json` on a
+given machine is the real policy; nothing in this repo constrains it. Per
+the machine-state audit principle, a reference config belongs here once the
+guard wiring defines what it should contain.
 
 ## Telltale
 
@@ -99,10 +135,17 @@ Telltale observes this lane. It does not decide when to invoke it.
 
 ## Delegation level
 
-- Read-only research/audit: L1 autonomous with an inspectable report.
+The gate is verifier strength, not vendor trust — the same rule
+[`delegation-policy.md`](../../delegation-policy.md) applies to every
+harness. Under ADR-012 these levels are keyed to what covers the work, not
+to what this lane is allowed to touch:
+
+- Research/audit with an inspectable report: L1 autonomous.
 - Third opinion at a real fork: L0; San rules the decision.
-- Disposable prototype against a frozen contract: L1 only when deterministic
-  verification exists and a different agent integrates it.
+- Implementation against a frozen contract: L1 when a deterministic verifier
+  covers it. Integration by a different agent remains the rule for the same
+  reason it always was — an agent's self-report does not verify its own
+  work (see Anti-routing), not because this vendor is less trusted.
 - Broad subagent fan-out: L2 with an explicit scope/cap and one integrator.
 
 Rationale: [`ADR-010`](../../decisions/ADR-010-claude-led-four-vendor-orchestration.md).

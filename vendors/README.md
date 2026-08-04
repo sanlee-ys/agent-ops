@@ -84,7 +84,18 @@ one vendor is a gap, not a default — see
 for the general principle.
 
 Current implementation truth: Claude and Codex have the fleet suite wired
-locally; Cursor and Antigravity do not. The latter two therefore keep bounded
-safety envelopes rather than treating prose rules as control parity.
+locally; Cursor and Antigravity do not.
+
+Until 2026-08-04 the latter two compensated with bounded safety envelopes —
+read-only defaults and revertible-work-only rules.
+[`ADR-012`](../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)
+retires that compensation: **capability parity is the fleet default, so guard
+wiring is the only remaining control.** An unwired vendor is now an open
+obligation, not a vendor kept on a short leash.
+
+The mechanism is available where it matters most: Antigravity ships a
+`PreToolUse` hook contract with a hard `deny`, confirmed in the shipped
+binary. It was never wired, which means ADR-010's "until tool-time guard
+parity exists" described a build task, not a blocker.
 
 Rationale for this layout: [`decisions/ADR-008`](../decisions/ADR-008-agent-ops-rename-and-vendor-layer.md).

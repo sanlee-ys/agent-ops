@@ -105,10 +105,20 @@ Per [`../README.md`](../README.md) and
 | `published-history-guard.py` | PreToolUse wired | **Not wired** |
 | `redline-guard.py` (pre-commit) | Applies at commit | Applies at commit |
 
-**Mitigation without pretending:** Cursor is appropriate for **bounded,
-revertible work** where parallel-session prose rules and explicit-path staging
-are sufficient. Consequential or credential-adjacent work stays on Claude until
-Cursor gets hook parity or a documented equivalent.
+**This table is the whole of the safety argument now.** Under
+[`ADR-012`](../../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)
+the "bounded, revertible work only" posture is retired as a *capability*
+restriction — it was standing in for a control, and a restriction is not a
+control. Each **Not wired** row is an open obligation.
+
+Cursor remains the right surface for bounded edit-test loops because that is
+where the IDE adds value, not because it is the most damage it may do.
+
+**A hook surface exists here too.** Cursor documents session/tool/subagent
+events (noted under Telltale below as a telemetry seam). Whether that surface
+can carry a blocking `deny` is **unverified** — it was assessed for
+observation, not enforcement. Confirm before treating it as the parity path;
+Antigravity's `PreToolUse` deny is confirmed, this one is not.
 
 ## Telltale
 

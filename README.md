@@ -124,12 +124,15 @@ nothing and might get the next gap found by a reader instead of a leak.
   five custom skills (`dcb`, `descope-sweep`, `park`, `proglog`, `handoff`)
   published as patterns;   `vendors/codex/` documents the second-opinion
   vendor's wiring, inter-agent channel, and escalation packet;
-  `vendors/cursor/` documents the IDE lane (bounded work, UI verification,
-  parallel non-colliding concerns — see
+  `vendors/cursor/` documents the IDE lane (bounded edit-test loops, UI
+  verification, parallel non-colliding concerns — see
   [`decisions/ADR-009`](decisions/ADR-009-cursor-ide-lane-in-fleet.md));
   `vendors/gemini/` documents Google Antigravity (AGY), the measured
-  Gemini-family research/overflow lane, including its narrower safety
-  boundary. The control-plane decision is
+  Gemini-family research/overflow lane, including its open guard obligation.
+  Every vendor reads and writes; guard wiring rather than lane shape is what
+  bounds them
+  ([`decisions/ADR-012`](decisions/ADR-012-capability-parity-and-the-guard-obligation.md)).
+  The control-plane decision is
   [`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md).
   The adapter contract is [`vendors/README.md`](vendors/README.md).
 - **`decisions/`** — the repo's own contract, honestly versioned:
@@ -169,7 +172,13 @@ nothing and might get the next gap found by a reader instead of a leak.
   - `ADR-010-claude-led-four-vendor-orchestration.md` — one control plane,
     three specialist lanes; harness versus model-family independence;
     inspectable transfers; honest guard boundaries; telltale observes but
-    never routes.
+    never routes. Its per-vendor capability restrictions are superseded by
+    ADR-012.
+  - `ADR-012-capability-parity-and-the-guard-obligation.md` — every vendor
+    reads and writes, so a restriction can no longer stand in for a control:
+    guard wiring becomes the only one. Records the permissive Antigravity
+    permission store that prompted the ruling, and the `PreToolUse` deny
+    mechanism that makes parity a build task rather than a blocker.
   - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
     same decision the same afternoon, on different machines, and the
     in-flight scan that should have caught it returned nothing truthfully:
@@ -200,9 +209,11 @@ nothing and might get the next gap found by a reader instead of a leak.
 
 ## Scale, honestly
 
-This is one engineer's machine, not a team or a platform. There's no fleet,
-no shared incident channel, no on-call rotation — every "postmortem" here is
-a solo session catching its own mistake in the same turn it happened. It's
+This is one engineer's machine, not a team or a platform. There's no
+*organization* — no shared incident channel, no on-call rotation — every
+"postmortem" here is a solo session catching its own mistake in the same turn
+it happened. ("Fleet" elsewhere in this repo means the four agent vendors on
+that one machine, not people.) It's
 published anyway because the failure modes (tool-shape gaps in a mechanical
 guard, uncapped multi-agent fan-out cost, a debugging session in production
 credentials by accident) don't depend on team size. They just need an agent

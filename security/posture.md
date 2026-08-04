@@ -9,9 +9,21 @@ that closed a fifth gap before it was exploited. The posture below is what
 survived that process, not a design done up front.
 
 Scale note: this is a single user on a single machine, not an org. There is
-no fleet, no shared secrets manager, no second reviewer. Every control here
-had to work under that constraint: cheap enough for one person to actually
-maintain.
+no *organization* — no shared secrets manager, no second reviewer, no
+security team. Every control here had to work under that constraint: cheap
+enough for one person to actually maintain.
+
+**Scope warning, added 2026-08-04.** Everything below describes **Claude
+Code only**. That was a fair simplification when Claude was the only harness
+that wrote to disk. It no longer is: under
+[`decisions/ADR-012`](../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)
+all four vendors read and write, and two of them
+(Cursor, Antigravity) have **none** of the guards described here. So this
+document's silence about the other three harnesses is now a gap rather than
+a scoping choice, and its layers should be read as covering one vendor of
+four. Per-vendor wiring truth lives in
+[`vendors/`](../vendors/); closing the gap is tracked as the guard
+obligation in ADR-012.
 
 ## Threat model
 
