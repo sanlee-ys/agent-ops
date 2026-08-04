@@ -4,7 +4,7 @@ A `PreToolUse` hook for Claude Code that blocks common ways a credential ends
 up printed in the clear to a session transcript. It's a mechanical backstop,
 not a policy document: the behavioral rule ("never print a credential-shaped
 value unmasked") already failed twice before this existed. See
-[`../posture.md`](../posture.md) for the reasoning behind treating this as a
+[`posture.md`](posture.md) for the reasoning behind treating this as a
 hook rather than a habit, [`../incidents/`](../incidents/) for the specific
 leaks that shaped it, and [`../decisions/ADR-003-delegation-maturity.md`](../decisions/ADR-003-delegation-maturity.md)
 for the v1→v2 rewrite decision.
