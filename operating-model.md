@@ -25,8 +25,11 @@ different model family or a materially better surface. Harness and model
 family are separate axes: moving the same model into another product changes
 tools, not judgment independence. Routine work gets one agent plus a
 deterministic verifier; consequential work gets independent challenge and
-review. The four-vendor allocation and guard boundaries are
-[`ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md).
+review. The four-vendor allocation is
+[`ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md); every
+vendor reads and writes, and guard wiring rather than lane shape is what
+bounds them
+([`ADR-012`](decisions/ADR-012-capability-parity-and-the-guard-obligation.md)).
 Telltale observes the fleet but never routes it.
 
 ## Session protocol
