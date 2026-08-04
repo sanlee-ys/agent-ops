@@ -49,13 +49,19 @@ for the rename and vendor layout; fleet routing is
   wedged the session that ran it:
   [`hooks-gate-their-own-repair.md`](conventions/hooks-gate-their-own-repair.md)
   — **this repo hosts live hooks.** `~/.claude/hooks/credential-guard.py`,
-  `git-staging-guard.py` and `published-history-guard.py` are symlinks into
-  [`security/`](security/) and [`hooks/`](hooks/) on provisioned machines, so
-  moving, renaming or deleting this clone dangles them instantly, and a
-  missing `PreToolUse` script is a hard error — `Bash`, `Read` and `Write` all
-  start failing, and every possible repair is one of those calls. Re-point the
-  links in the *same* command as the move, or move it from a shell outside the
-  session.
+  `git-staging-guard.py` and `published-history-guard.py` are deployed from
+  [`security/`](security/) and [`hooks/`](hooks/) on provisioned machines —
+  **symlinks on macOS/Linux (`ln -sf`), regular file copies on Windows**
+  (verified 2026-08-04). Either way this clone is load-bearing: moving,
+  renaming or deleting it dangles the symlinks instantly, and a missing
+  `PreToolUse` script is a hard error — `Bash`, `Read` and `Write` all start
+  failing, and every possible repair is one of those calls. Re-point the links
+  in the *same* command as the move, or move it from a shell outside the
+  session. The copies carry the opposite hazard the symlink phrasing hid: a
+  copy can go **stale against the canonical file** without dangling anything —
+  the drift class recorded as limit 6 in [`security/posture.md`](security/posture.md).
+  Re-run the deploy after editing a guard here, and check the deployed copy
+  before trusting it.
 - **Reference shelf:** [`reference/`](reference/) — worked designs for problems
   this fleet does not have yet (a custom file-edit tool's matching algorithm; a
   hand-written terminal renderer). Not rules; nothing there needs doing. Read
