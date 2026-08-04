@@ -1,0 +1,16 @@
+{
+  "fleet-guards": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ~/code/agent-ops/vendors/gemini/hooks/agy-guard-adapter.py",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}

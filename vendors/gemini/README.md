@@ -17,7 +17,7 @@ like every other. The earlier "read-only by default, prototypes in a
 disposable worktree" posture is retired: it was a capability restriction
 standing in for a control, and a restriction is not a control. What bounds
 this lane now is guard wiring — see [Guard wiring](#guard-wiring) below,
-which is an open obligation rather than a caveat.
+which as of 2026-08-04 is built and measured rather than owed.
 
 ## Operating rule
 
@@ -95,32 +95,94 @@ to an inspectable file; San is never asked to relay prose between harnesses.
 
 | Fleet policy | Claude Code | Antigravity |
 |---|---|---|
-| `credential-guard.py` | PreToolUse wired | **Not wired** |
-| `git-staging-guard.py` | PreToolUse wired | **Not wired** |
-| `published-history-guard.py` | PreToolUse wired | **Not wired** |
+| `credential-guard.py` | PreToolUse wired | **PreToolUse wired** (via the adapter) |
+| `git-staging-guard.py` | PreToolUse wired | **PreToolUse wired** (via the adapter) |
+| `published-history-guard.py` | PreToolUse wired | **PreToolUse wired** (via the adapter) |
 | `redline-guard.py` (pre-commit) | Applies at commit | Applies when the target repo has the hook |
 
-**This table is the whole of the safety argument now.** Under ADR-012 the
-read-only default that used to compensate for these gaps is gone, so each
-**Not wired** row is an open obligation, not a caveat.
+**This table is the whole of the safety argument.** Under ADR-012 the
+read-only default that used to compensate for these gaps is gone, so a row
+here is the only thing between this lane and a redline.
 
-**The mechanism exists; it is unbuilt.** Antigravity supports `hooks.json`
-with a `PreToolUse` event: a tool-name matcher, an external command handler
-receiving the tool call as JSON on stdin, and a `"decision": "deny"` that
-hard-blocks execution. The hook manager runs on every launch and reports
-`loaded 0 named hooks from 0 hooks.json file(s)` — zero because none exist
-here, not because none can. Guard parity is therefore a build task, and
-ADR-010's "until tool-time guard parity exists" was never the blocker it
-read as.
+### How it is wired
 
-**Interim posture, stated honestly:** between ADR-012 and wired guards, this
-lane has full capability and no tool-time controls. That is a known, dated
-risk San accepted, not an oversight.
+[`hooks/agy-guard-adapter.py`](hooks/agy-guard-adapter.py) is a PreToolUse
+handler that translates Antigravity's tool call into the Claude Code payload
+the canonical guards already read, runs them **unmodified as subprocesses**,
+and translates the verdict back. It holds no patterns of its own. That is
+deliberate and it is the whole design: `security/posture.md` limit #6 records
+a duplicated copy of guard logic drifting out of sync and shipping a gap that
+had already been fixed in the original, so a redline change lands in the
+guards and reaches this lane with no edit here. The per-guard overrides
+(`MASK-OK`, `STAGE-ALL-OK`, `REWRITE-MAIN-OK`) ride through in the command
+string and work exactly as they do in Claude Code.
 
-**The permission store is un-versioned machine state.** `settings.json` on a
-given machine is the real policy; nothing in this repo constrains it. Per
-the machine-state audit principle, a reference config belongs here once the
-guard wiring defines what it should contain.
+Deploy by copying [`hooks.json`](hooks.json) to `~/.gemini/config/hooks.json`
+and pointing its `command` at the checkout (or leaving the `~/code/agent-ops`
+path and setting `AGENT_OPS_ROOT`). **The global root is the only one that
+works** — a workspace `.agents/hooks.json` is not picked up by the CLI, so it
+cannot carry a fleet guard.
+
+Cost: roughly 0.8s per shell tool call and 0.6s per other call on this
+machine, synchronous, since hooks block the agent loop.
+
+### Measured hook semantics
+
+Every line below was observed on 2026-08-04, not read off the vendor docs.
+The `deny` path had never been exercised anywhere before this change.
+
+- **`deny` survives `--dangerously-skip-permissions`.** That flag's strings
+  speak only to the permission system; the hook is a separate code path
+  upstream of it. Verified against a decoy credentials file holding a
+  fabricated value: the read was blocked with the bypass flag set, and the
+  guard's message reached the model verbatim. **This guard is a real floor,
+  not a speed bump.**
+- **Empty stdout is the pass-through, and `{}` is not.** A well-formed
+  response carrying no `decision` is read as a *deny with an empty reason* —
+  it killed every tool call in the probe run. `{"decision": "allow"}` is
+  worse: it auto-approves, bypassing the `request-review` permission
+  reviewer. Silence is the only neutral answer, which is why the adapter
+  prints nothing when it passes.
+- **A hook that errors fails OPEN.** A command that cannot be launched logs
+  `pre-tool hook failed` and the tool call proceeds. This inverts Claude
+  Code, where a missing PreToolUse script is a hard error (see
+  [`conventions/hooks-gate-their-own-repair.md`](../../conventions/hooks-gate-their-own-repair.md)).
+  Here a broken guard is indistinguishable from no guard, so the adapter
+  fails **closed** on every failure it can see — guards missing, a guard
+  crashing or timing out, an internal error — rather than inheriting the
+  guards' own fail-open posture. A check that could not run is not a pass.
+- **A stray top-level key voids the whole file.** Every top-level key is a
+  hook *name*, so there is no comment mechanism. A `_comment` array made the
+  CLI log `cannot unmarshal array into ... JSONHookSpec` and load **zero**
+  hooks while the session carried on unguarded. One decorative key silently
+  removes every guard in the file; `tests/test_agy_guard_adapter.py` asserts
+  the shape for this reason.
+- **Quotes in the `command` are passed through literally** rather than
+  consumed by a shell, so a quoted path fails to launch — which, per the
+  fail-open rule above, silently removes the guard.
+
+### Residual gaps
+
+- **The adapter cannot guard its own absence.** If the file is deleted or its
+  path in `hooks.json` stops resolving, the hook command fails to launch and
+  Antigravity fails open. Nothing running inside the hook can catch that.
+  Recorded rather than papered over; it is the one case the fail-closed rule
+  cannot reach.
+- **Parity includes inherited gaps.** The adapter delivers commands faithfully,
+  so this lane gets the canonical guard's *documented* out-of-scope classes
+  too. Measured: asked to print a dotenv file, the agent reached for
+  `Get-ChildItem <dir> | ForEach-Object { Get-Content $_.FullName }`, which
+  names no sensitive path and is the runtime-assembled-path class
+  `credential-guard.py` bounds out of scope. It was allowed — and the same
+  command is allowed for Claude Code, which is parity working as specified,
+  not an adapter defect. Whether that class should be narrowed is a question
+  about the canonical guard, not about this lane.
+- **`hooks.json` and `settings.json` remain machine state.** The versioned
+  [`hooks.json`](hooks.json) here is a reference, not an enforcement: nothing
+  in this repo can prove a given machine deployed it. `settings.json`
+  (`permissions.{Allow,Deny,Ask}`) is untouched by this change — ADR-012
+  ruled against narrowing grants, and this adds a control rather than
+  restricting capability.
 
 ## Telltale
 
