@@ -207,6 +207,34 @@ honest lesson below.
    could be provisioned with a guard that still had an already-fixed gap.
    The fix needed an explicit "and the other copy" step, not an assumption
    that "the hook" means one file.
+7. **A path check cannot see a path that doesn't exist yet.** Limits #1–#6 are
+   all about *which* reads get inspected; this one is about reads with nothing
+   to inspect. Measured 2026-08-04 against a decoy `.env` holding a fabricated
+   value: an agent asked, in plain language, to print a dotenv file's contents
+   named no path at all. It ran `Get-ChildItem -Force <dir> | ForEach-Object {
+   Get-Content $_.FullName }` and the value was printed. Every path rule in the
+   guard keys on a credential path appearing in the command *text*, and here
+   the paths are produced at runtime by the listing.
+
+   The guard had this bounded out as "variable-assembled path names", a class
+   the docstring framed as needing a deliberate, unusual construction. The
+   measurement says otherwise: enumerate-a-directory-and-read-each-file is the
+   *idiomatic* way an agent satisfies "show me the config in this folder", so
+   the class is reachable by an ordinary agent doing an ordinary thing with no
+   intent to evade — squarely inside the non-adversarial threat model, not
+   outside it. Closed in hook v2.7 by keying on the pipeline's *shape* (an
+   enumeration with no filename constraint a credential basename could fail,
+   feeding a stage that dereferences each name) rather than on any path, which
+   is why the original ruling's reason — "no path-regex resolves this without
+   matching innocent globs too" — did not survive contact with a non-regex
+   mechanism. Copy-then-read laundering stays out of scope: it needs the guard
+   to model the filesystem, and nothing here does.
+
+   The reusable lesson, and the reason this is written up rather than fixed
+   quietly: **an out-of-scope note is a claim about how hard a shape is to
+   reach, and that claim is measurable.** This one had never been measured. A
+   boundary asserted from the armchair will describe the shapes its author
+   found awkward to write, not the shapes an agent actually produces.
 
 Every one of these was closed by widening the guard, and every widening was
 verified against a decoy credentials file holding a fake value — confirming

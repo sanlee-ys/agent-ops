@@ -1194,5 +1194,94 @@ class TestVariableBindingFalsePositive(GuardTestCase):
             self.assertAllowed(*self.ps(cmd), msg=cmd)
 
 
+class TestEnumerateThenRead(GuardTestCase):
+    """v2.7 (2026-08-04). Measured against a decoy `.env` holding a fabricated
+    value: an agent asked in plain language to print a dotenv file's contents
+    wrote an enumerate-then-read pipeline, named no path, and the value was
+    printed. Every path rule in the guard needs a path in the command TEXT, and
+    this shape has none — the paths are produced at runtime.
+
+    It was previously bounded out as "variable-assembled path names". That
+    ruling's stated reason was that no path-regex resolves the shape without
+    matching innocent globs; this rule is not a path-regex, it keys on the
+    pipeline's shape, so the reason does not reach it. The copy-launder class
+    (which needs the guard to model the filesystem) stays out of scope, as does
+    the same dereference split across separate commands.
+    """
+
+    def test_the_measured_pipeline_blocks(self):
+        # The exact shape recorded during agent-ops #63, and its aliases.
+        for cmd in [
+            "Get-ChildItem -Force 'C:/tmp/scratch' "
+            "| ForEach-Object { Get-Content $_.FullName }",
+            "gci -Force C:/tmp/scratch | %{ gc $_.FullName }",
+            "Get-ChildItem -Recurse ./config "
+            "| ForEach-Object { Get-Content $_ }",
+        ]:
+            self.assertBlocked(*self.ps(cmd), msg=cmd)
+
+    def test_bash_equivalents_block(self):
+        for cmd in ["ls -A ./config | xargs cat",
+                    "find . -type f -exec cat {} \\;",
+                    "find /home/user -maxdepth 1 -exec head -n 20 {} \\;"]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+    def test_a_name_constraint_that_excludes_credentials_is_allowed(self):
+        # The FP case that decides the rule's exact shape: identical structure,
+        # a result set that provably holds no credential file.
+        for cmd in ["Get-ChildItem -Filter *.py -Recurse "
+                    "| ForEach-Object { Get-Content $_.FullName }",
+                    "gci ./docs/*.md | %{ gc $_.FullName }"]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+        for cmd in ["find . -name '*.md' -exec cat {} \\;",
+                    "ls src/*.ts | xargs cat"]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+    def test_a_constraint_a_credential_could_satisfy_still_blocks(self):
+        # `*.json` reaches .claude.json / credentials.json, so it proves
+        # nothing and the enumeration stays unconstrained.
+        self.assertBlocked(*self.ps(
+            "Get-ChildItem -Filter *.json | %{ Get-Content $_.FullName }"))
+        self.assertBlocked(*self.bash("find ~ -name '*.pem' -exec cat {} \\;"))
+
+    def test_routine_listing_and_reading_untouched(self):
+        # The rule must not touch what it shares its verbs with: a bare
+        # enumeration prints names, a bare reader is judged on its literal
+        # path, and a stage consuming the LISTING as text opens no file.
+        for cmd in ["Get-ChildItem -Force C:/tmp/scratch",
+                    "Get-Content ./README.md",
+                    "Get-ChildItem -Recurse | Select-Object -First 20",
+                    "gci . | %{ $_.FullName }"]:
+            self.assertAllowed(*self.ps(cmd), msg=cmd)
+        for cmd in ["ls -la", "ls -la | head -20", "ls | cat",
+                    "cat ./notes.md", "ls | xargs wc -l",
+                    "find . -type f -name '*.log'"]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+    def test_mask_ok_still_overrides(self):
+        self.assertAllowed(*self.ps(
+            "Get-ChildItem -Force ./x | %{ gc $_.FullName }  # MASK-OK"))
+
+    def test_probes_are_sensitive(self):
+        # allowlists-fail-both-ways: the probe list is what proves a glob safe,
+        # so a probe that is not itself a credential basename would silently
+        # widen "constrained". Assert each one against the real pattern.
+        sys.path.insert(0, str(GUARD.parent))
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("credguard", GUARD)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        for probe in mod._SENSITIVE_PROBES:
+            self.assertTrue(mod._has_sensitive_path(probe),
+                            f"probe is not a credential basename: {probe}")
+
+    def test_out_of_scope_neighbours_stay_out(self):
+        # The dataflow class this deliberately does not reach: the dereference
+        # split out of the pipeline into a separate command. Asserted ALLOWED
+        # so a future widening has to break a test on purpose.
+        self.assertAllowed(*self.ps(
+            "$fs = Get-ChildItem -Force ./x; $fs | %{ gc $_.FullName }"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

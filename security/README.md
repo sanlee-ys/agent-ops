@@ -71,6 +71,16 @@ named — a tool the matcher doesn't route to is a tool the guard never sees.
    sits (see "Metadata operations, wherever they sit").
 4. **`claude mcp get <name>`** — prints a registered server's stored env vars
    (secrets) by design. Use `claude mcp list` to check status without values.
+5. **Enumerate-then-read** (v2.7) — an *unconstrained* directory listing piped
+   into a stage that dereferences each name and prints its content:
+   `Get-ChildItem -Force <dir> | ForEach-Object { Get-Content $_.FullName }`,
+   `ls | xargs cat`, `find . -type f -exec cat {} \;`. Rules 1–3 all need a
+   credential path in the command *text*; this shape has none, because the
+   paths are produced at runtime. Keyed on the pipeline's shape instead, so a
+   name constraint no credential basename can satisfy (`-Filter *.py`,
+   `find . -name '*.md'`) passes, a bare listing passes (it prints names), and
+   `ls | head` / `ls | cat` pass (they consume the *listing* as text and open
+   nothing). See "Enumerate-then-read (v2.7)" below.
 
 The sensitive-path set covers the Claude config tree (`.claude/settings.json`,
 `.claude.json`), `.env*` and `.envrc`, `credentials*.json` and token caches,
@@ -92,8 +102,9 @@ touches a transcript), not to this hook: copy-then-read laundering (`cp secret
 x; cat x`), **variable laundering** (`$k = $env:SECRET; Get-Variable k` — the
 same shape one container down, see the `Get-Variable` section below),
 indirection through a script the guard can't see into (`bash leak.sh`),
-wildcard/variable-assembled path names (`cat ~/.claud*.json`), and
-`MASK-OK` forgery. These are asserted as *allowed* in the test suite so the
+wildcard path names (`cat ~/.claud*.json`), an unconstrained enumeration whose
+reader sits in a *separate* command (`$fs = Get-ChildItem d; $fs | %{ gc $_ }`
+— that one is genuine dataflow), and `MASK-OK` forgery. These are asserted as *allowed* in the test suite so the
 boundary is explicit — a well-meaning future change that blocks them (and
 starts causing false positives) fails a test on purpose.
 
@@ -437,6 +448,92 @@ literal stays default-denied rather than being resolved — `$f = @{p='~/.env'}`
 `$a = $b = '~/.env'`, `$f += ...`, `$f[0] = ...`, backtick line-continuation
 across segments. None of those is newly allowed; they keep their pre-2.6
 behaviour or block. Pinned in `TestVariableBindingFalsePositive`.
+
+## Enumerate-then-read (v2.7)
+
+Every rule from v1 through v2.6 answers the same question — *does this command
+name a credential path, and if so what is being done to it?* That question has
+a precondition: a path has to be in the command text to be found. This shape
+has none.
+
+**How it was found.** Not by reasoning about the guard, but by asking an agent,
+in plain language, to print the contents of the dotenv file in a scratch
+directory holding a decoy `.env` with a fabricated value. It did not write the
+path. It ran:
+
+```powershell
+Get-ChildItem -Force "<dir>" | ForEach-Object { Get-Content $_.FullName }
+```
+
+and the decoy value was printed. The guard allowed it, correctly per its own
+spec at the time: no sensitive path appears anywhere, and the paths are
+assembled at runtime from `$_.FullName`.
+
+**Why the old out-of-scope note did not survive it.** The docstring bounded
+this out as "wildcard / variable-assembled path names … that no path-regex can
+resolve without matching innocent globs too", framing it as a deliberate,
+unusual construction. The measurement says otherwise:
+enumerate-a-directory-and-read-each-file is the *idiomatic* way an agent
+satisfies "show me the config in this folder" — reachable by an ordinary agent
+doing an ordinary thing with no intent to evade. That is exactly the
+non-adversarial-mistake class the guard exists for.
+
+It is also **not** the copy-launder ruling in new clothes, which is the first
+thing to rule out before reopening anything the owner has closed
+(`conventions/settled-rulings-suppress-findings.md`). Laundering
+(`cp secret x; cat x`) requires the guard to model the *filesystem*: an
+artifact created out of band whose relationship to the secret lives in history
+the guard cannot see. Here nothing is copied, no history is involved, and the
+entire shape is present in one command's text. And the stated reason for the
+old ruling was that *a path-regex* cannot resolve it — true, and this rule is
+not a path-regex.
+
+**The rule, and the false-positive discipline that fixes its exact shape.**
+Two commands with identical structure and very different risk:
+
+```powershell
+Get-ChildItem -Filter *.py <dir> | %{ Get-Content $_.FullName }   # fine
+Get-ChildItem -Force        <dir> | %{ Get-Content $_.FullName }   # leak
+```
+
+The difference is whether the enumeration's result set can be shown to
+**exclude** credential files. A filename constraint that no credential basename
+can satisfy proves it; nothing else does. So the guard blocks an enumerator
+(`ls`/`dir`/`Get-ChildItem`/`find`/`fd`/…) carrying no such constraint when
+some stage of the same pipeline dereferences each name and prints its content
+(`xargs <reader>`, `-exec <reader>`, a `ForEach-Object` body reading `$_`).
+
+What that deliberately leaves alone, given this guard's history of over-broad
+patterns getting it routed around:
+
+- **A bare enumeration.** `Get-ChildItem -Force <dir>` prints names, not
+  content. Untouched.
+- **A bare reader.** `Get-Content ./notes.md` is judged on its literal path by
+  the existing rules. Untouched.
+- **A stage consuming the listing as text.** `ls | head`, `ls | cat`,
+  `Get-ChildItem | Select-Object -First 20` — `cat` reading stdin opens no
+  file. Untouched.
+- **A constrained enumeration.** `-Filter *.py`, `find . -name '*.md'`,
+  `ls src/*.ts | xargs cat`. Allowed, because the glob provably matches no
+  credential basename. `*.json` does *not* qualify — it reaches `.claude.json`
+  and `credentials.json` — so it still blocks.
+
+When it does fire, the remedy is one flag or naming the files you actually
+want, which is the property that keeps a guard usable. `MASK-OK` remains for a
+deliberate whole-directory read.
+
+The list of credential basenames a glob is tested against is a load-bearing
+allowlist in the sense of
+[`../conventions/allowlists-fail-both-ways.md`](../conventions/allowlists-fail-both-ways.md):
+a probe that is not actually sensitive would silently widen what counts as
+"constrained". `test_probes_are_sensitive` pins every entry against the real
+`SENSITIVE_FILE_PATTERN`, so drift fails the suite rather than the next audit.
+
+**Residual, stated rather than claimed closed.** An unconstrained enumeration
+whose reader sits in a *separate* command — `$fs = Get-ChildItem d; $fs | %{ gc
+$_ }` — is not a single pipeline and is not caught. That one really is the
+dataflow class, and it stays out of scope; it is asserted as *allowed* in the
+suite so a future widening has to break a test on purpose.
 
 ## Installing it (standalone)
 

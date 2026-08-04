@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.6 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.7 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -18,6 +18,13 @@
 # verb the issue reported (Remove-Item / Test-Path / Get-FileHash via a
 # variable) passes while a reader reached through the same variable still
 # blocks. Loop/conditional headers are classified separately from their bodies.
+# 2.7 (2026-08-04): an UNCONSTRAINED directory enumeration feeding a per-item
+# content reader (`Get-ChildItem -Force <dir> | ForEach-Object { Get-Content
+# $_.FullName }`, `find . -type f -exec cat {} \;`, `ls | xargs cat`) now
+# blocks. Measured, not theorised — see "Enumerate-then-read" below. Keyed on
+# PIPELINE SHAPE, not on any path, so a name filter that no credential basename
+# can satisfy (`-Filter *.py`) still passes and a bare enumeration or a bare
+# reader is untouched.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -69,15 +76,30 @@ unless this is a recognised *safe* operation?" Concretely:
      incident, which v1 never caught. As of v2.5 the bulk forms are checked
      against nested command units too, so `echo $(env)` is seen and not just a
      bare `env` (see _nested_command_units).
+  5. Enumerate-then-read (v2.7): a directory enumeration whose result set is
+     UNCONSTRAINED, piped into a stage that dereferences each name and prints
+     its content. Rules 1-3 all key on a path appearing in the command text;
+     this shape has none, because the paths are produced at runtime. It was
+     bounded out as "variable-assembled" until it was measured: asked in plain
+     language to print a dotenv file's contents, an agent wrote
+     `Get-ChildItem -Force <dir> | ForEach-Object { Get-Content $_.FullName }`
+     and the decoy value was printed. That is the *idiomatic* way to satisfy
+     "show me the config in this folder", not an evasive construction, so it
+     sits squarely inside the non-adversarial threat model rather than outside
+     it — see _enumeration_is_unconstrained / _reads_each_item.
 
 Deliberately OUT of scope, per the posture's threat model (non-adversarial
 agent mistakes; anyone with local code-execution has already won — see
 posture.md and decisions/ADR-001): copy-then-read laundering (`cp secret x;
 cat x`), indirection through a script the guard can't see into (`source .env`
 is caught because `source` is not a safe verb, but `bash leak.sh` is not),
-wildcard / variable-assembled path names (`cat ~/.claud*.json`, `f=.env; cat
-$f`) that no path-regex can resolve without matching innocent globs too, and
-MASK-OK forgery. Those are contained by the permission allowlist (no `$(...)`,
+wildcard path names (`cat ~/.claud*.json`) that no path-regex can resolve
+without matching innocent globs too, and MASK-OK forgery. (Two members of that
+list have since been narrowed out of it and are NOT out of scope any more:
+`f=.env; cat $f` blocks as of v2.6, and enumerate-then-read as of v2.7 —
+see below. The list describes coverage, not a settled ruling; a shape leaves it
+whenever a mechanism appears that resolves it without the false positives that
+put it there.) Those are contained by the permission allowlist (no `$(...)`,
 no arbitrary shell control-flow) and by treating any credential that touches a
 transcript as compromised and rotating it (posture Layer 4), not by this hook.
 The adversarial test suite (tests/test_credential_guard.py) carries a case per
@@ -668,6 +690,15 @@ def _split_segments(command):
     is safe rather than blinding: the trailing text still lands inside a unit
     body via _sub_units, whose _balanced() runs an unterminated group to end of
     segment, and both callers re-split what they find there."""
+    return [seg for seg, _ in _scan_segments(command)]
+
+
+def _scan_segments(command):
+    """_split_segments' scanner, returning (segment, following separator) pairs
+    (the last segment's separator is ""). The separator is discarded by
+    _split_segments and needed by _pipelines, which cares about `|`
+    specifically: a pipeline's stages share a data flow that `;`-separated
+    commands do not."""
     segs, buf, quote, depth, i, n = [], [], None, 0, 0, len(command)
     while i < n:
         c = command[i]
@@ -700,14 +731,28 @@ def _split_segments(command):
             buf.append(c)
             i += 1
         elif command[i:i + 2] in ("&&", "||"):
-            segs.append("".join(buf)); buf = []; i += 2
+            segs.append(("".join(buf), command[i:i + 2])); buf = []; i += 2
         elif c in (";", "\n", "|", "&"):
-            segs.append("".join(buf)); buf = []; i += 1
+            segs.append(("".join(buf), c)); buf = []; i += 1
         else:
             buf.append(c)
             i += 1
-    segs.append("".join(buf))
+    segs.append(("".join(buf), ""))
     return segs
+
+
+def _pipelines(command):
+    """Runs of segments joined by `|`, as lists of stages. Every segment lands
+    in exactly one run, so a command with no pipe yields single-stage runs."""
+    out, cur = [], []
+    for seg, sep in _scan_segments(command):
+        cur.append(seg)
+        if sep != "|":
+            out.append(cur)
+            cur = []
+    if cur:
+        out.append(cur)
+    return out
 
 
 # --- Value bindings and control-flow headers (v2.6) ------------------------
@@ -1141,6 +1186,134 @@ def _reads_sensitive_path(seg, _depth=0):
     return True                                        # unknown cmd → default deny
 
 
+# --- Enumerate-then-read (v2.7) --------------------------------------------
+# Every rule above needs a sensitive path to appear in the command TEXT. This
+# one does not, because there is none to find: the paths are produced at runtime
+# by a directory listing. Measured 2026-08-04 against a decoy `.env` holding a
+# fabricated value — an agent asked in plain language to print a dotenv file's
+# contents wrote `Get-ChildItem -Force <dir> | ForEach-Object { Get-Content
+# $_.FullName }` and the value was printed.
+#
+# Why this is not the copy-launder class posture.md bounds out. Laundering
+# (`cp secret x; cat x`) needs the guard to model the FILESYSTEM: an artifact
+# created out of band, whose relationship to the secret exists only in history
+# the guard cannot see. Here nothing is copied and no history is involved — a
+# reader is applied directly to a live enumeration, inside one command, and the
+# whole shape is present in the text. What the earlier ruling actually said was
+# that "no path-regex can resolve this without matching innocent globs too."
+# True, and this rule is not a path-regex; it keys on the pipeline's SHAPE.
+#
+# The false-positive discipline that decides the exact rule. Two commands have
+# identical structure and very different risk:
+#
+#     Get-ChildItem -Filter *.py <dir> | %{ Get-Content $_.FullName }   # fine
+#     Get-ChildItem -Force        <dir> | %{ Get-Content $_.FullName }   # leak
+#
+# The difference is whether the enumeration's result set can be shown to EXCLUDE
+# credential files. A filename constraint that no credential basename can
+# satisfy proves it; nothing else does. So the rule is: an enumerator with no
+# such constraint, feeding a stage that dereferences each name. A bare
+# `Get-ChildItem` is untouched (it prints names, not content), a bare
+# `Get-Content` is untouched (rules 1-3 already judge its literal path), and
+# `ls | head` / `ls | cat` are untouched because they consume the LISTING as
+# text and never open a file. When it does fire, the fix is one flag, which is
+# the property that keeps a guard from being routed around.
+#
+# Residual, stated rather than claimed closed: an unconstrained enumeration that
+# reaches a reader through a variable across commands
+# (`$fs = Get-ChildItem d; $fs | %{ gc $_ }`) is not a single pipeline and is
+# not caught. That IS the dataflow class, and it stays out of scope.
+
+# Commands whose output is a set of filesystem names discovered at runtime.
+_ENUMERATORS = {"ls", "dir", "vdir", "ll", "la", "tree", "find", "fd",
+                "get-childitem", "gci"}
+
+# Basenames the sensitive pattern matches on their own. A filename glob is
+# proved safe by matching NONE of them, so this list failing open (a probe that
+# is not actually sensitive, or a whole credential family with no probe) would
+# silently widen what counts as "constrained" — test_probes_are_sensitive pins
+# every entry against SENSITIVE_FILE_PATTERN so a drifted probe fails the suite
+# rather than the next audit (conventions/allowlists-fail-both-ways.md).
+_SENSITIVE_PROBES = (
+    ".env", ".envrc", ".env.production", ".claude.json", "credentials.json",
+    "application_default_credentials.json", "id_rsa", "id_ed25519",
+    "server.pem", "server.key", "keystore.p12", ".npmrc", ".pypirc", ".netrc",
+    ".pgpass", ".git-credentials", "terraform.tfstate", ".bash_history",
+    "access_tokens.db",
+)
+
+# Flags whose value is a filename pattern rather than a directory or a switch.
+_NAME_PATTERN_FLAGS = {"-filter", "-include", "-name", "-iname"}
+
+# Commands that print a named file's CONTENT. Broader than SAFE_COMMANDS' mirror
+# image on purpose: this list only ever decides whether an already-unconstrained
+# enumeration is being dereferenced, so a generous entry costs nothing elsewhere.
+_ITEM_READERS = (
+    "cat", "tac", "nl", "head", "tail", "more", "less", "bat", "xxd", "od",
+    "strings", "base64", "hexdump", "type", "get-content", "gc",
+)
+_READER_TOKEN = re.compile(
+    r"(?:^|[\s;(|{&])(?:sudo\s+)?(?:" + "|".join(_ITEM_READERS) + r")(?![\w-])",
+    re.IGNORECASE,
+)
+_XARGS_READER = re.compile(r"\bxargs\b", re.IGNORECASE)
+_EXEC_READER = re.compile(r"-exec(?:dir)?(?![\w-])", re.IGNORECASE)
+_FOREACH = re.compile(r"(?:^|[\s;(|{&])(?:foreach-object|foreach|%)(?![\w-])",
+                      re.IGNORECASE)
+# The per-item variable a ForEach-Object body uses to name the current file.
+_ITEM_VAR = re.compile(r"\$(?:_|PSItem)(?![\w])", re.IGNORECASE)
+
+
+def _glob_excludes_sensitive(pattern):
+    """True if the filename glob `pattern` cannot match ANY known credential
+    basename — the only evidence available that an enumeration's results are
+    safe. `*` and `*.json` fail this; `*.py` and `*.md` pass it."""
+    rx = []
+    for ch in _basename(pattern):
+        rx.append(".*" if ch == "*" else "." if ch == "?" else re.escape(ch))
+    matcher = re.compile("".join(rx) + r"\Z", re.IGNORECASE)
+    return not any(matcher.match(p) for p in _SENSITIVE_PROBES)
+
+
+def _enumeration_is_unconstrained(seg):
+    """True if `seg` leads with a directory enumerator whose results could
+    include a credential file: it carries no filename constraint at all, or one
+    a credential basename could satisfy."""
+    if _leading_command(seg) not in _ENUMERATORS:
+        return False
+    patterns, toks = [], seg.split()
+    for i, tok in enumerate(toks):
+        if tok.lower() in _NAME_PATTERN_FLAGS and i + 1 < len(toks):
+            patterns.append(toks[i + 1])
+        elif not tok.startswith("-") and ("*" in tok or "?" in tok):
+            patterns.append(tok)
+    return not patterns or not all(_glob_excludes_sensitive(p)
+                                   for p in patterns)
+
+
+def _reads_each_item(stage):
+    """True if `stage` dereferences the names it is handed and prints their
+    CONTENT. A stage that consumes the listing as text (`| head`, `| cat`,
+    `| Select-Object`) does not: `cat` reading stdin opens nothing."""
+    if _XARGS_READER.search(stage) or _EXEC_READER.search(stage):
+        return bool(_READER_TOKEN.search(stage))
+    if _FOREACH.search(stage):
+        return bool(_READER_TOKEN.search(stage) and _ITEM_VAR.search(stage))
+    return False
+
+
+def _enumerate_then_read(command):
+    """True if any pipeline in `command` runs an unconstrained enumeration into
+    a per-item content reader. `find -exec cat {} \\;` needs stage 0 itself
+    checked, since there the reader rides inside the producer."""
+    for stages in _pipelines(command):
+        if not _enumeration_is_unconstrained(stages[0].strip()):
+            continue
+        if any(_reads_each_item(s) for s in stages):
+            return True
+    return False
+
+
 def block(message):
     """Write a block reason to stderr and exit with the hook's block code."""
     sys.stderr.write(message)
@@ -1183,6 +1356,16 @@ _MSG_MCP = (
     "vars (including secrets) in the clear. Use `claude mcp list` to check\n"
     "connection status without revealing values, or Bash with MASK-OK if you\n"
     "genuinely need the stored value.\n"
+)
+_MSG_ENUM = (
+    "CREDENTIAL GUARD: this pipes an UNCONSTRAINED directory listing into a\n"
+    "per-item content reader, so it prints whatever happens to be in that\n"
+    "directory — including a .env, an SSH key, or a credential JSON. No path is\n"
+    "named in the command, which is exactly why the path checks don't see it.\n"
+    "Constrain the enumeration to names that cannot be credential files (e.g.\n"
+    "`-Filter *.py`, `find . -name '*.md'`), or read the specific files you\n"
+    "want by name. Re-invoke with MASK-OK if you genuinely need the whole\n"
+    "directory's contents and have weighed the exposure.\n"
 )
 _MSG_GIT = (
     "CREDENTIAL GUARD: `git -c <key>=!<cmd>` config-injects a shell alias —\n"
@@ -1287,6 +1470,11 @@ def main():
                     "echo", "printf", "print", "ls", "find", "realpath",
                     "readlink") and _has_sensitive_path(producer):
                 block(_MSG_PATH)
+        # The producer above needs a LITERAL sensitive path. An unconstrained
+        # directory enumeration feeding a per-item reader has none — the paths
+        # only exist at runtime — so it is judged on pipeline shape (v2.7).
+        if _enumerate_then_read(command):
+            block(_MSG_ENUM)
         # Quote-aware split on every shell separator, including a single `&`
         # (backgrounding — `true & cat ~/.env` otherwise hid the reader behind a
         # safe leading command, round 3 #1) but not inside quotes (round 4 #3).
