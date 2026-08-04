@@ -25,6 +25,16 @@
 # PIPELINE SHAPE, not on any path, so a name filter that no credential basename
 # can satisfy (`-Filter *.py`) still passes and a bare enumeration or a bare
 # reader is untouched.
+# 2.8 (2026-08-04): cursor-agent compatibility, all three measured on Windows
+# (vendors/cursor/README.md "Guard wiring"). cursor-agent auto-imports this
+# hook from ~/.claude/settings.json and (a) pipes the payload through a
+# PowerShell wrapper whose $OutputEncoding prepends a UTF-8 BOM — json.load
+# raised and the guard failed OPEN on every call — so stdin is now decoded
+# utf-8-sig; (b) names its shell tool "Shell", not Bash/PowerShell, so the
+# command checks now accept it; (c) treats an empty-stdout hook run as failed
+# (and imported hooks are hardcoded failClosed=false), so a Cursor payload —
+# identified by its cursor_version key — gets an explicit allow verdict on
+# stdout. Deny needs no dialect: Cursor maps exit 2 + stderr to a block.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -1414,18 +1424,35 @@ def _field_targets_sensitive(obj, key_is_pathy=False):
     return False
 
 
+def _allow(payload):
+    """Allow (exit 0), speaking Cursor's dialect when the caller is Cursor.
+
+    cursor-agent imports this hook and marks an empty-stdout run as failed —
+    and its imported-hook wiring is hardcoded failClosed=false, so that
+    "failure" silently allows. An explicit verdict makes the allow a measured
+    success instead. Only a Cursor payload (cursor_version key) gets the JSON;
+    Claude Code's own payloads exit bare so its stdout contract is untouched.
+    """
+    if isinstance(payload, dict) and "cursor_version" in payload:
+        print('{"permission": "allow"}')
+    sys.exit(0)
+
+
 def main():
     """PreToolUse hook: allow (exit 0) or block (exit 2) the tool call on stdin.
 
     Grep is checked for content-mode reads of sensitive paths; Bash/PowerShell
-    commands are split into segments and checked for env dumps, credential-var
-    prints, and sensitive-path reads (default-deny by leading command); Glob is
-    allowed (it returns paths, not content); every other tool has all its
-    path-bearing fields checked against the sensitive-target pattern. Fails open
-    (exit 0) on an unparseable payload.
+    (and Cursor's "Shell") commands are split into segments and checked for env
+    dumps, credential-var prints, and sensitive-path reads (default-deny by
+    leading command); Glob is allowed (it returns paths, not content); every
+    other tool has all its path-bearing fields checked against the
+    sensitive-target pattern. Fails open (exit 0) on an unparseable payload.
     """
     try:
-        data = json.load(sys.stdin)
+        # utf-8-sig: cursor-agent's Windows hook wrapper pipes the payload
+        # through PowerShell with a BOM-emitting $OutputEncoding; json.load on
+        # the text stream raised on that BOM and the guard failed open.
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
     except Exception:
         sys.exit(0)
 
@@ -1442,12 +1469,14 @@ def main():
                 v = tool_input.get(field, "")
                 if _has_sensitive_path(v):
                     block(_MSG_GREP)
-        sys.exit(0)
+        _allow(data)
 
-    if tool_name in ("Bash", "PowerShell"):
+    # "Shell" is cursor-agent's single shell tool; its tool_input carries the
+    # same {"command": ...} shape as Claude Code's Bash/PowerShell.
+    if tool_name in ("Bash", "PowerShell", "Shell"):
         command = tool_input.get("command", "")
         if not command or "MASK-OK" in command:
-            sys.exit(0)
+            _allow(data)
         command = _strip_heredocs(command)
         # `echo <path> | xargs <reader>` feeds the path to a downstream reader
         # across segment boundaries (round 3, #2). Only the pipeline stage that
@@ -1535,12 +1564,12 @@ def main():
             # their blast radius.
             if _reads_sensitive_path(_apply_bindings(scan, bindings)):
                 block(_MSG_PATH)
-        sys.exit(0)
+        _allow(data)
 
     # Glob returns paths, not content — it can confirm a file exists (the safe
     # fallback the guard itself recommends) but cannot print a secret's value.
     if tool_name == "Glob":
-        sys.exit(0)
+        _allow(data)
 
     # Every other tool (Read, NotebookEdit, MCP file readers, ...): block if any
     # path-named field targets a sensitive file. This is the default-deny that
@@ -1550,7 +1579,7 @@ def main():
     # with Bash + MASK-OK as the escape hatch).
     if _field_targets_sensitive(tool_input):
         block(_MSG_PATH)
-    sys.exit(0)
+    _allow(data)
 
 
 if __name__ == "__main__":
