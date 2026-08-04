@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-# hook-version: 1.0 (2026-07-26)
+# hook-version: 1.1 (2026-08-04) — cursor-agent compatibility: BOM-tolerant
+# stdin (its Windows PowerShell wrapper prepends a UTF-8 BOM that made
+# json.load raise, failing the guard open), its shell tool's name "Shell"
+# accepted alongside Bash/PowerShell, and an explicit allow verdict on stdout
+# for Cursor payloads (it marks empty-stdout runs failed, and imports hooks
+# failClosed=false). See security/credential-guard.py 2.8 and
+# vendors/cursor/README.md "Guard wiring" for the measurements.
+# 1.0 (2026-07-26)
 """Published-history guard (global PreToolUse hook) — don't drop published commits from `main`.
 
 WHY. On 2026-07-26 two sessions worked one direct-to-main repo — so no PR gate
@@ -436,21 +443,32 @@ Check the remote by hand, or - if you are confident - prefix with {override}.
 """
 
 
+def _allow(payload) -> None:
+    """Allow (exit 0), with an explicit stdout verdict for Cursor payloads —
+    cursor-agent marks an empty-stdout hook run as failed and fails open."""
+    if isinstance(payload, dict) and "cursor_version" in payload:
+        print('{"permission": "allow"}')
+    sys.exit(0)
+
+
 def main() -> None:
     try:
-        data = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+        # utf-8-sig: cursor-agent's Windows wrapper pipes the payload with a
+        # leading BOM; json.load on the text stream raised and failed open.
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
         sys.exit(0)
 
-    if data.get("tool_name") not in {"Bash", "PowerShell"}:
-        sys.exit(0)
+    # "Shell" is cursor-agent's single shell tool, same tool_input shape.
+    if data.get("tool_name") not in {"Bash", "PowerShell", "Shell"}:
+        _allow(data)
 
     command = data.get("tool_input", {}).get("command", "")
     if not isinstance(command, str) or not command.strip():
-        sys.exit(0)
+        _allow(data)
 
     if OVERRIDE in command:
-        sys.exit(0)
+        _allow(data)
 
     cwd = data.get("cwd") or None
 
@@ -478,7 +496,7 @@ def main() -> None:
             sys.stderr.write(verdict.message)
             sys.exit(2)
 
-    sys.exit(0)
+    _allow(data)
 
 
 if __name__ == "__main__":

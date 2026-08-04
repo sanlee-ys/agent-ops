@@ -33,7 +33,7 @@ pass.
 | Parallel work on a different repo or non-colliding files | Cursor or Claude — pick by surface | Same parallel-session rules apply; Cursor is a legitimate second lane when file boundaries hold. |
 | Read-only portfolio hygiene (`/status-map`, drift sweeps) | Either | Cursor can invoke Claude skills from `~/.claude/skills/`; choose whichever window is open. |
 | Session handoff across harnesses | Inspectable state | Branch, PR, diff, optional `/handoff` brief — never a prose retelling. |
-| Hooks-enforced git/credential discipline | Claude Code or Codex | Both have the fleet suite wired locally; see Cursor's guard gap below. |
+| Hooks-enforced git/credential discipline | Claude Code, Codex, or Cursor | All three run the fleet suite; Cursor imports it from Claude's settings — see Guard wiring below for the launch-shell caveat. |
 | Headless / CI / `codex exec` automation | Claude or Codex | Cursor is not the right host. |
 | DCB pre-flight on ambiguous or consequential work | Whichever harness opens the session | DCB is vendor-neutral; invoke via `~/.claude/skills/dcb/`. |
 
@@ -49,7 +49,9 @@ Cursor-local review into the fleet's independent Codex pass.
 - Do not hand off Cursor → Claude with a paragraph summary; push the branch,
   point at the PR.
 - Do not treat "I'm in Cursor" as permission for whole-tree staging — the
-  parallel-session rules still apply; guards are not mechanical here.
+  parallel-session rules still apply. The staging guard is mechanical here
+  too now (see Guard wiring), but only in a session whose hooks actually ran;
+  a bash-parented launch denies everything rather than checking anything.
 
 ## Instruction-file wiring
 
@@ -100,25 +102,44 @@ Per [`../README.md`](../README.md) and
 
 | Fleet policy | Claude Code | Cursor |
 |---|---|---|
-| `credential-guard.py` | PreToolUse wired | **Not wired** — behavioral only via user rules |
-| `git-staging-guard.py` | PreToolUse wired | **Not wired** |
-| `published-history-guard.py` | PreToolUse wired | **Not wired** |
+| `credential-guard.py` | PreToolUse wired | **Wired** — auto-imported from `~/.claude/settings.json`, deny verified live 2026-08-04 |
+| `git-staging-guard.py` | PreToolUse wired | **Wired** — same import path |
+| `published-history-guard.py` | PreToolUse wired | **Wired** — same import path |
 | `redline-guard.py` (pre-commit) | Applies at commit | Applies at commit |
 
-**This table is the whole of the safety argument now.** Under
-[`ADR-012`](../../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)
-the "bounded, revertible work only" posture is retired as a *capability*
-restriction — it was standing in for a control, and a restriction is not a
-control. Each **Not wired** row is an open obligation.
+**How the wiring works (measured on Windows, cursor-agent 2026.07.23-e383d2b).**
+cursor-agent reads hook configs from its own locations *and* from Claude
+Code's `~/.claude/settings.json` / project `.claude/settings*.json` — the
+fleet guards are imported automatically, with matchers translated
+(`Bash` → `Shell`; `*` unchanged). No `~/.cursor/hooks.json` is needed, and
+none exists on the provisioned machines. Deny is Claude's own protocol:
+exit 2 + stderr becomes a block with the message shown to the agent.
 
-Cursor remains the right surface for bounded edit-test loops because that is
-where the IDE adds value, not because it is the most damage it may do.
+That import was **broken-by-default on Windows in both launch directions**
+until the guards' 2026-08-04 compatibility pass
+(`security/credential-guard.py` 2.8, both `hooks/` guards 1.1,
+`tests/test_cursor_hook_compat.py`):
 
-**A hook surface exists here too.** Cursor documents session/tool/subagent
-events (noted under Telltale below as a telemetry seam). Whether that surface
-can carry a blocking `deny` is **unverified** — it was assessed for
-observation, not enforcement. Confirm before treating it as the parity path;
-Antigravity's `PreToolUse` deny is confirmed, this one is not.
+- **Launched from a Git-Bash-parented environment** (`MSYSTEM`/`SHELL` set):
+  cursor-agent selects its bash executor but builds the hook command as a
+  PowerShell pipeline — bash dies on the syntax, exit 2, and *every* tool
+  call is denied. Fail-closed: safe, but the lane is dead. This remains true
+  and is an upstream bug; **launch cursor-agent from a PowerShell/cmd parent**
+  (no `MSYSTEM`, `SHELL`, `EXEPATH` in the environment) until upstream fixes
+  the wrapper-vs-executor mismatch.
+- **Launched from a PowerShell parent**: the wrapper runs, but it pipes the
+  payload with a leading UTF-8 BOM; `json.load` raised, the guards failed
+  open, and cursor-agent — which hardcodes `failClosed: false` for imported
+  hooks and treats empty stdout as a failed run — allowed everything,
+  including a measured `.env` read. Closed by the guards' `utf-8-sig` stdin
+  decode, the `Shell` tool-name mapping, and an explicit
+  `{"permission": "allow"}` verdict on Cursor-dialect allows.
+
+The two failure modes compose to the worst possible posture: the launch path
+that *looked* wired (hooks firing, everything denied) was a shell bug, and
+the launch path that worked was silently unguarded. Verify both directions
+after any cursor-agent version bump: an innocuous read must pass, a
+credential-shaped read must deny with the guard's message.
 
 ## Telltale
 
