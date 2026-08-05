@@ -37,15 +37,26 @@ through a *different* tool or command shape each time) is the only remaining
 gap with **live risk attached**. Close it structurally rather than one leak
 shape at a time.
 
-**Status as of 2026-07-07:** primary desktop migrated (PAT off plaintext,
-platform keystore blob + wrapper, verified live). The laptop's migration script
-is written and dry-tested, not yet run. Guard rewrite and adversarial CI suite
-not started (blocked earlier on this repo's access in one session; unblocked
-now).
+**Status as of 2026-08-05.** Two of the three exit-criterion legs are met; the
+plaintext leg is not, so Phase 1 stays open. Item by item:
 
-1. **Secret out of every plaintext file, on every machine.** Desktop done,
-   laptop pending — the private config repo's handoff doc and migration branch
-   record the exact state and scripts.
+- **Guard rewrite — done 2026-07-06.** The path-based default-deny v2 shipped
+  and was verified live against a decoy file.
+- **Adversarial CI suite — done 2026-07-06, green.** [`tests/`](../tests/) runs
+  on every push and pull request via
+  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+- **Plaintext leg — open.** See the exit-criterion note below.
+
+The status line this replaces was dated 2026-07-07 and said the guard rewrite
+and the CI suite were "not started." Both had already shipped the day before;
+the line was wrong when written and stayed wrong for a month. Recorded rather
+than quietly deleted, because a stale status line in a document whose whole
+subject is verification is the failure mode this ADR exists to name.
+
+1. **Secret out of every plaintext file, on every machine.** Desktop done for
+   the token that motivated this ADR. The laptop resolved 2026-08-03 in a way
+   the plan did not anticipate, and the criterion is broader than either — both
+   in the exit-criterion note below.
 2. **Rewrite the credential guard from a command-shape denylist to a
    path-based default-deny.** Block on the *target path* being read
    (`~/.claude.json`, `.env*`, SSH keys, etc.) regardless of which tool or
@@ -58,6 +69,47 @@ now).
 
 **Exit criterion:** secret material in no plaintext file anywhere; guard test
 suite green in CI; 30 days of live use with zero credential prints.
+
+**Exit-criterion status — verified 2026-08-05. Two legs of three. Phase 1 stays
+OPEN.**
+
+- **Guard test suite green in CI — MET.** The suite runs green (237 tests) and
+  `ci.yml` runs it on every push and pull request; the most recent run on
+  `main` passed.
+- **30 days of live use with zero credential prints — MET.** The soak clock
+  started 2026-07-06, when v2 shipped, and ran to 2026-08-05.
+  [`incidents/`](../incidents/) holds no credential-exposure entry dated on or
+  after 2026-07-06; the last of the series is 2026-07-04. The one guard gap
+  found inside that window ([`security/posture.md`](../security/posture.md),
+  known limit 7, 2026-08-04) came from a proactive probe against a **decoy**
+  file holding a fabricated value — no live secret reached a transcript — and
+  was closed in hook v2.7. A probe finding a gap is the control working; it
+  does not reset the clock.
+- **Secret material in no plaintext file anywhere — NOT MET**, for two separate
+  reasons, and it is the second one that blocks.
+
+  1. *The laptop leg is moot rather than done.* Verified 2026-08-03: that
+     machine has no configured MCP server at all, so there was never a
+     plaintext token on it to migrate. The migration script's own preflight
+     refuses to run there, the platform keystore holds no entry, and a
+     freshly-minted token was revoked unused. The cross-machine queue entry was
+     deleted rather than executed. The specific token this phase was written
+     about is therefore off plaintext on every machine — but by absence, not by
+     migration, and that distinction is why this is written down instead of
+     ticked off.
+  2. *The criterion as written is broader than that token, and is not satisfied
+     on either machine.* A standing convention deliberately keeps the Anthropic
+     API key in a plaintext `.env`, loaded per run with an explicit
+     `--env-file` flag. That is a considered decision with its own history, not
+     an oversight — and it is still flatly inconsistent with "no plaintext file
+     anywhere." The criterion cannot be called met while it stands.
+
+  **This fork is deliberately left open.** Either the criterion narrows to the
+  class it was actually written about — credentials reachable by an agent's
+  routine tool calls, which is what the guard covers and what all four
+  incidents were — or the `.env` convention changes. Those are different
+  security postures, not a wording choice, so the ADR records the gap and does
+  not pick. Phase 1 closes when one is chosen.
 
 ## Phase 2 — Rule-surface diet
 
