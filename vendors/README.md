@@ -91,8 +91,17 @@ for the general principle.
 Current implementation truth: Claude, Codex, Antigravity, Cursor and Grok
 Build all have the fleet suite wired. The open rows are no longer *whether* a
 harness is wired but *how far each wiring has been observed working* — Cursor's
-was verified live on 2026-08-04, Grok's only offline (see
-[`grok/README.md`](grok/README.md), "What is not verified").
+was verified live on 2026-08-04, Grok's on 2026-08-09.
+
+Grok's live verification also produced the first measured **failure** of a
+floor claim, and it belongs here rather than only in the vendor file, because
+it is not Grok-specific: the hook deny survives `bypassPermissions`, but the
+credential guard's documented out-of-scope classes are contained by the
+permission layer that a bypass removes — so a decoy credential was read out in
+an ordinary session. **A wired row means the hook fires. It does not mean the
+redline holds under a permission bypass.** See
+[`grok/README.md`](grok/README.md), "The floor does not hold under
+`bypassPermissions`"; the ADR-012 amendment it implies is flagged, not written.
 
 **A harness nobody routed work to still owes a guard.** Grok Build is the
 worked example: it was never assigned a lane, and it was still an unprompted
