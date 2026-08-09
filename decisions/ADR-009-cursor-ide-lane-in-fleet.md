@@ -3,7 +3,8 @@
 **Status:** Accepted — 2026-08-02; decision 5 amended by
 [`ADR-010`](ADR-010-claude-led-four-vendor-orchestration.md) (2026-08-02),
 decision 4's routing restriction superseded by
-[`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md) (2026-08-04)
+[`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md) (2026-08-04),
+and the guard gap decision 4 records closed 2026-08-04 (PR #67)
 **Amends:** the fleet division-of-labor contract referenced in
 [`ADR-008`](ADR-008-agent-ops-rename-and-vendor-layer.md) (2026-08-02)
 
@@ -39,7 +40,14 @@ of those.
    [`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md).**
    Recording the gap remains required — that is the durable half of this
    decision. Routing *around* the gap is no longer the mitigation; closing it
-   is.
+   is. **The gap itself closed 2026-08-04 (PR #67):** cursor-agent
+   auto-imports the three guards from `~/.claude/settings.json`, and both
+   directions were measured on Windows — see
+   [`vendors/cursor/README.md`](../vendors/cursor/README.md) "Guard wiring"
+   for the mechanism, the launch-shell caveat, and the macOS build that is
+   still unmeasured. The first sentence above is left as written: it records
+   what was true at this decision, and the obligation it created outlives the
+   gap that prompted it.
 5. **The Gemini slot is unchanged.** Cursor is runtime #4; Gemini remains the
    planned API vendor #3 for telltale quota tracking. They are not the same
    slot.
