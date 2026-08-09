@@ -1,0 +1,14 @@
+{
+  "name": "fleet-guards",
+  "displayName": "Fleet Guard Chain (Claude Code)",
+  "version": "0.1.0",
+  "description": "DRAFT packaging of the fleet's PreToolUse guard chain (credential, published-history, git-staging, fan-out) plus the ConfigChange tamper guard. Not yet the live source of truth — see README before installing.",
+  "author": {
+    "name": "agent-ops",
+    "url": "https://github.com/sanlee-ys/agent-ops"
+  },
+  "repository": "https://github.com/sanlee-ys/agent-ops",
+  "keywords": ["hooks", "guards", "safety", "agent-ops"],
+  "license": "MIT",
+  "hooks": "./hooks/hooks.json"
+}

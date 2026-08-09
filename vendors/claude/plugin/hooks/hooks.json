@@ -1,0 +1,53 @@
+{
+  "_comment": "RECONSTRUCTED, NOT EXTRACTED. Event + matcher for each hook were inferred from each script's own header comments and its tool_name dispatch, NOT read out of the live ~/.claude/settings.json (which is guarded and was deliberately not opened). VERIFY EVERY ENTRY AGAINST THE LIVE settings.json AT CUTOVER. Timeouts in particular are a guess.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Shell|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/credential-guard.py\"",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell|Shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/published-history-guard.py\"",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/git-staging-guard.py\"",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/fanout-guard.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/config-change-guard.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
