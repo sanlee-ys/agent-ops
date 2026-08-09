@@ -124,14 +124,35 @@ Three design points worth keeping:
 Test suite: `tests/test_settings_toggle.py`, organised around the claim about
 what the program *cannot* do rather than around its features.
 
-One caveat, recorded rather than papered over: per the harness changelog,
-`disabledMcpServers` is read from `.claude.json`, not from `settings.json` —
-the `settings.json` equivalents are `disabledMcpjsonServers` /
-`enabledMcpjsonServers`, scoped to servers declared in a `.mcp.json`. Those two
-are **not** owned here; widening a security boundary is not something to do in
-passing. The program edits whichever JSON object it is pointed at, so whether
-the targeted file is the one the harness reads that key from is the caller's
-call.
+### The `disabledMcpServers` half does not work, and cannot be pointed at a file where it would
+
+Measured against the published docs on 2026-08-09, closing the caveat this
+section used to leave open. **Writing `disabledMcpServers` into a
+`settings.json` has no effect on any MCP server.** The key is real, but the
+harness reads it only from `~/.claude.json`, and the
+[settings reference](https://code.claude.com/docs/en/settings) does not list it
+as a `settings.json` key at all. So the toggle applies cleanly, the file
+validates, and nothing is disabled — a silent no-op, which is the failure shape
+[`conventions/agent-success-signals.md`](../conventions/agent-success-signals.md)
+is about.
+
+Pointing `--settings` at `~/.claude.json` does **not** rescue it. Per the
+[MCP reference](https://code.claude.com/docs/en/mcp#managing-your-servers), the
+harness records that choice **per project** — nested under the project's own
+entry — whereas this program writes a flat top-level array. A top-level
+`disabledMcpServers` is not where the harness looks for any project, so the
+"whichever JSON object it is pointed at" escape hatch has no target that works.
+The same page states the key is unrelated to `disabledMcpjsonServers` /
+`enabledMcpjsonServers`, the `settings.json` keys that approve or reject
+servers declared in a project's `.mcp.json`; those two are **not** owned here,
+and widening a security boundary is not something to do in passing.
+
+Net: of the two owned keys, only `skillOverrides` actually takes effect against
+`settings.json`. The `disabledMcpServers` verbs are left in place rather than
+removed — removing them is a change to `OWNED_KEYS`, which is the security
+boundary and a reviewed decision, not a doc fix. Until that decision is taken,
+**disable an MCP server with the `/mcp` panel**, which writes the per-project
+list the harness actually reads.
 
 ## redline-guard.py — the publication boundary, enforced
 
