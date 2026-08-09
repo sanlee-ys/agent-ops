@@ -101,7 +101,23 @@ permission layer that a bypass removes — so a decoy credential was read out in
 an ordinary session. **A wired row means the hook fires. It does not mean the
 redline holds under a permission bypass.** See
 [`grok/README.md`](grok/README.md), "The floor does not hold under
-`bypassPermissions`"; the ADR-012 amendment it implies is flagged, not written.
+`bypassPermissions`".
+
+Both halves of that finding are now settled, and the wiring table is not what
+settled them. The measured shape closed in the **canonical** guard (v2.9), so
+it closed for every lane at once rather than for Grok: a copy / move / rename
+whose source is a credential path and whose destination is not is refused, and
+the sensitive-file pattern now covers derived names. The *class* it came from
+is still open by design — a pattern guard cannot be complete against an agent
+holding a shell — so the conclusion is an operational rule rather than a fix:
+**`bypassPermissions` is not a supported configuration on any lane with no
+judgment layer above the guard**, and a lane running under one is treated as
+unguarded for credential exposure whatever its row here says. The rule and its
+named residuals are in [`security/posture.md`](../security/posture.md) (limit
+#8 and "What the copy rule does and does not buy");
+[`ADR-012`](../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)
+decision 2 carries the correction in place, dated, rather than as a separate
+ADR.
 
 **A harness nobody routed work to still owes a guard.** Grok Build is the
 worked example: it was never assigned a lane, and it was still an unprompted
