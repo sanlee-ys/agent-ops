@@ -99,10 +99,12 @@ repo, no employer term, no local user path, and no credential-shaped string.
   [`tests/test_config_change_guard.py`](../tests/test_config_change_guard.py) so
   the per-guard suite convention holds; CI picks it up through
   `unittest discover`, which executes the guard and so covers parsing too. The
-  matching `py_compile` line in `ci.yml` is deliberately **not** in this change —
+  matching `py_compile` line in `ci.yml` was deliberately **not** in this change —
   a concurrent change was editing that same block, and one shared file is not
-  worth a merge conflict for a check the suite already implies. Add it when that
-  lands.
+  worth a merge conflict for a check the suite already implies. **Discharged
+  2026-08-09:** that change landed (`scripts/settings-toggle.py`), and the
+  `hooks/config-change-guard.py` line now sits with its two siblings in the
+  syntax-check step.
 - **What this ADR does not settle:** whether the `ConfigChange` event actually
   fires and whether its block verdict actually vetoes on this harness. Both are
   unmeasured as of this date, for the reason recorded in
