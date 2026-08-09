@@ -27,9 +27,10 @@ starts from a guarded harness rather than an unguarded one.
 **This table is the whole of the safety argument**, and under ADR-012 a row
 here is the only thing between this harness and a redline. The offline
 qualifiers are gone — the adapter was observed blocking a real Grok session on
-2026-08-09 — but do not read the table as "the redline holds". It does not hold
-under a permission bypass, for a reason that is about the guard's documented
-scope rather than about this wiring: see
+2026-08-09 — but do not read the table as "the redline holds". The measured
+laundering shape was closed in the canonical guard the same day (v2.9), and the
+*class* it came from is still open by design, for a reason that is about the
+guard's documented scope rather than about this wiring: see
 [The floor does not hold under `bypassPermissions`](#the-floor-does-not-hold-under-bypasspermissions).
 
 ## The defect this closes: a control that had never fired
@@ -390,6 +391,23 @@ the floor is bounded by the guard's scope and that `bypassPermissions` is
 therefore not a supported configuration on any lane lacking a judgment layer.
 That is a design fork, and it is San's to pick.
 
+**RESOLVED 2026-08-09 — San picked both halves (guard v2.9, PR #74 `bffcb39`).**
+The narrowing is stateless rather than session-tainting, because the guard sees
+one command with no memory between calls: **a copy/move/rename whose source
+matches the sensitive pattern and whose destination does not is now refused.**
+`Copy-Item .env envcopy.txt` denies; a dated backup to a derived name
+(`settings.json.bak-20260806`) is still allowed *and the backup is still
+unreadable*, because the sensitive pattern was widened to cover derived suffixes
+in the same change. Re-driven through this adapter on a `bypassPermissions`
+envelope at $0: five direct reads deny, and the laundering copy now denies too.
+`tar czf backup.tgz ~/.env` denies as well — its old exemption rested verbatim
+on the ruling this overturned. The second half is recorded in
+`security/posture.md`: **`bypassPermissions` is unsupported on any lane without
+a judgment layer above the guard**, with the residual named rather than implied
+(`>` redirection past an unrecognised reader, base64 inside a script, script
+indirection, a directory copy naming no credential file, any network POST). No
+ADR was written; ADR-012's floor sentence carries a dated in-place clause.
+
 ## Residual gaps
 
 - **The adapter cannot guard its own absence.** If the file is deleted or its
@@ -417,10 +435,14 @@ That is a design fork, and it is San's to pick.
   — copy-then-read laundering — was **measured being reached in an ordinary
   session under `bypassPermissions`**, with the credential printed. See
   [The floor does not hold under `bypassPermissions`](#the-floor-does-not-hold-under-bypasspermissions).
-  Open, and owned by the canonical guard and ADR-012 rather than by this file.
-- **`bypassPermissions` is not a safe configuration on this lane.** Until the
-  above is resolved, treat it as unguarded for credential exposure regardless of
-  what the wiring table says. The hook still fires; it is not enough on its own.
+  **Closed 2026-08-09 in the canonical guard (v2.9, PR #74): that copy shape is
+  now refused.** The class it belonged to is not closed — see the residual named
+  in that section and in `security/posture.md`.
+- **`bypassPermissions` is still not a supported configuration on this lane**,
+  now by rule rather than by pending work: the guard raises the cost of the
+  common accidental shape, and containment under a bypass is the permission
+  layer and the workspace, which that mode removes. The hook fires and is not
+  enough on its own.
 - **Only the credential guard's deny was exercised live.** The adapter runs all
   three guards on a shell call and was observed running, but `git-staging-guard`
   and `published-history-guard` were not independently driven to a deny inside a
