@@ -81,6 +81,14 @@ named — a tool the matcher doesn't route to is a tool the guard never sees.
    `find . -name '*.md'`) passes, a bare listing passes (it prints names), and
    `ls | head` / `ls | cat` pass (they consume the *listing* as text and open
    nothing). See "Enumerate-then-read (v2.7)" below.
+6. **Copy-then-read laundering** (v2.9) — a copy, move, rename, or archive
+   whose *source* is a credential path and whose *destination* is not:
+   `Copy-Item .env envcopy.txt`, `cp ~/.env /tmp/x`, `mv`, `ln -s`,
+   `tar czf backup.tgz ~/.env`. Rules 1–5 all judge the read; this judges the
+   step before it, because after the copy there is no sensitive path left to
+   judge. A **backup keeps the credential name plus a derived suffix**
+   (`settings.json.bak-20260806`, `.env.old`, `credentials~`) and is allowed —
+   and stays guarded. See "Copy-then-read laundering (v2.9)" below.
 
 The sensitive-path set covers the Claude config tree (`.claude/settings.json`,
 `.claude.json`), `.env*` and `.envrc`, `credentials*.json` and token caches,
@@ -88,7 +96,10 @@ SSH and other private keys (`id_rsa`/`id_ed25519`/`id_ecdsa`/`*.pem`/`*.key`/
 `*.p12`/…), cloud CLIs (`~/.aws`, `~/.azure`, gcloud), package/registry stores
 (`.npmrc`, `.pypirc`, `.netrc`, `.docker/config.json`), infra
 (`.kube/config`, `.pgpass`, `*.tfstate`), `.git-credentials`, the GitHub CLI
-`hosts.yml`, shell history, and `/proc/*/environ`. Non-secret dotenv templates
+`hosts.yml`, shell history, and `/proc/*/environ`. As of v2.9 it also covers
+**derived names** of all of those — `<sensitive>.bak`, `.bak-20260806`, `.old`,
+`.orig`, `.copy`, `.save`, `_backup`, a trailing `~`, and dated/numbered
+suffixes — because a backup holds the same bytes. Non-secret dotenv templates
 (`.env.example`, `.env.sample`, …), public certificates, and SSH **`.pub`**
 public keys are explicitly allowed — see "`.pub` is not a private key" below.
 
@@ -98,15 +109,21 @@ The threat model is **non-adversarial agent mistakes**, not a determined local
 attacker — anyone with local code execution has already won (see `posture.md`).
 So a handful of shapes are left to the permission allowlist (no `$(...)`, no
 arbitrary shell control-flow) and to Layer 4 (rotate any credential that
-touches a transcript), not to this hook: copy-then-read laundering (`cp secret
-x; cat x`), **variable laundering** (`$k = $env:SECRET; Get-Variable k` — the
-same shape one container down, see the `Get-Variable` section below),
+touches a transcript), not to this hook: **variable laundering**
+(`$k = $env:SECRET; Get-Variable k`, see the `Get-Variable` section below),
 indirection through a script the guard can't see into (`bash leak.sh`),
 wildcard path names (`cat ~/.claud*.json`), an unconstrained enumeration whose
 reader sits in a *separate* command (`$fs = Get-ChildItem d; $fs | %{ gc $_ }`
 — that one is genuine dataflow), and `MASK-OK` forgery. These are asserted as *allowed* in the test suite so the
 boundary is explicit — a well-meaning future change that blocks them (and
 starts causing false positives) fails a test on purpose.
+
+**Copy-then-read laundering (`cp secret x; cat x`) was on that list until
+2026-08-09 and is not any more** — it was measured being reached in eight
+non-adversarial turns and is blocked as of v2.9. Nothing else on the list has
+moved. The list describes coverage, not a settled ruling: a shape leaves it
+whenever a mechanism appears that resolves it without the false positives that
+put it there.
 
 ## The MASK-OK escape hatch
 
@@ -300,12 +317,22 @@ control.
 
 So the decision is to narrow, on the grounds that this makes an existing
 boundary consistent rather than moving it. Variable laundering *is*
-copy-then-read laundering (`cp secret x; cat x`) one container down, and that is
-already explicitly out of scope for exactly this reason: the threat model is
+copy-then-read laundering one container down, and at the time that class was
+explicitly out of scope for exactly this reason: the threat model is
 non-adversarial agent mistakes, and an agent that assigns a secret to `$k` and
 prints `$k` is not the failure this hook exists to stop. It is now listed with
 the other bounded-out shapes above, and asserted as allowed in the suite, so the
 boundary is a decision on the record instead of an accident of regex breadth.
+
+**Updated 2026-08-09:** the class this borrowed its justification from has since
+moved — the *filesystem* half (`cp secret x; cat x`) is blocked as of v2.9, on a
+measurement. The variable half stays out, and the reason is now its own rather
+than inherited: a copy leaves an artifact with a name, which is a thing a
+stateless guard can judge in the one command in front of it; a variable
+assignment leaves only a binding, and following it to a later `Get-Variable`
+needs the dataflow analysis this guard has repeatedly declined to become
+(see "What this deliberately is not", v2.6). If that ever gets measured being
+reached the way the copy shape was, this paragraph is what has to change.
 
 The rule is now the natural one — **a dump is an invocation that names no
 specific variable, or names a wildcard** — implemented as a token walk
@@ -488,6 +515,11 @@ entire shape is present in one command's text. And the stated reason for the
 old ruling was that *a path-regex* cannot resolve it — true, and this rule is
 not a path-regex.
 
+*(2026-08-09: the copy-launder ruling this section carefully distinguished
+itself from has since been overturned in its turn — see "Copy-then-read
+laundering (v2.9)" below. The distinction drawn here was correct and is left
+as written; what changed is that the other class was measured too.)*
+
 **The rule, and the false-positive discipline that fixes its exact shape.**
 Two commands with identical structure and very different risk:
 
@@ -534,6 +566,101 @@ whose reader sits in a *separate* command — `$fs = Get-ChildItem d; $fs | %{ g
 $_ }` — is not a single pipeline and is not caught. That one really is the
 dataflow class, and it stays out of scope; it is asserted as *allowed* in the
 suite so a future widening has to break a test on purpose.
+
+## Copy-then-read laundering (v2.9)
+
+Every rule from v1 through v2.7 judges a **read**. This one judges the step
+before it, because after that step there is nothing left to judge: the bytes
+are the secret's and the name is not.
+
+**How it was found.** Measured 2026-08-09 against a decoy `.env` holding a
+fabricated value, on the Grok Build lane under `--permission-mode
+bypassPermissions`. Every *direct* read was blocked exactly as designed —
+`Get-Content`, `type`, `cmd /c type`, `bash -lc cat`, the native `Read` tool.
+The agent then ran:
+
+```powershell
+Copy-Item .env <non-credential-name>
+```
+
+read the copy, and printed the contents. Eight turns, $0.31, and **nothing
+about it was adversarial** — it was doing as it was asked. Confirmed offline
+against the canonical guard: `Copy-Item .env envcopy.txt` exited **0**.
+
+**Why the old out-of-scope note did not survive it.** The class was bounded out
+as needing "the guard to model the filesystem", and contained instead *"by the
+permission allowlist"*. A permission bypass is precisely the removal of that
+container. The measured contrast makes it concrete: in default mode the
+identical move was blocked, by the vendor's own LLM permission reviewer judging
+it credential extraction. That reviewer is a judgment layer, and it is the layer
+`bypassPermissions` switches off — underneath it there was **no mechanical rule
+for this shape at all**. Same lesson as v2.7, and posture.md's own words for it:
+*an out-of-scope note is a claim about how hard a shape is to reach, and that
+claim is measurable.*
+
+**Why it is stateless.** The guard is invoked once per tool call with no memory
+between calls, so the intuitive fix — taint the destination, catch the later
+read — would need persistent state, and a stale or missing taint file is a new
+failure mode on a guard whose whole value is that it cannot fail quietly. The
+stateless equivalent needs only the one command in front of it:
+
+> **source matches the sensitive pattern, destination does not → block.**
+
+**The false positive that would have broken the workflow, and its cure.** San
+routinely backs these files up before editing them — `settings.json.bak-20260806`
+and `hooks.json.bak-20260806` are real files on this machine. A naive "block any
+copy of a credential file" rule breaks that habit; worse, allowing the backup
+while leaving `.bak-20260806` unrecognised would put the laundering hole *inside*
+a normal workflow, since the backup would then be freely readable.
+
+Both are fixed by the same edit: the sensitive pattern now recognises **derived
+names** as the same class. That makes the copy legal (the destination is
+sensitive too) *and* keeps the copy guarded. Measured before writing it — the
+old `\b` terminator already carried most derived shapes, and exactly two
+families did not, both of them live **read** holes rather than merely copy
+holes:
+
+| Before v2.9 | After |
+| --- | --- |
+| `cat ~/.aws/credentials.bak` → **allowed** | blocked |
+| `cat ~/.env_backup` → **allowed** | blocked |
+| `Copy-Item .env envcopy.txt` → allowed | blocked |
+| `Copy-Item settings.json settings.json.bak-20260806` → allowed | allowed |
+| `cp README.md README.md.bak` → allowed | allowed |
+| `.aws/config.d/dev`, `.aws/config-templates` → allowed | allowed |
+
+The derived-token list is closed (`bak`/`backup`/`old`/`orig`/`copy`/`save`/
+`prev`/digits/`~`) rather than "any suffix", because a generic terminator would
+swallow `.aws/config.d/` and `.aws/config-templates`, which red-team L1 pins as
+allowed. This guard already has one reverted over-broad draft in its history
+(posture limit #5); the rule is that a widening names what it adds.
+
+**Direction is load-bearing.** `cp .env.example .env` is a routine bootstrap —
+non-sensitive source, sensitive destination — so sources and destination are
+identified, not merely collected. And a destination that is syntactically a
+directory (`cp ~/.env ~/backup/`) inherits the source's basename, because the
+copy is still called `.env` and still guarded. A directory named *without* a
+trailing separator (`cp ~/.env /tmp`) is indistinguishable from a file target
+without touching the filesystem, which this hook deliberately never does, so it
+blocks — the conservative direction, and the remedy is one character.
+
+**What changed for `tar`, and why that is the interesting part.** `tar` carried
+an explicit exemption reading *"tar writing to an archive file emits no secret
+content to the caller (like `cp`), so it's safe"* — resting verbatim on the
+ruling this change overturns. So `tar czf backup.tgz ~/.env` now blocks, and the
+two tests that pinned it as allowed are flipped with the reason recorded in
+place. `robocopy`, `xcopy`, `zip`, `Compress-Archive`, `7z`, and every
+interpreter equivalent (`shutil.copy`/`move`, `os.rename`/`replace`,
+`fs.copyFileSync`/`renameSync`, `[System.IO.File]::Copy/Move`) were already
+blocked before v2.9 — not by any copy rule, but by rule 3's default-deny, since
+none of them is on `SAFE_COMMANDS`. They are named in `_ARCHIVE_OR_BULK` and
+pinned in the suite anyway, so that adding one to `SAFE_COMMANDS` later cannot
+silently reopen the path.
+
+**Residual, stated rather than claimed closed.** A pattern guard cannot be
+complete against an agent holding a shell, and this rule does not pretend
+otherwise — see posture.md, "What the copy rule does and does not buy", for the
+list and the containment argument that actually applies.
 
 ## Installing it (standalone)
 

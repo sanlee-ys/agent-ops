@@ -53,7 +53,17 @@ whole time; nobody had built it.
    posture leaned on a restriction as its control. Removing the restriction
    without naming a replacement would leave the guard gap documented and
    uncompensated, which is the failure mode ADR-008 exists to prevent. Guard
-   wiring is now the load-bearing control, and it is the only one.
+   wiring is now the load-bearing control, and it is the only one — **bounded,
+   as corrected 2026-08-09, by the guard's own scope.** Measured on the Grok
+   lane: a wired hook's deny held under `--permission-mode bypassPermissions`
+   and blocked every direct read of a decoy `.env`, while a copy-then-read
+   laundering move (out of the guard's scope at the time) still reached the
+   credential. "A hook deny survives a permission bypass" is true and is not
+   the same claim as "the redlines hold under one". The specific shape is
+   closed in guard v2.9; the general point is not, so `bypassPermissions` is
+   **not a supported configuration on any lane without a judgment layer above
+   the guard**. See `security/posture.md` limit #8 and "What the copy rule does
+   and does not buy".
 
 3. **ADR-010's conditional is deliberately inverted, and the debt is
    recorded as debt.** The restriction is lifted *before* parity is built,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.7 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.9 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -35,6 +35,14 @@
 # (and imported hooks are hardcoded failClosed=false), so a Cursor payload —
 # identified by its cursor_version key — gets an explicit allow verdict on
 # stdout. Deny needs no dialect: Cursor maps exit 2 + stderr to a block.
+# 2.9 (2026-08-09): COPY-THEN-READ LAUNDERING is no longer out of scope. A
+# copy/move/rename/archive whose SOURCE is a credential path and whose
+# DESTINATION is not now blocks, and the sensitive-file pattern recognises
+# DERIVED names (`<sensitive>.bak-20260806`, `.old`, `~`, `_backup`, …) as the
+# same class — which is what keeps a routine pre-edit backup legal AND keeps
+# the backup guarded. Measured, not theorised: see "Copy-then-read laundering"
+# below. Two real read holes fell out of the same measurement and are closed
+# here — `cat ~/.aws/credentials.bak` and `cat ~/.env_backup` were both allowed.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -97,17 +105,28 @@ unless this is a recognised *safe* operation?" Concretely:
      "show me the config in this folder", not an evasive construction, so it
      sits squarely inside the non-adversarial threat model rather than outside
      it — see _enumeration_is_unconstrained / _reads_each_item.
+  6. Copy-then-read laundering (v2.9): a copy / move / rename / archive whose
+     SOURCE is a credential path and whose DESTINATION is not. Rules 1-5 all
+     judge the read; this judges the step BEFORE it, because after the copy
+     there is no sensitive path left to judge — the bytes are the secret's and
+     the name is not. Measured 2026-08-09 against a decoy `.env`: under
+     `--permission-mode bypassPermissions` an agent asked in plain language for
+     the file's contents had every direct read blocked (Get-Content, type,
+     `cmd /c type`, `bash -lc cat`, the Read tool), then ran `Copy-Item .env
+     <non-credential-name>`, read the copy, and printed it. Eight turns, and
+     nothing about it was adversarial — the agent was doing as it was asked.
+     See _copy_launders_credential.
 
 Deliberately OUT of scope, per the posture's threat model (non-adversarial
 agent mistakes; anyone with local code-execution has already won — see
-posture.md and decisions/ADR-001): copy-then-read laundering (`cp secret x;
-cat x`), indirection through a script the guard can't see into (`source .env`
-is caught because `source` is not a safe verb, but `bash leak.sh` is not),
-wildcard path names (`cat ~/.claud*.json`) that no path-regex can resolve
-without matching innocent globs too, and MASK-OK forgery. (Two members of that
-list have since been narrowed out of it and are NOT out of scope any more:
-`f=.env; cat $f` blocks as of v2.6, and enumerate-then-read as of v2.7 —
-see below. The list describes coverage, not a settled ruling; a shape leaves it
+posture.md and decisions/ADR-001): indirection through a script the guard
+can't see into (`source .env` is caught because `source` is not a safe verb,
+but `bash leak.sh` is not), wildcard path names (`cat ~/.claud*.json`) that no
+path-regex can resolve without matching innocent globs too, and MASK-OK
+forgery. (Three members of that list have since been narrowed out of it and
+are NOT out of scope any more: `f=.env; cat $f` blocks as of v2.6,
+enumerate-then-read as of v2.7, and copy-then-read laundering as of v2.9 — see
+below. The list describes coverage, not a settled ruling; a shape leaves it
 whenever a mechanism appears that resolves it without the false positives that
 put it there.) Those are contained by the permission allowlist (no `$(...)`,
 no arbitrary shell control-flow) and by treating any credential that touches a
@@ -115,6 +134,15 @@ transcript as compromised and rotating it (posture Layer 4), not by this hook.
 The adversarial test suite (tests/test_credential_guard.py) carries a case per
 taxonomy shape, including the ones we consciously do not block, so the boundary
 is asserted rather than assumed.
+
+What this hook is NOT, restated because v2.9 is the widening most likely to be
+mistaken for completeness: a pattern guard cannot be complete against an agent
+holding a shell. `>` redirection, base64, a two-line Python script that reads
+and re-emits, a network POST — all still reach the same bytes, and none of
+them is a copy. v2.9 raises the cost of the COMMON, ACCIDENTAL case; the
+containment argument for a deliberate one is the permission layer and the
+workspace, not this file. See posture.md, "What the copy rule does and does
+not buy".
 
 Override: add MASK-OK to a Bash/PowerShell command for a deliberate, considered
 unmasked read (mirrors fanout-guard.py's PREMIUM-OK). Read/Grep/other tools
@@ -135,6 +163,54 @@ import re
 # to a path boundary (start, slash, quote, or common shell separators) so a
 # bare `.env` or `'.npmrc'` still matches but `prevented`/`sevent` do not.
 _PREFIX = r"(^|[\s/\\'\"(),=:@])"
+
+# --- Derived names (v2.9) ---------------------------------------------------
+# A backup, rename, or numbered rotation of a credential file holds the same
+# bytes, so it is the same class of target. This is one half of the copy-launder
+# fix and the whole of its false-positive cure, and the two are the same edit:
+#
+#   Copy-Item ~/.claude/settings.json ~/.claude/settings.json.bak-20260806
+#
+# is a routine pre-edit backup (San's actual habit — `settings.json.bak-20260806`
+# and `hooks.json.bak-20260806` exist on this machine). A rule that blocked
+# every copy of a credential file would break it; a rule that ALLOWED it while
+# leaving `.bak-20260806` unrecognised would be worse — the laundering hole
+# reappearing inside a normal workflow, since the backup would then be readable.
+# Recognising the derived name does both: the copy is legal because its
+# destination is sensitive too, and the copy stays guarded against a later read.
+#
+# Measured before writing this (see the derived-name probe in the PR): the old
+# `\b` terminator ALREADY carried most of the derived shapes — `.env.bak`,
+# `id_rsa.old`, `terraform.tfstate~`, `credentials.json.20260806` all matched.
+# Exactly two families did not, and both were live read holes, not just copy
+# holes: `~/.aws/credentials.bak` (the `(?![\w.-])` lookahead below rejected
+# every suffix) and the underscore-joined `_backup` form on every closed
+# alternative (`\b` needs a NON-word char, and `_` is a word char). `cat
+# ~/.aws/credentials.bak` and `cat ~/.env_backup` were both allowed before this.
+#
+# The token list is deliberately closed rather than "any suffix": a generic
+# `[\w.-]*` terminator would swallow `.aws/config.d/dev` and `.aws/config-
+# templates`, which are pinned as ALLOWED by red-team L1. This guard's history
+# has one reverted over-broad draft in it already (posture limit #5); the rule
+# here is that a widening must name what it adds.
+#
+# Each alternative must begin with a separator and its tail cannot cross one, so
+# the chain decomposes uniquely — no nested-quantifier ambiguity, no ReDoS on a
+# pathological argument.
+_DERIVED_SUFFIX = (
+    r"(?:[.\-_](?:bak|backup|old|orig|copy|save|prev)\w*"   # .bak-2026…, _backup
+    r"|[.\-_]\d\w*"                                          # .1, .20260806, -2
+    r"|~)"                                                   # emacs/vim backup
+)
+# The same tokens as a trailing chain, for stripping a derived tail back to its
+# stem. Used ONLY by the template/cert exemptions (see _match_exempt).
+_DERIVED_TAIL = re.compile(r"(?:" + _DERIVED_SUFFIX + r")+$", re.IGNORECASE)
+# `.aws/credentials` and `.aws/config` need their own terminator: the plain
+# `(?![\w.-])` that keeps `config.d/` and `config-templates` out would also
+# reject every derived name, so it is widened to "a hard boundary OR the start
+# of a derived suffix" and the chain below consumes the suffix itself.
+_AWS_BOUNDARY = r"(?=$|[^\w.-]|" + _DERIVED_SUFFIX + r")"
+
 SENSITIVE_FILE_PATTERN = re.compile(
     _PREFIX + r"("
     # Claude's own config (narrowed to the .claude tree — a random project's
@@ -160,7 +236,7 @@ SENSITIVE_FILE_PATTERN = re.compile(
     r"|id_(rsa|ed25519|ecdsa|dsa)\w*(\.pub[\w.-]*)?"
     r"|[\w.-]+\.(pem|key|ppk|p12|pfx|jks)"
     # Cloud CLIs.
-    r"|\.aws[/\\](credentials|config)(?![\w.-])"
+    r"|\.aws[/\\](credentials|config)" + _AWS_BOUNDARY + r""
     r"|\.azure[/\\][\w.-]+"
     r"|\.config[/\\]gcloud[/\\][\w.-]+"
     # Package / registry / infra.
@@ -179,7 +255,7 @@ SENSITIVE_FILE_PATTERN = re.compile(
     r"|\.(bash|zsh)_history"
     # Linux process environment — every secret env var, via a file path.
     r"|/proc/(self|\d+)/environ"
-    r")\b",
+    r")" + _DERIVED_SUFFIX + r"*\b",
     re.IGNORECASE,
 )
 
@@ -218,13 +294,24 @@ def _basename(matched):
 def _match_exempt(matched):
     """A sensitive-pattern hit that's actually a public key/template/cert —
     judged on the basename, and (except for `.pub`, see above) never when the
-    name looks like a private key."""
+    name looks like a private key.
+
+    v2.9: the template and certificate exemptions are also judged on the name
+    with a derived tail stripped, so `ca.pem.bak` stays exempt now that the
+    pattern consumes `.bak` into the match. This is applied to those two
+    exemptions ONLY, never to PUBLIC_KEY — `id_rsa.pub.bak` must keep blocking
+    (red-team round 2, H1: an exemption anchored to a whole basename is the
+    thing that stops a name which merely *starts* like a public key from
+    laundering the private one), and stripping `.bak` before that check is
+    exactly how it would reopen."""
     name = _basename(matched)
     if PUBLIC_KEY.match(name):
         return True
     if _KEYISH.search(name):
         return False
-    return bool(ENV_TEMPLATE.match(name) or PUBLIC_CERT.match(name))
+    stem = _DERIVED_TAIL.sub("", name)
+    return bool(ENV_TEMPLATE.match(name) or PUBLIC_CERT.match(name)
+                or ENV_TEMPLATE.match(stem) or PUBLIC_CERT.match(stem))
 
 
 def _has_sensitive_path(text):
@@ -1088,10 +1175,14 @@ def _strip_heredocs(command):
     return "\n".join(out)
 
 
-# tar writing to an archive file emits no secret content to the caller (like
-# `cp`), so it's safe — UNLESS it extracts to stdout (`-O`/`--to-stdout`, incl.
-# the clustered old-style `xfO`/`xOf`/`xzfO` form, red-team round 2 H2) or
-# writes the archive to stdout (a bare `-`), which does surface the bytes.
+# tar extracting to stdout (`-O`/`--to-stdout`, incl. the clustered old-style
+# `xfO`/`xOf`/`xzfO` form, red-team round 2 H2) or writing the archive to stdout
+# (a bare `-`) surfaces the bytes directly, so it is a READ and gets the read
+# message. Writing to an archive FILE used to be exempt here, on the reasoning
+# that it "emits no secret content to the caller (like `cp`)" — which is the
+# copy-launder ruling, and v2.9 overturned it. That case is now caught upstream
+# by _copy_launders_credential (`tar` is in _ARCHIVE_OR_BULK), so this pattern
+# is left judging only the stdout forms, which is all it was ever about.
 _TAR_TO_STDOUT = re.compile(
     r"--to-stdout\b"
     r"|--to-command\b"                        # runs a reader per member (round 3)
@@ -1194,6 +1285,164 @@ def _reads_sensitive_path(seg, _depth=0):
             return True                                # find -exec <reader>
         return False
     return True                                        # unknown cmd → default deny
+
+
+# --- Copy-then-read laundering (v2.9) --------------------------------------
+# The guard is invoked once per tool call with NO memory between calls, so the
+# obvious fix — taint the destination and catch the later read — is not
+# available: it would need persistent state, and a stale or missing taint file
+# is a new failure mode on a guard whose whole value is that it cannot fail
+# quietly. The stateless equivalent is to refuse the COPY, judged entirely from
+# the one command in front of us:
+#
+#     source matches the sensitive pattern, destination does not  ->  block
+#
+# That is the whole rule, and it is why the derived-name widening above is not a
+# separate courtesy: it is what makes the rule's *allowed* half correct.
+#
+# Direction is load-bearing, not decoration. `cp .env.example .env` is a routine
+# bootstrap — non-sensitive source, sensitive destination — and a rule keyed on
+# "this command names a credential file and also names something else" would
+# block it. So sources and destination are identified, not just collected.
+#
+# What is NOT here, and why. `robocopy`, `xcopy`, `zip`, `Compress-Archive`,
+# `7z`, and every interpreter equivalent (`shutil.copy`/`shutil.move`,
+# `os.rename`/`os.replace`, `fs.copyFileSync`/`renameSync`,
+# `[System.IO.File]::Copy/Move`) were driven against the pre-v2.9 guard and are
+# ALREADY blocked — not by any copy rule, but because none of them is on
+# SAFE_COMMANDS, so a segment naming a credential path under them hits rule 3's
+# default-deny. Listing them below therefore changes no behaviour today; they
+# are listed so that adding one to SAFE_COMMANDS later cannot silently open the
+# laundering path. This is the allowlists-fail-both-ways discipline applied to a
+# denylist: name the shape you rely on being covered, so a future edit has to
+# break a test to uncover it.
+#
+# `tar` is the one that DID change, and the reason is worth stating. It carried
+# an explicit exemption — "tar writing to an archive file emits no secret
+# content to the caller (like `cp`), so it's safe" — resting verbatim on the
+# claim this whole change overturns. `tar czf backup.tgz ~/.env` was allowed and
+# is now blocked; the pinned test asserting it allowed is flipped, deliberately.
+# An archive's name is never a credential name, so archiving a credential is
+# always the sensitive-source/non-sensitive-destination shape.
+_PAIRWISE_COPY = {
+    "cp", "mv", "install", "ln",                       # POSIX
+    "copy", "move", "ren", "rename",                   # cmd.exe / PS aliases
+    "copy-item", "move-item", "rename-item",           # PowerShell cmdlets
+    "cpi", "mi", "rni", "ci",                          # PowerShell aliases
+}
+_ARCHIVE_OR_BULK = {
+    "tar", "zip", "7z", "7za", "gzip", "bzip2", "xz", "rar",
+    "compress-archive", "robocopy", "xcopy",
+}
+# PowerShell parameters that name the destination explicitly. `cp -t DIR SRC…`
+# is here too: without it the target directory reads as a source and the last
+# source reads as the destination, which inverts the whole judgement.
+_DEST_FLAGS = {"-destination", "-dest", "-newname", "-t", "--target-directory"}
+_SRC_FLAGS = {"-path", "-literalpath", "-source"}
+# cmd.exe spells its switches `/Y`, `/S`, `/R:3`. Only these commands are given
+# that reading, because `/tmp` is indistinguishable from a switch by shape and
+# treating an absolute POSIX path as a flag silently drops it from the operand
+# list — which is how `cp -t /tmp ~/.env` first slipped through this rule.
+_CMD_STYLE = {"copy", "move", "ren", "rename", "xcopy", "robocopy"}
+
+
+def _tokens(seg):
+    """Whitespace-split a segment, respecting quotes and dropping them. Good
+    enough for operand identification — anything with a substitution in it has
+    already been judged by the nested-unit pass."""
+    out, buf, quote = [], [], None
+    for c in seg.strip():
+        if quote:
+            if c == quote:
+                quote = None
+            else:
+                buf.append(c)
+        elif c in ("'", '"'):
+            quote = c
+        elif c.isspace():
+            if buf:
+                out.append("".join(buf))
+                buf = []
+        else:
+            buf.append(c)
+    if buf:
+        out.append("".join(buf))
+    return out
+
+
+def _copy_operands(seg):
+    """(sources, destination) for a pairwise copy/move/rename segment, or None
+    if the shape cannot be read confidently.
+
+    The destination is an explicit `-Destination`/`-NewName`/`-t` value when one
+    is present, else the last positional operand — which is the convention every
+    command in _PAIRWISE_COPY follows."""
+    toks = _tokens(seg)
+    cmd_style = _leading_command(seg) in _CMD_STYLE
+    # Skip the wrappers _leading_command skips, then the command itself, so
+    # `sudo cp …` does not read `cp` as an operand.
+    i = 0
+    while i < len(toks) and (toks[i] in _WRAPPERS
+                             or re.match(r"^[A-Za-z_]\w*=", toks[i])):
+        i += 1
+    i += 1
+    dest, positional = None, []
+    while i < len(toks):
+        tok = toks[i]
+        low = tok.lower().split("=")[0]
+        if low in _DEST_FLAGS and i + 1 < len(toks):
+            dest = toks[i + 1]
+            i += 2
+            continue
+        if low in _SRC_FLAGS and i + 1 < len(toks):
+            positional.append(toks[i + 1])
+            i += 2
+            continue
+        if tok.startswith("-") or (cmd_style and tok.startswith("/")):
+            i += 1                                     # a switch
+            continue
+        positional.append(tok)
+        i += 1
+    if dest is None:
+        if len(positional) < 2:
+            return None
+        dest = positional.pop()
+    return positional, dest
+
+
+def _effective_dest(dest, src):
+    """The destination PATH a copy actually produces.
+
+    `cp ~/.env ~/backup/` does not launder anything — the copy is still called
+    `.env`, so it is still a credential path and still guarded. A destination
+    that is syntactically a directory therefore inherits the source's basename.
+    A directory named WITHOUT a trailing separator (`cp ~/.env /tmp`) cannot be
+    told apart from a file target without touching the filesystem, which this
+    hook deliberately never does, so it is judged as a file and blocks — the
+    conservative direction, and the remedy is one character."""
+    d = dest.strip()
+    if d in (".", "..") or d.endswith(("/", "\\")):
+        return d.rstrip("/\\") + "/" + _basename(src)
+    return d
+
+
+def _copy_launders_credential(seg):
+    """True if `seg` copies/moves/archives a credential path to a destination
+    that is not itself recognised as a credential path."""
+    lead = _leading_command(seg)
+    if lead in _ARCHIVE_OR_BULK:
+        # An archive member list has no destination worth parsing: the archive
+        # is the destination and it never carries a credential name.
+        return _has_sensitive_path(seg)
+    if lead not in _PAIRWISE_COPY:
+        return False
+    operands = _copy_operands(seg)
+    if operands is None:
+        return _has_sensitive_path(seg)                # unreadable shape: block
+    sources, dest = operands
+    return any(_has_sensitive_path(src)
+               and not _has_sensitive_path(_effective_dest(dest, src))
+               for src in sources)
 
 
 # --- Enumerate-then-read (v2.7) --------------------------------------------
@@ -1376,6 +1625,17 @@ _MSG_ENUM = (
     "`-Filter *.py`, `find . -name '*.md'`), or read the specific files you\n"
     "want by name. Re-invoke with MASK-OK if you genuinely need the whole\n"
     "directory's contents and have weighed the exposure.\n"
+)
+_MSG_COPY = (
+    "CREDENTIAL GUARD: this copies (or moves, renames, or archives) a known\n"
+    "credential-store file to a destination that is NOT recognised as one. The\n"
+    "copy holds the same bytes under a name the guard no longer protects, so\n"
+    "every read check is bypassed from that point on — this is the copy-then-read\n"
+    "shape, and it is blocked at the copy because after it there is nothing left\n"
+    "to recognise. A BACKUP is fine: keep the credential name and add a derived\n"
+    "suffix (`settings.json.bak-20260806`, `.env.old`, `credentials~`), which\n"
+    "stays protected. To reference the file without copying it, use a metadata\n"
+    "command (ls / stat / Test-Path).\n"
 )
 _MSG_GIT = (
     "CREDENTIAL GUARD: `git -c <key>=!<cmd>` config-injects a shell alias —\n"
@@ -1562,7 +1822,15 @@ def main():
             # command-shape rules above key on verbs and variable NAMES, and
             # splicing a path literal into them buys nothing while widening
             # their blast radius.
-            if _reads_sensitive_path(_apply_bindings(scan, bindings)):
+            resolved = _apply_bindings(scan, bindings)
+            # The copy check runs BEFORE the read check and only ever ADDS a
+            # block: every command it examines (cp/mv/Copy-Item/tar/…) is one
+            # the read check already treats as safe, so it cannot loosen
+            # anything, and it gets the binding substitution for the same reason
+            # the read check does (`$f = '~/.env'; Copy-Item $f x.txt`).
+            if _copy_launders_credential(resolved):
+                block(_MSG_COPY)
+            if _reads_sensitive_path(resolved):
                 block(_MSG_PATH)
         _allow(data)
 

@@ -155,9 +155,12 @@ interpreter, not a fixed command list, since the risk is the read capability
 and not the specific syntax that invokes it), `claude mcp get` (a
 verification command that prints secret values by design, not by mistake),
 and content-mode Grep against a sensitive file (a narrow search pattern
-doesn't help if the matched line itself is the secret). A masked read for a
-legitimate purpose, like a length-and-prefix check, still needs a path
-through — that's the `MASK-OK` escape hatch documented in the README.
+doesn't help if the matched line itself is the secret). As of v2.9 it also
+targets one action that is *not* itself a read: copying a credential file to a
+name the guard does not recognise, which is the step that makes the next read
+invisible to every rule above (limit #8). A masked read for a legitimate
+purpose, like a length-and-prefix check, still needs a path through — that's
+the `MASK-OK` escape hatch documented in the README.
 
 **Why this layer exists at all.** The guard was built after the first
 plaintext exposure produced only a behavioral rule ("never print a
@@ -227,14 +230,82 @@ honest lesson below.
    feeding a stage that dereferences each name) rather than on any path, which
    is why the original ruling's reason — "no path-regex resolves this without
    matching innocent globs too" — did not survive contact with a non-regex
-   mechanism. Copy-then-read laundering stays out of scope: it needs the guard
-   to model the filesystem, and nothing here does.
+   mechanism. Copy-then-read laundering was left out of scope here on the
+   grounds that it needs the guard to model the filesystem; limit #8 is what
+   happened to that ruling five days later.
 
    The reusable lesson, and the reason this is written up rather than fixed
    quietly: **an out-of-scope note is a claim about how hard a shape is to
    reach, and that claim is measurable.** This one had never been measured. A
    boundary asserted from the armchair will describe the shapes its author
    found awkward to write, not the shapes an agent actually produces.
+
+8. **A container is only load-bearing while it is there.** Copy-then-read
+   laundering (`cp secret x; cat x`) was bounded out of the guard's scope by
+   design, and the posture's answer for it was that the class is contained *by
+   the permission allowlist* — no `$(...)`, no arbitrary control-flow. Measured
+   2026-08-09 against a decoy `.env` on the Grok Build lane, under
+   `--permission-mode bypassPermissions`, which is precisely the removal of that
+   container: every *direct* read was blocked exactly as designed
+   (`Get-Content`, `type`, `cmd /c type`, `bash -lc cat`, the `Read` tool), and
+   then the agent ran `Copy-Item .env <non-credential-name>`, read the copy, and
+   printed the contents. Eight turns, $0.31, non-adversarial — it was doing as
+   it was asked, not attacking.
+
+   The contrast is what makes it a finding rather than an anecdote. In *default*
+   mode the identical move was attempted and blocked — by the vendor's own LLM
+   permission reviewer, judging it credential extraction. That reviewer is a
+   judgment layer, and it is exactly the layer a bypass switches off. Beneath
+   it there was **no mechanical rule for this shape at all**. This is the
+   canonical guard, not a vendor adapter, so the gap applied to every lane.
+
+   Closed in hook v2.9 by refusing the copy statelessly — a copy / move /
+   rename / archive whose *source* is a credential path and whose *destination*
+   is not — and by widening the sensitive-file pattern to recognise **derived
+   names** (`settings.json.bak-20260806`, `.env.old`, `credentials~`,
+   `.env_backup`) as the same class. Those are one edit, not two: the widening
+   is what keeps a routine pre-edit backup legal *and* what keeps the backup
+   guarded afterwards. Two live **read** holes fell out of the same measurement
+   and closed with it — `cat ~/.aws/credentials.bak` and `cat ~/.env_backup`
+   were both allowed before this.
+
+   The lesson is the one above with the emphasis moved: an out-of-scope note
+   usually names the layer that contains the class instead. **That naming is a
+   dependency, and it should be read as one** — this class was contained by a
+   layer that a single flag removes, and nobody had asked what was underneath.
+
+### What the copy rule does and does not buy
+
+Stated plainly because a widening is the moment a guard is most likely to be
+mistaken for a boundary. **A pattern guard cannot be complete against an agent
+holding a shell.** All of these still reach the same bytes and none of them is
+a copy:
+
+- `cat ~/.env > x.txt` — the *read* is named, so it blocks; but redirection out
+  of any reader the guard does not recognise does not.
+- `base64 ~/.env` blocks; a base64 encode performed *inside* a script the guard
+  cannot see into does not.
+- A two-line Python script that opens the file and re-emits it — `python3 -c`
+  blocks, `python3 leak.py` does not, and never has.
+- `cp -r ~/.aws /tmp/x` — a directory copy naming no credential *file*.
+- A network POST of the contents from anywhere.
+
+So the honest claim is bounded: **v2.9 raises the cost of the common,
+accidental case.** It does not contain a determined one, and it was never going
+to — the threat model is non-adversarial agent mistakes, and anyone with local
+code execution has already won. The containment argument against a *bypass*
+posture is the permission layer and the workspace, not this hook.
+
+Which produces one operational rule, and it is the real conclusion of the
+2026-08-09 measurement:
+
+> **`bypassPermissions` is not a supported configuration on any lane that has
+> no judgment layer above the guard.** What actually stopped the laundering
+> copy in default mode was an LLM permission reviewer, not a mechanical rule.
+> A wired hook survives a permission bypass — that is true, and it is not the
+> same claim as "the redlines hold under one". Treat a bypass-mode lane as
+> unguarded for credential exposure regardless of what the wiring table says,
+> and rotate anything it touched (Layer 4).
 
 Every one of these was closed by widening the guard, and every widening was
 verified against a decoy credentials file holding a fake value — confirming
