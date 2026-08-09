@@ -39,6 +39,11 @@ harness's own format or dialect.
   Gemini-family research/overflow/third-opinion lane. Gemini CLI remains the
   enterprise/API-key variant, not the consumer surface. Wiring, channel,
   safety boundary, and capabilities are documented in its README.
+- [`grok/`](grok/) — Grok Build (xAI). **Guard wiring only, not a routing
+  lane.** It is installed and capable on the Windows workstation, which under
+  ADR-012 is enough to owe it a guard; admitting it to the fleet would be a
+  separate decision. Its README carries the measured hook semantics and the
+  runtime checks still outstanding.
 
 The fleet routes on two axes: the **harness** selects tools and working
 surface; the **model family** determines whether a second opinion is
@@ -83,9 +88,17 @@ one vendor is a gap, not a default — see
 [`conventions/allowlists-fail-both-ways.md`](../conventions/allowlists-fail-both-ways.md)
 for the general principle.
 
-Current implementation truth: Claude, Codex and Antigravity have the fleet
-suite wired locally; **Cursor does not**, and that is the one remaining open
-row.
+Current implementation truth: Claude, Codex, Antigravity, Cursor and Grok
+Build all have the fleet suite wired. The open rows are no longer *whether* a
+harness is wired but *how far each wiring has been observed working* — Cursor's
+was verified live on 2026-08-04, Grok's only offline (see
+[`grok/README.md`](grok/README.md), "What is not verified").
+
+**A harness nobody routed work to still owes a guard.** Grok Build is the
+worked example: it was never assigned a lane, and it was still an unprompted
+agent with shell and filesystem reach whose imported guards had never once
+fired. Waiting for a routing decision before wiring the control gets the
+dependency backwards, which is the same inversion ADR-012 found in ADR-010.
 
 Until 2026-08-04 Cursor and Antigravity compensated with bounded safety
 envelopes — read-only defaults and revertible-work-only rules.
