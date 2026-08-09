@@ -309,6 +309,44 @@ class TestForbiddenKeysFailLoudly(TempSettings):
         self.assertEqual(after["permissions"], AWKWARD["permissions"])
 
 
+class TestTargetIsAlwaysExplicit(TempSettings):
+    """`--settings` is required, and that is a security property.
+
+    The credential guard protecting the live Claude config is path-based on the
+    command string. A default target applied inside Python is invisible to it,
+    so a defaulting invocation clears the guard and then opens the very file
+    the guard exists to protect - measured 2026-08-09, before this was fixed.
+    These tests fail if anyone reintroduces a default.
+    """
+
+    def test_omitting_settings_is_a_usage_error(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(TOGGLE), "show"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, USAGE, result.stdout)
+        self.assertIn("--settings", result.stderr)
+
+    def test_omitting_settings_never_writes_anything(self) -> None:
+        """A refusal that still touched a file would defeat the point."""
+        result = subprocess.run(
+            [sys.executable, str(TOGGLE), "set", "skillOverrides", "s", "off"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, USAGE, result.stdout)
+        self.assertFalse(self.path.exists())
+
+    def test_module_exposes_no_default_target(self) -> None:
+        """The constant itself is gone, not merely unused by the parser."""
+        self.assertFalse(
+            hasattr(toggle, "DEFAULT_SETTINGS"),
+            "DEFAULT_SETTINGS is back; a path-based guard cannot see a default "
+            "applied inside Python.",
+        )
+
+
 class TestMalformedInputRefuses(TempSettings):
     """Refuse and write nothing, rather than rewrite something misunderstood."""
 

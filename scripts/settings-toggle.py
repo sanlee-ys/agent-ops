@@ -42,17 +42,14 @@ never a truncated one. A UTF-8 BOM and CRLF line endings are detected on read
 and reproduced on write, so a file last touched by PowerShell 5.1 does not come
 back as a whole-file diff.
 
-USAGE::
+USAGE. ``--settings PATH`` is REQUIRED and has no default — see the note above
+``_MISSING`` for why that is a security property, not a UX choice::
 
-    uv run python scripts/settings-toggle.py show
-    uv run python scripts/settings-toggle.py set skillOverrides some-skill off
-    uv run python scripts/settings-toggle.py unset skillOverrides some-skill
-    uv run python scripts/settings-toggle.py set disabledMcpServers some-server
-    uv run python scripts/settings-toggle.py unset disabledMcpServers some-server
+    uv run python scripts/settings-toggle.py --settings PATH show
+    uv run python scripts/settings-toggle.py --settings PATH set skillOverrides some-skill off
+    uv run python scripts/settings-toggle.py --settings PATH unset skillOverrides some-skill
 
-``--settings PATH`` targets a file other than the default
-``~/.claude/settings.json``; ``--dry-run`` prints the resulting document
-instead of writing it.
+``--dry-run`` prints the resulting document instead of writing it.
 
 EXIT CODES ARE THE INTERFACE. 0 applied (or already in the requested state), 1
 refused — an unowned key, a bad value, an unreadable or non-object document, a
@@ -96,8 +93,22 @@ OWNED_KEYS = ("disabledMcpServers", "skillOverrides")
 # an unrecognised value beats writing a typo the harness silently ignores.
 SKILL_OVERRIDE_VALUES = ("off", "user-invocable-only", "name-only")
 
-DEFAULT_SETTINGS = Path.home() / ".claude" / "settings.json"
-
+# There is deliberately NO default target. `--settings` is required, and that
+# is a security property rather than a UX preference.
+#
+# The credential guard that protects the live Claude config is *path-based on
+# the command string* - it refuses `Read`, `Get-FileHash`, and any shell
+# command naming `~/.claude/settings.json`. A default applied inside Python is
+# invisible to it: the guard clears a command with no path in it, and this
+# program then opens the very file the guard exists to protect. Measured
+# 2026-08-09 - `settings-toggle.py show` with no flag read the live config
+# while every other reader of that path was blocked. That made an
+# allowlisted-by-name helper into a way around the guard, which is the exact
+# inverse of the reason it was allowlisted.
+#
+# Requiring the path puts it back in the command string, where the guard can
+# see it and decide. If the guard then refuses, that refusal is correct and is
+# the operator's to lift - not this program's to route around by defaulting.
 _MISSING = object()
 
 
@@ -368,8 +379,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--settings",
-        default=str(DEFAULT_SETTINGS),
-        help=f"settings file to edit (default: {DEFAULT_SETTINGS})",
+        required=True,
+        help=(
+            "settings file to edit. Required, with no default, so the path is "
+            "always present in the command string where a path-based guard can "
+            "see it - see the note above _MISSING."
+        ),
     )
     parser.add_argument(
         "--dry-run",

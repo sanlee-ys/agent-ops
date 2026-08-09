@@ -79,14 +79,11 @@ It owns exactly two keys — `skillOverrides` and `disabledMcpServers` — and
 passes everything else through untouched:
 
 ```
-uv run python scripts/settings-toggle.py show
-uv run python scripts/settings-toggle.py set skillOverrides some-skill off
-uv run python scripts/settings-toggle.py unset skillOverrides some-skill
-uv run python scripts/settings-toggle.py set disabledMcpServers some-server
-uv run python scripts/settings-toggle.py unset disabledMcpServers some-server
+uv run python scripts/settings-toggle.py --settings PATH show
+uv run python scripts/settings-toggle.py --settings PATH set skillOverrides some-skill off
+uv run python scripts/settings-toggle.py --settings PATH unset skillOverrides some-skill
 ```
 
-`--settings PATH` targets a file other than `~/.claude/settings.json`;
 `--dry-run` prints the result instead of writing it. Exit codes are the
 interface: 0 applied (or already in that state), 1 refused, 2 usage error.
 
@@ -94,11 +91,47 @@ Verify it actually refuses — the same decoy discipline the redline guard's
 entry demands, because "the code looks right" is not the bar:
 
 ```
-uv run python scripts/settings-toggle.py set permissions allow "Bash(rm:*)"
+uv run python scripts/settings-toggle.py --settings PATH set permissions allow "Bash(rm:*)"
 ```
 
 Expect exit 2 and `invalid choice`, with the two owned keys named. Then confirm
 the convenience half still works with a `--dry-run set skillOverrides`.
+
+### `--settings` is required, and that is the security property
+
+**It had a default, and the default was a way around the credential guard.**
+Measured 2026-08-09. The guard protecting the live Claude config is
+*path-based on the command string*: it refuses `Read`, `Get-FileHash`, and any
+shell command naming `~/.claude/settings.json`. A default applied inside Python
+is invisible to it — so `settings-toggle.py show`, with no flag, cleared the
+guard and read the live config that every other reader was blocked from. A
+`set` would have written it the same way, atomically and unobserved.
+
+That inverted the program's entire justification. It is allowlisted *because*
+it is narrow; a narrow tool that is also the one thing able to reach a
+guard-protected file is a bypass wearing the allowlist as a costume.
+
+The fix is one line of argparse plus the deletion of `DEFAULT_SETTINGS`: the
+path is now always in the command string, where the guard can see it and
+decide. Three directions, all verified after the change:
+
+| Invocation | Result |
+|---|---|
+| no `--settings` | exit 2, nothing opened — the bypass is closed |
+| `--settings ~/.claude/settings.json` | blocked by the credential guard, as it should be |
+| `--settings <ordinary file>` | works, no prompt |
+
+If the guard refuses a path you genuinely need, that refusal is the operator's
+to lift deliberately — not this program's to route around by defaulting.
+Regression cover: `TestTargetIsAlwaysExplicit`, which asserts the constant is
+*gone* rather than merely unreferenced.
+
+The general lesson generalizes past this script:
+[`conventions/allowlists-fail-both-ways.md`](../conventions/allowlists-fail-both-ways.md)
+is about stale entries, but this is its mirror — **a path-based control only
+sees what the command string says, so any default resolved after the check is
+outside the control.** Applies to every guard in `hooks/` and to any future
+tool that takes a path.
 
 Three design points worth keeping:
 
