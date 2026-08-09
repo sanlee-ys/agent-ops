@@ -101,17 +101,47 @@ through in the command string and work exactly as they do in Claude Code.
 
 ### Deploying it
 
-Copy the reference config to `~/.grok/hooks/fleet-guards.json` and point its
-`command` at a checkout that actually contains the adapter:
+Copy the reference config to `~/.grok/hooks/fleet-guards.json`:
 
 - **POSIX:** [`hooks.json`](hooks.json)
 - **Windows:** [`hooks.windows.json`](hooks.windows.json) — use this one on
   Windows; the interpreter difference is not cosmetic (see below).
 
 Then set `[compat.claude] hooks = false` in `~/.grok/config.toml` (see
-[The double-load question](#the-double-load-question)). `AGENT_OPS_ROOT`
-overrides the guard lookup if the clone lives somewhere unusual; otherwise the
-adapter walks up from its own real path to find the checkout.
+[The double-load question](#the-double-load-question)).
+
+There are two shapes for the `command`, and the choice is not stylistic:
+
+1. **Point at the checkout** — the reference configs' default. Simplest, and
+   the adapter finds the guards by walking up from its own real path. It has
+   one failure mode: the path resolves through a *working tree*, so a clone
+   sitting on a branch that predates this adapter does not contain the file,
+   the hook fails to launch, and Grok fails open. The guard disappears with
+   nothing on screen to say so.
+2. **Deploy a copy, and name the root explicitly** — what is actually
+   installed on the Windows workstation, for exactly the reason above (the
+   canonical clone is routinely parked on a feature branch). The adapter is
+   copied to `~/.grok/hooks/grok-guard-adapter.py` — the same
+   copies-on-Windows deployment the guards themselves use — and the hook entry
+   carries the root:
+
+   ```json
+   { "type": "command",
+     "command": "${LOCALAPPDATA}/Python/bin/python3.exe ${USERPROFILE}/.grok/hooks/grok-guard-adapter.py",
+     "timeout": 180,
+     "env": { "AGENT_OPS_ROOT": "<path to the agent-ops clone>" } }
+   ```
+
+   Only the *adapter* is copied; the **rules stay canonical**, resolved out of
+   the clone at run time, so a redline change still reaches this lane with no
+   redeploy. `security/` and `hooks/` are present on every branch, which is why
+   naming the root is branch-proof where naming the adapter's path is not.
+
+   Grok's docs promise `${VAR}` expansion for `command` and `url`; they say
+   nothing about the `env` map, so `AGENT_OPS_ROOT` is written literally there.
+   If it fails to arrive, the adapter cannot find the guards and **denies
+   loudly** — the failure announces itself instead of hiding, which is the
+   whole point of the fail-closed posture.
 
 Cost, measured on this machine: **0.44s** for a shell call that runs all three
 guards, **0.24s** for a non-shell call (which runs only the credential guard),
@@ -259,9 +289,15 @@ qualifiers from the wiring table — **not before.**
   configured path stops resolving, the hook command fails to launch and Grok
   fails open. Nothing running inside the hook can catch that. It is the one
   case the fail-closed rule cannot reach.
-- **The deployed hook points into a working clone.** The command names a
-  checkout path, and a clone sitting on a branch that predates the adapter does
-  not contain it — the launch fails, and Grok fails open. Same hazard class as
+- **A deployed copy can go stale.** Deployment shape 2 above trades the branch
+  hazard for the drift hazard: the adapter copy in `~/.grok/hooks/` can fall
+  behind this file without dangling anything. That is `security/posture.md`
+  limit #6 exactly, and the same hazard the Windows guard copies carry — so
+  the same rule applies, **re-run the copy after editing the adapter here**.
+  The rules do not drift, only the translator.
+- **Shape 1 points into a working clone.** The command names a checkout path,
+  and a clone parked on a branch that predates the adapter does not contain it
+  — the launch fails, and Grok fails open. Same hazard class as
   [`conventions/hooks-gate-their-own-repair.md`](../../conventions/hooks-gate-their-own-repair.md),
   with the branch as the moving part rather than the directory.
 - **`hooks.json` and `config.toml` are machine state.** The versioned configs
