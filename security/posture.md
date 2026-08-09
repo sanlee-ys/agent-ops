@@ -315,6 +315,45 @@ declared done. "The code looks right" was explicitly not treated as
 sufficient after the first few rounds of this; see the verification
 discipline note below.
 
+9. **A path-based guard only sees the command string, so a default resolved
+   after the check is outside it.** This one is placed after the summary above
+   deliberately: it is the first limit in this list that was **not** closed by
+   widening the guard, because the guard was not wrong.
+
+   Measured 2026-08-09. `scripts/settings-toggle.py` is the narrow-privilege
+   editor built precisely so the two harmless settings keys could be toggled
+   without granting write access to `settings.json` as a file. It defaulted its
+   target to `~/.claude/settings.json` when `--settings` was omitted. The guard
+   refuses `Read`, `Get-FileHash`, and every shell command naming that path —
+   all verified blocked. But `settings-toggle.py show`, with no flag, names no
+   path, so the guard cleared it and the program then opened the live config and
+   printed from it. A `set` would have written it, atomically and unobserved.
+
+   The contrast with #8 is the point. There the guard's *pattern* was too narrow.
+   Here the pattern was fine and the **evidence** was missing: the decisive fact
+   (which file gets opened) existed only inside the process, after the check had
+   already passed. No amount of widening reaches that, because there is nothing
+   in the command string to widen against.
+
+   Sharper still: the tool was allowlisted **because** it was narrow, and its
+   narrowness was argued structurally and asserted in tests — all of which was
+   true, and none of which was about *which file*. `OWNED_KEYS` bounds what can
+   change; it says nothing about where. So the audited property and the exploited
+   property were disjoint, and the allowlist entry that made it convenient is
+   what made it reachable.
+
+   Closed by deleting the default: `--settings` is now required, putting the path
+   back in the command string where the guard decides. Verified all three ways —
+   no flag exits 2 touching nothing, the live path is refused by the guard, an
+   ordinary path still works. Regression cover asserts the constant is *gone*,
+   not merely unreferenced, since re-adding it silently restores the bypass.
+
+   The generalized rule, which applies to every hook in `hooks/` and to any
+   future tool taking a path: **a program behind a path-based control must not
+   resolve a target the control cannot read.** No implicit defaults, no
+   environment-variable fallbacks, no config-file-supplied paths — anything the
+   guard cannot see in the command string is, to the guard, not happening.
+
 ## Layer 3: human-runs-credential-commands protocol
 
 Some operations can't be made safe by better pattern-matching, because the
