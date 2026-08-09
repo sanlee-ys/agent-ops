@@ -43,6 +43,10 @@
 # the backup guarded. Measured, not theorised: see "Copy-then-read laundering"
 # below. Two real read holes fell out of the same measurement and are closed
 # here — `cat ~/.aws/credentials.bak` and `cat ~/.env_backup` were both allowed.
+# The same run also found the block REASON advertising the MASK-OK override to
+# the model, which read it out of a block and used it. The override is unchanged
+# and still documented for humans in security/README.md; it is simply no longer
+# named in the agent-facing string. See "Block messages" below.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -1580,6 +1584,32 @@ def block(message):
 
 
 # --- Block messages --------------------------------------------------------
+#
+# THESE STRINGS ARE AGENT-FACING. The harness hands stderr to the model
+# verbatim, so anything written here is an instruction the model will read while
+# it is actively looking for a way past this block. Until 2026-08-09 every one
+# of them ended by naming the MASK-OK override — and in the run that produced
+# this file's v2.9 changes, the agent read that sentence out of a block it had
+# just received, quoted it back, and used it. An escape hatch designed as a
+# HUMAN judgement call ("having weighed the exposure" is a person's call, not a
+# model's) was being advertised to, and exercised by, the party whose mistakes
+# this guard exists to catch.
+#
+# So the override is no longer named here. It is unchanged and still works
+# (see main()), and it stays documented in security/README.md — which is what a
+# human reads. What each message now says instead is the action actually wanted
+# from an agent that hits one of these: stop, and ask the operator.
+#
+# This is NOT claimed as a security boundary, and _OVERRIDE_LINE is not a
+# secret: MASK-OK is a fixed, public token in a public repo, and a model that
+# knows this codebase can produce it unprompted. What it removes is the reflex —
+# the guard handing over its own bypass at the worst possible moment. The
+# posture's false-positive lesson in the mirror: a control that teaches reaching
+# for the override erodes itself.
+_OVERRIDE_LINE = (
+    "If this is genuinely necessary, STOP and ask the operator to authorise it.\n"
+    "Do not work around this block.\n"
+)
 
 _MSG_PATH = (
     "CREDENTIAL GUARD (v2, path-based default-deny): this reads the content of a\n"
@@ -1587,34 +1617,34 @@ _MSG_PATH = (
     "keys / cloud, registry, or infra credential files / shell history /\n"
     "/proc/*/environ). Same exposure as `cat`-ing it, regardless of the reader\n"
     "used. To check existence without printing the value, use a metadata command\n"
-    "(ls / stat / Test-Path) or grep in files_with_matches / count mode. If a full\n"
-    "unmasked read is genuinely needed, re-invoke via Bash with MASK-OK in the\n"
-    "command and having weighed the exposure.\n"
+    "(ls / stat / Test-Path) or grep in files_with_matches / count mode.\n"
+    + _OVERRIDE_LINE
 )
 _MSG_ENV = (
     "CREDENTIAL GUARD: this dumps the environment (env / printenv / set /\n"
     "declare -p / Get-ChildItem Env:). Every credential-shaped var (*_TOKEN,\n"
     "*_KEY, *_SECRET) currently set gets printed in the clear. Check a specific\n"
-    "non-secret var instead, e.g. `[bool]$env:VARNAME`. Re-invoke with MASK-OK\n"
-    "if a full dump is genuinely needed and you've weighed the exposure.\n"
+    "non-secret var instead, e.g. `[bool]$env:VARNAME`.\n"
+    + _OVERRIDE_LINE
 )
 _MSG_VAR = (
     "CREDENTIAL GUARD: this prints a credential-shaped environment variable in\n"
     "the clear (this is the 2026-07-02 founding incident's exact shape). If you\n"
     "only need to know whether it's set, test `[bool]$env:NAME` or a\n"
-    "truncated/masked read. Re-invoke with MASK-OK for a deliberate audit.\n"
+    "truncated/masked read.\n"
+    + _OVERRIDE_LINE
 )
 _MSG_GREP = (
     "CREDENTIAL GUARD: content-mode Grep against a known credential-store file\n"
     "prints the full matched line — including the secret value next to the key.\n"
-    "Use output_mode=files_with_matches or count instead, or Bash with MASK-OK\n"
-    "if you genuinely need the value.\n"
+    "Use output_mode=files_with_matches or count instead.\n"
+    + _OVERRIDE_LINE
 )
 _MSG_MCP = (
     "CREDENTIAL GUARD: `claude mcp get <name>` prints that server's stored env\n"
     "vars (including secrets) in the clear. Use `claude mcp list` to check\n"
-    "connection status without revealing values, or Bash with MASK-OK if you\n"
-    "genuinely need the stored value.\n"
+    "connection status without revealing values.\n"
+    + _OVERRIDE_LINE
 )
 _MSG_ENUM = (
     "CREDENTIAL GUARD: this pipes an UNCONSTRAINED directory listing into a\n"
@@ -1623,8 +1653,8 @@ _MSG_ENUM = (
     "named in the command, which is exactly why the path checks don't see it.\n"
     "Constrain the enumeration to names that cannot be credential files (e.g.\n"
     "`-Filter *.py`, `find . -name '*.md'`), or read the specific files you\n"
-    "want by name. Re-invoke with MASK-OK if you genuinely need the whole\n"
-    "directory's contents and have weighed the exposure.\n"
+    "want by name.\n"
+    + _OVERRIDE_LINE
 )
 _MSG_COPY = (
     "CREDENTIAL GUARD: this copies (or moves, renames, or archives) a known\n"
@@ -1636,6 +1666,7 @@ _MSG_COPY = (
     "suffix (`settings.json.bak-20260806`, `.env.old`, `credentials~`), which\n"
     "stays protected. To reference the file without copying it, use a metadata\n"
     "command (ls / stat / Test-Path).\n"
+    + _OVERRIDE_LINE
 )
 _MSG_GIT = (
     "CREDENTIAL GUARD: `git -c <key>=!<cmd>` config-injects a shell alias —\n"

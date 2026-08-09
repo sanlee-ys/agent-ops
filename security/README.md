@@ -132,6 +132,18 @@ audit. Add `MASK-OK` anywhere in a Bash or PowerShell command to skip all
 checks for that command. There's no equivalent for Read/Grep/other tools, since
 they carry no free-text command — fall back to Bash/PowerShell with `MASK-OK`.
 
+**It is a human's escape hatch, and as of 2026-08-09 the guard no longer tells
+the agent about it.** Every block reason used to end by naming `MASK-OK`, and
+that string goes to the model verbatim — in the run behind v2.9 the agent read
+it out of a block it had just received, quoted it back, and used it. "Having
+weighed the exposure" is a person's judgement, not a model's. The override is
+unchanged and still works; the block reasons now say *stop and ask the
+operator* instead, and this section is where it stays documented for the human
+who needs it. Not claimed as a boundary — `MASK-OK` is a fixed public token in
+a public repo — it removes the reflex, not the capability. Pinned in
+`TestBlockReasonDoesNotAdvertiseTheOverride`, both directions: no reason names
+it, and the override still works.
+
 Exit code 0 allows the tool call; exit code 2 blocks it and surfaces the
 message on stderr to the model. The hook fails **open** (exits 0) on an
 unparseable payload — a conscious availability-over-strictness choice for a

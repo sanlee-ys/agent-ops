@@ -1482,5 +1482,31 @@ class TestCopyLaunderBlocked(GuardTestCase):
         self.assertAllowed(*self.bash("bash copy-and-print.sh"))  # indirection
 
 
+class TestBlockReasonDoesNotAdvertiseTheOverride(GuardTestCase):
+    """The block reason reaches the model verbatim. In the 2026-08-09 run the
+    agent read `MASK-OK` out of it and used it — an escape hatch designed for a
+    human being advertised to, and exercised by, the model. The override still
+    works; it is simply no longer named in the agent-facing string."""
+
+    def test_no_reason_names_the_override(self):
+        for tool, tin in [self.bash("cat ~/.claude.json"),
+                          self.bash("env"),
+                          self.bash("echo $ANTHROPIC_API_KEY"),
+                          self.bash("claude mcp get x"),
+                          self.ps("Copy-Item .env envcopy.txt"),
+                          self.ps("Get-ChildItem -Force . | %{ gc $_.FullName }"),
+                          ("Grep", {"pattern": "x", "output_mode": "content",
+                                    "path": "/home/user/.env"})]:
+            reason = guard_stderr(tool, tin)
+            self.assertTrue(reason, f"expected a block reason: {tin}")
+            self.assertNotIn("MASK-OK", reason, f"reason advertises the override: {tin}")
+            self.assertNotIn("mask-ok", reason.lower(),
+                             f"reason advertises the override: {tin}")
+
+    def test_the_override_still_works(self):
+        self.assertAllowed(*self.bash("cat ~/.claude.json  # MASK-OK"))
+        self.assertAllowed(*self.ps("Get-Content ~/.env  # MASK-OK"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
