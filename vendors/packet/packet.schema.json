@@ -1,0 +1,1129 @@
+{
+  "$id": "https://github.com/sanlee-ys/agent-ops/blob/main/vendors/packet/packet.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "GENERATED from vendors/packet/packet.py by `python vendors/packet/compile.py schema --write`. Do not hand edit: tests/test_packet_schema.py fails the build on drift (SYS-018 decision 3). A discriminated union on `role`, closed per SYS-018 decision 2. NOTE: this artifact carries the STRUCTURAL rules only. The cross-field refusals -- model-family independence, the author/reviewer boundary, off-lane routing, the codex resume flags -- are implemented in packet.py and are not expressible here; a consumer validating with this schema alone gets strictly less.",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch_pushed": {
+          "type": "boolean"
+        },
+        "concern": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "files_in_scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "files_out_of_scope": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "issued_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "issuer_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "off_lane_justification": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packet_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "packet_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "type": "string"
+        },
+        "packet_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "const": "implement",
+          "type": "string"
+        },
+        "route_reason": {
+          "enum": [
+            "independence",
+            "capacity",
+            "surface-fit",
+            "third-opinion"
+          ],
+          "type": "string"
+        },
+        "target_model_family": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "xai",
+            "composer"
+          ],
+          "type": "string"
+        },
+        "target_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "vendor_options": {
+          "type": "object"
+        },
+        "verification_already_run": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "exit_code"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "write_authority": {
+          "enum": [
+            "none",
+            "paths",
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "write_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "acceptance",
+        "base_revision",
+        "branch",
+        "branch_pushed",
+        "concern",
+        "files_in_scope",
+        "files_out_of_scope",
+        "issued_at",
+        "issuer_seat",
+        "overrides",
+        "packet_digest",
+        "packet_id",
+        "packet_version",
+        "repo",
+        "role",
+        "route_reason",
+        "target_model_family",
+        "target_seat",
+        "vendor_options",
+        "verification_already_run",
+        "write_authority",
+        "write_paths"
+      ],
+      "title": "implement packet",
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "authored_by": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch_pushed": {
+          "type": "boolean"
+        },
+        "concern": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "files_in_scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "files_out_of_scope": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "issued_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "issuer_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "off_lane_justification": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packet_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "packet_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "type": "string"
+        },
+        "packet_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "const": "review",
+          "type": "string"
+        },
+        "route_reason": {
+          "enum": [
+            "independence",
+            "capacity",
+            "surface-fit",
+            "third-opinion"
+          ],
+          "type": "string"
+        },
+        "target_model_family": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "xai",
+            "composer"
+          ],
+          "type": "string"
+        },
+        "target_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "vendor_options": {
+          "type": "object"
+        },
+        "verification_already_run": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "exit_code"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "write_authority": {
+          "enum": [
+            "none",
+            "paths",
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "write_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authored_by",
+        "base_revision",
+        "branch",
+        "branch_pushed",
+        "concern",
+        "files_in_scope",
+        "files_out_of_scope",
+        "issued_at",
+        "issuer_seat",
+        "overrides",
+        "packet_digest",
+        "packet_id",
+        "packet_version",
+        "repo",
+        "role",
+        "route_reason",
+        "target_model_family",
+        "target_seat",
+        "vendor_options",
+        "verification_already_run",
+        "write_authority",
+        "write_paths"
+      ],
+      "title": "review packet",
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "authored_by": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch_pushed": {
+          "type": "boolean"
+        },
+        "concern": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "files_in_scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "files_out_of_scope": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "issued_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "issuer_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "off_lane_justification": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packet_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "packet_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "type": "string"
+        },
+        "packet_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "const": "challenge",
+          "type": "string"
+        },
+        "route_reason": {
+          "enum": [
+            "independence",
+            "capacity",
+            "surface-fit",
+            "third-opinion"
+          ],
+          "type": "string"
+        },
+        "target_model_family": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "xai",
+            "composer"
+          ],
+          "type": "string"
+        },
+        "target_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "vendor_options": {
+          "type": "object"
+        },
+        "verification_already_run": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "exit_code"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "write_authority": {
+          "enum": [
+            "none",
+            "paths",
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "write_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authored_by",
+        "base_revision",
+        "branch",
+        "branch_pushed",
+        "concern",
+        "files_in_scope",
+        "files_out_of_scope",
+        "issued_at",
+        "issuer_seat",
+        "overrides",
+        "packet_digest",
+        "packet_id",
+        "packet_version",
+        "repo",
+        "role",
+        "route_reason",
+        "target_model_family",
+        "target_seat",
+        "vendor_options",
+        "verification_already_run",
+        "write_authority",
+        "write_paths"
+      ],
+      "title": "challenge packet",
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "hypothesis": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string"
+              },
+              "test": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hypothesis",
+              "test",
+              "result"
+            ],
+            "type": "object"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch_pushed": {
+          "type": "boolean"
+        },
+        "concern": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "exact_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "files_in_scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "files_out_of_scope": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "issued_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "issuer_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "observed": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "off_lane_justification": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packet_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "packet_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "type": "string"
+        },
+        "packet_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "const": "diagnose",
+          "type": "string"
+        },
+        "route_reason": {
+          "enum": [
+            "independence",
+            "capacity",
+            "surface-fit",
+            "third-opinion"
+          ],
+          "type": "string"
+        },
+        "target_model_family": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "xai",
+            "composer"
+          ],
+          "type": "string"
+        },
+        "target_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "vendor_options": {
+          "type": "object"
+        },
+        "verification_already_run": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "exit_code"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "write_authority": {
+          "enum": [
+            "none",
+            "paths",
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "write_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "attempts",
+        "base_revision",
+        "branch",
+        "branch_pushed",
+        "concern",
+        "exact_error",
+        "expected",
+        "files_in_scope",
+        "files_out_of_scope",
+        "issued_at",
+        "issuer_seat",
+        "observed",
+        "overrides",
+        "packet_digest",
+        "packet_id",
+        "packet_version",
+        "repo",
+        "role",
+        "route_reason",
+        "target_model_family",
+        "target_seat",
+        "vendor_options",
+        "verification_already_run",
+        "write_authority",
+        "write_paths"
+      ],
+      "title": "diagnose packet",
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch_pushed": {
+          "type": "boolean"
+        },
+        "concern": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "files_in_scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "files_out_of_scope": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "issued_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "issuer_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "off_lane_justification": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packet_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "packet_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "type": "string"
+        },
+        "packet_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "const": "research",
+          "type": "string"
+        },
+        "route_reason": {
+          "enum": [
+            "independence",
+            "capacity",
+            "surface-fit",
+            "third-opinion"
+          ],
+          "type": "string"
+        },
+        "target_model_family": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "xai",
+            "composer"
+          ],
+          "type": "string"
+        },
+        "target_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "vendor_options": {
+          "type": "object"
+        },
+        "verification_already_run": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "exit_code"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "write_authority": {
+          "enum": [
+            "none",
+            "paths",
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "write_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "base_revision",
+        "branch",
+        "branch_pushed",
+        "concern",
+        "files_in_scope",
+        "files_out_of_scope",
+        "issued_at",
+        "issuer_seat",
+        "overrides",
+        "packet_digest",
+        "packet_id",
+        "packet_version",
+        "question",
+        "repo",
+        "role",
+        "route_reason",
+        "target_model_family",
+        "target_seat",
+        "vendor_options",
+        "verification_already_run",
+        "write_authority",
+        "write_paths"
+      ],
+      "title": "research packet",
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "base_revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch_pushed": {
+          "type": "boolean"
+        },
+        "concern": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "files_in_scope": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "files_out_of_scope": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "issued_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "issuer_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "off_lane_justification": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "packet_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "packet_id": {
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "type": "string"
+        },
+        "packet_version": {
+          "const": "1.0.0",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "repo": {
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "type": "string"
+        },
+        "role": {
+          "const": "verify",
+          "type": "string"
+        },
+        "route_reason": {
+          "enum": [
+            "independence",
+            "capacity",
+            "surface-fit",
+            "third-opinion"
+          ],
+          "type": "string"
+        },
+        "target_model_family": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "xai",
+            "composer"
+          ],
+          "type": "string"
+        },
+        "target_seat": {
+          "enum": [
+            "claude",
+            "codex",
+            "cursor",
+            "agy",
+            "grok"
+          ],
+          "type": "string"
+        },
+        "vendor_options": {
+          "type": "object"
+        },
+        "verification_already_run": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "command",
+              "exit_code"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "write_authority": {
+          "enum": [
+            "none",
+            "paths",
+            "workspace"
+          ],
+          "type": "string"
+        },
+        "write_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "base_revision",
+        "branch",
+        "branch_pushed",
+        "concern",
+        "files_in_scope",
+        "files_out_of_scope",
+        "issued_at",
+        "issuer_seat",
+        "overrides",
+        "packet_digest",
+        "packet_id",
+        "packet_version",
+        "question",
+        "repo",
+        "role",
+        "route_reason",
+        "target_model_family",
+        "target_seat",
+        "vendor_options",
+        "verification_already_run",
+        "write_authority",
+        "write_paths"
+      ],
+      "title": "verify packet",
+      "type": "object"
+    }
+  ],
+  "packet_version": "1.0.0",
+  "title": "agent-ops cross-vendor transfer packet"
+}
