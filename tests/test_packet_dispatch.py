@@ -260,12 +260,17 @@ class TestArgv(GitFixture):
         self.assertNotIn("--cd", argv)
 
     def test_agy_puts_every_flag_before_dash_p_and_the_prompt_last(self):
-        """`-p` is a value-taking flag; anything after it is swallowed.
+        """`-p` is value-taking, so a flag placed after it becomes the prompt.
 
         Measured on agy 1.1.11 and encoded in telltale's seat: `agy -p
         --output-format stream-json "<prompt>"` returns a paragraph about CLI
-        output formats and exits 0. It fails silently in both directions, so
-        the ordering is asserted rather than trusted.
+        output formats and exits 0 -- a silent wrong answer, so the ordering
+        is asserted rather than trusted.
+
+        A trailing flag is NOT a second failure mode: `agy -p "<prompt>"
+        --output-format json` returns JSON (measured 2026-08-09). Flags-first
+        is asserted because it is the arrangement that stays correct when a
+        flag is appended later, not because trailing is broken.
         """
         pkt = self.packet(
             target_seat="agy",

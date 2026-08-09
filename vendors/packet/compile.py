@@ -421,12 +421,17 @@ def build_argv(pkt, prompt):
     if seat == "agy":
         # EVERY flag goes BEFORE -p, and the prompt is the value that
         # immediately follows it. `-p` is a value-taking string flag (`agy
-        # --help`, 1.1.11), so `agy -p "<prompt>" --output-format json`
-        # silently ignores the trailing flag, and `agy -p --output-format
-        # json "<prompt>"` swallows the literal "--output-format" AS the
-        # prompt and exits 0 with a paragraph about CLI output formats.
-        # It fails silently in both directions, which is why the order is
-        # encoded here rather than remembered.
+        # --help`, 1.1.11), so `agy -p --output-format json "<prompt>"`
+        # swallows the literal "--output-format" AS the prompt and exits 0
+        # with a paragraph about CLI output formats -- a silent wrong
+        # answer, which is why the order is encoded here rather than
+        # remembered.
+        #
+        # A TRAILING flag (`agy -p "<prompt>" --output-format json`) is
+        # honored on 1.1.11 -- measured 2026-08-09, it returns JSON. So the
+        # leading order below is not a workaround for a broken parser; it is
+        # the one arrangement that cannot decay into the swallow case if a
+        # flag is ever appended to this argv later.
         argv = ["agy", "--output-format", opts.get("output_format", "json")]
         argv += ["--disable-slash-commands"]
         argv += ["-p", prompt]

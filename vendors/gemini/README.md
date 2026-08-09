@@ -54,9 +54,31 @@ assuming another product's syntax applies here.
 - **Models:** Gemini Flash/Pro for this lane; model identifiers evolve.
 - **Subagent primitives:** `invoke_subagent`, `define_subagent`,
   `send_message`, and `manage_subagent`.
-- **Inbound, headless:** `agy -p "<prompt>"` (aliases `--print` and
-  `--prompt`), with `--output-format text|json|stream-json` when a caller
-  needs structured capture.
+- **Inbound, headless:** `agy --output-format json -p "<prompt>"`. `-p`
+  (aliases `--print`, `--prompt`) is a **value-taking** flag, so the prompt
+  must be its immediate value and every other flag goes **before** it.
+  `--output-format text|json|stream-json` selects structured capture.
+
+  Measured on agy 1.1.11, Windows workstation, 2026-08-09. All three
+  orderings run and exit 0; only one is wrong:
+
+  | Invocation | Result |
+  |---|---|
+  | `agy --output-format json -p "<prompt>"` | JSON. The shape to use. |
+  | `agy -p "<prompt>" --output-format json` | JSON. A trailing flag **is** honored on this build — it is not silently dropped. |
+  | `agy -p --output-format json "<prompt>"` | **Silent wrong answer.** `--output-format` is consumed as the prompt; agy answers a question *about* the flag as prose and exits 0. |
+
+  Leading order is the rule because it is the one arrangement that cannot
+  decay into row 3 when a flag is added later — not because trailing is
+  broken. Rows 2 and 3 are the whole reason to write the shape down: both
+  look like success from the outside.
+- **`--disable-slash-commands` belongs to programmatic dispatch, not to this
+  shape.** It disables slash-command and skill expansion in print mode. A
+  machine-composed brief can open with `/` or carry skill-like tokens, and
+  expansion silently rewrites it before the model sees it; a prompt a human
+  or an agent wrote on purpose usually *wants* expansion. So
+  [`vendors/packet/`](../packet/) sets it on dispatch and the documented
+  invocation above leaves it off.
 - **Permissions:** the persisted store is `~/.gemini/antigravity-cli/settings.json`,
   holding `permissions.{Allow,Deny,Ask}`. All three are live — deny rules are
   CEL-evaluated with a dedicated denial reason, not decorative. The default

@@ -134,12 +134,15 @@ LANES = {
 #     failure rather than an operator error.
 #   agy 1.1.11 -- `agy --help` shows `-p` as "Short alias for --print" and
 #     `--print` as a value-taking flag, so the prompt is the value that
-#     immediately follows `-p` and `-p` must be LAST. telltale measured the
-#     failure mode directly (`internal/council/vendors/agy.go`): `agy -p
-#     --output-format stream-json "<prompt>"` swallows the literal string
-#     "--output-format" as the prompt, returns a paragraph about CLI output
-#     formats, and exits 0. It fails silently, which is why it is encoded
-#     rather than remembered.
+#     immediately follows `-p`. telltale measured the failure mode directly
+#     (`internal/council/vendors/agy.go`): `agy -p --output-format
+#     stream-json "<prompt>"` swallows the literal string "--output-format"
+#     as the prompt, returns a paragraph about CLI output formats, and exits
+#     0. It fails silently, which is why it is encoded rather than
+#     remembered. A trailing flag after the prompt is NOT a second failure
+#     mode -- `agy -p "<prompt>" --output-format json` returns JSON on
+#     1.1.11 (measured 2026-08-09). Emitting flags first is a robustness
+#     choice, not a parser workaround.
 CODEX_SANDBOXES = ("read-only", "workspace-write", "danger-full-access")
 AGY_OUTPUT_FORMATS = ("text", "json", "stream-json")
 
