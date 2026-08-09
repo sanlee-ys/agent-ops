@@ -15,7 +15,12 @@ for the rename and vendor layout; fleet routing is
 
 - **Operating model & session protocol:** [`operating-model.md`](operating-model.md).
 - **Security posture & the credential guard:** [`security/posture.md`](security/posture.md),
-  [`security/README.md`](security/README.md).
+  [`security/README.md`](security/README.md). The other redline guards live in
+  [`hooks/`](hooks/) — see [`hooks/README.md`](hooks/README.md) for what each
+  refuses, and [`decisions/ADR-013`](decisions/ADR-013-guard-canonicality-line.md)
+  for which guards are canonical here versus in the private machine-config repo.
+  `config-change-guard.py` is wired but **unmeasured**; `hooks/README.md` says
+  what that means and how to close it.
 - **Conventions:** [`conventions/`](conventions/). Most are shared cross-repo
   blocks — single-sourced here, mirrored into sibling repos' `CLAUDE.md` as
   compressed pointers; propagate or drift-check with
