@@ -58,14 +58,19 @@ EXIT CODES ARE THE INTERFACE. 0 applied (or already in the requested state), 1
 refused — an unowned key, a bad value, an unreadable or non-object document, a
 duplicate key — 2 usage error from the argument parser.
 
-A NOTE ON ``disabledMcpServers``. Per the harness changelog that key is read
-from ``.claude.json``, not from ``settings.json``; the ``settings.json``
-equivalents are ``disabledMcpjsonServers`` / ``enabledMcpjsonServers``, which
-scope to servers declared in a ``.mcp.json``. Those two are *not* owned here,
-because widening a security boundary is not a thing to do in passing. This
-program edits whichever JSON object it is pointed at, so the key is honoured as
-specified; whether the file being edited is the one the harness reads it from
-is the caller's call.
+A NOTE ON ``disabledMcpServers`` — IT DOES NOT WORK, AND CANNOT BE MADE TO.
+Measured against the published docs on 2026-08-09. The harness reads that key
+only from ``~/.claude.json``; it is not a ``settings.json`` key, so writing it
+into one disables nothing while reporting success. Nor does ``--settings
+~/.claude.json`` rescue it: the harness records the choice *per project*, under
+that project's own entry, and this program writes a flat top-level array. The
+``settings.json`` keys that do this job are ``disabledMcpjsonServers`` /
+``enabledMcpjsonServers``, scoped to servers declared in a ``.mcp.json``; they
+are *not* owned here, because widening a security boundary is not a thing to do
+in passing. Only ``skillOverrides`` actually takes effect. These verbs stay
+because removing them means changing ``OWNED_KEYS`` — the boundary itself, and
+a reviewed decision rather than a doc fix. Disable a server via the ``/mcp``
+panel instead. Full record: ``scripts/README.md``.
 """
 
 from __future__ import annotations
