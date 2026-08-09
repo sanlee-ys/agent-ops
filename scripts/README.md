@@ -62,6 +62,77 @@ Exit codes are the interface: 0 clean, 1 drift (rebuild and commit), 2
 operator/config error (dirty watched path before the build, broken build
 command, missing config). Test suite: `tests/test_generated_drift.py`.
 
+## settings-toggle.py — two settings keys, and no way to reach a third
+
+Flipping a skill's visibility or disabling an MCP server is routine and
+reversible. Doing it without a permission prompt is not: the only grant that
+permits it is write access to `settings.json` as a *file*, and that same grant
+admits `permissions`, `env` and `hooks` — including switching
+`bypassPermissions` back on. Guard wiring is the whole of the control
+([ADR-012](../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)),
+the guards are wired *by* `hooks`, and what may run at all is decided *by*
+`permissions`. So a convenience grant shaped to allow the toggle also allows
+turning the guards off. The gap is path-shaped; the fix is a program narrow
+enough to allowlist by name.
+
+It owns exactly two keys — `skillOverrides` and `disabledMcpServers` — and
+passes everything else through untouched:
+
+```
+uv run python scripts/settings-toggle.py show
+uv run python scripts/settings-toggle.py set skillOverrides some-skill off
+uv run python scripts/settings-toggle.py unset skillOverrides some-skill
+uv run python scripts/settings-toggle.py set disabledMcpServers some-server
+uv run python scripts/settings-toggle.py unset disabledMcpServers some-server
+```
+
+`--settings PATH` targets a file other than `~/.claude/settings.json`;
+`--dry-run` prints the result instead of writing it. Exit codes are the
+interface: 0 applied (or already in that state), 1 refused, 2 usage error.
+
+Verify it actually refuses — the same decoy discipline the redline guard's
+entry demands, because "the code looks right" is not the bar:
+
+```
+uv run python scripts/settings-toggle.py set permissions allow "Bash(rm:*)"
+```
+
+Expect exit 2 and `invalid choice`, with the two owned keys named. Then confirm
+the convenience half still works with a `--dry-run set skillOverrides`.
+
+Three design points worth keeping:
+
+- **The narrowness is structural, not configured.** One mutation primitive
+  (`_replace_owned`) shallow-copies the parsed document and assigns a single
+  key, checked against `OWNED_KEYS` first. Every other key is carried across by
+  reference and never traversed, so an unowned key cannot change even in
+  principle. There is deliberately no `set <any-key> <value>` verb — the
+  argument parser restricts the key to two literals and the primitive refuses
+  again underneath it, so loosening the CLI alone does not widen the hole.
+- **The guarantee is asserted, not just argued.** Before writing, the program
+  re-derives the diff between the document as parsed and the document about to
+  be serialized, and refuses if any key outside `OWNED_KEYS` differs. That is
+  what the test suite can watch fail; a design argument is not.
+- **It refuses rather than guesses.** Invalid JSON, a non-object document, a
+  duplicate key (which `json.loads` would silently resolve by dropping one), a
+  wrongly-typed owned key, or an unrecognised override value all abort with
+  nothing written. Writes are atomic — temp file beside the destination, then
+  `os.replace` — and a UTF-8 BOM or CRLF endings are detected and reproduced,
+  so a file last touched by PowerShell 5.1 does not come back as a whole-file
+  diff.
+
+Test suite: `tests/test_settings_toggle.py`, organised around the claim about
+what the program *cannot* do rather than around its features.
+
+One caveat, recorded rather than papered over: per the harness changelog,
+`disabledMcpServers` is read from `.claude.json`, not from `settings.json` —
+the `settings.json` equivalents are `disabledMcpjsonServers` /
+`enabledMcpjsonServers`, scoped to servers declared in a `.mcp.json`. Those two
+are **not** owned here; widening a security boundary is not something to do in
+passing. The program edits whichever JSON object it is pointed at, so whether
+the targeted file is the one the harness reads that key from is the caller's
+call.
+
 ## redline-guard.py — the publication boundary, enforced
 
 This repo is public **and canonical** ([ADR-002](../decisions/ADR-002-public-first-canonicality.md)):
