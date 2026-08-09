@@ -33,7 +33,7 @@ harness's own format or dialect.
   in its README.
 - [`cursor/`](cursor/) — the IDE lane: bounded edit-test loops, UI
   verification, parallel work on non-colliding files. Wiring, channel, and
-  guard gaps documented in its README
+  the launch-shell caveat documented in its README
   ([`decisions/ADR-009`](../decisions/ADR-009-cursor-ide-lane-in-fleet.md)).
 - [`gemini/`](gemini/) — Google Antigravity (AGY), the measured
   Gemini-family research/overflow/third-opinion lane. Gemini CLI remains the
@@ -91,7 +91,11 @@ for the general principle.
 Current implementation truth: Claude, Codex, Antigravity, Cursor and Grok
 Build all have the fleet suite wired. The open rows are no longer *whether* a
 harness is wired but *how far each wiring has been observed working* — Cursor's
-was verified live on 2026-08-04, Grok's on 2026-08-09.
+was verified live on 2026-08-04, Grok's on 2026-08-09, both on the Windows
+workstation. Cursor is the row that still leaves a machine open: the macOS
+build's hook execution has never been measured, and the Windows
+launch-shell bug recorded in [`cursor/README.md`](cursor/README.md) is
+exactly why "imported" cannot be read as "working" until someone measures it.
 
 Grok's live verification also produced the first measured **failure** of a
 floor claim, and it belongs here rather than only in the vendor file, because

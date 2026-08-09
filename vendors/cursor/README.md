@@ -102,7 +102,7 @@ Per [`../README.md`](../README.md) and
 
 | Fleet policy | Claude Code | Cursor |
 |---|---|---|
-| `credential-guard.py` | PreToolUse wired | **Wired** — auto-imported from `~/.claude/settings.json`, deny verified live 2026-08-04 |
+| `credential-guard.py` | PreToolUse wired | **Wired** — auto-imported from `~/.claude/settings.json`, deny verified live on Windows 2026-08-04 |
 | `git-staging-guard.py` | PreToolUse wired | **Wired** — same import path |
 | `published-history-guard.py` | PreToolUse wired | **Wired** — same import path |
 | `redline-guard.py` (pre-commit) | Applies at commit | Applies at commit |
@@ -140,6 +140,14 @@ that *looked* wired (hooks firing, everything denied) was a shell bug, and
 the launch path that worked was silently unguarded. Verify both directions
 after any cursor-agent version bump: an innocuous read must pass, a
 credential-shaped read must deny with the guard's message.
+
+**Every measurement above is from the Windows workstation.** Whether the macOS
+build executes imported hooks at all is unmeasured — not failing, not passing,
+never run. Read the **Wired** rows as one verified machine, not as the fleet:
+a build that silently skips hook execution looks identical to a wired one until
+the deny direction is exercised. The verification is already queued as a
+dated entry in the machine-parity log; run it from there rather than
+re-deriving the protocol here.
 
 ## Telltale
 
