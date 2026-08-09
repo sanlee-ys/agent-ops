@@ -22,7 +22,7 @@ Contents:
 | `hooks/published-history-guard.py` | `hooks/published-history-guard.py` (this repo) | `PreToolUse` / `Bash\|PowerShell\|Shell` |
 | `hooks/git-staging-guard.py` | `hooks/git-staging-guard.py` (this repo) | `PreToolUse` / `Bash\|PowerShell\|Shell` |
 | `hooks/fanout-guard.py` | the machine-config repo's `claude/hooks/fanout-guard.py` | `PreToolUse` / `Workflow` |
-| `hooks/config-change-guard.py` | deployed copy only (not previously versioned) | `ConfigChange` |
+| `hooks/config-change-guard.py` | `hooks/config-change-guard.py` (this repo) | `ConfigChange` |
 
 ## `hooks/hooks.json` is RECONSTRUCTED, not extracted
 
@@ -40,7 +40,7 @@ confirm at cutover.
 
 ## Drift hazard
 
-Four of the five scripts here are **derived copies**. Editing them instead of
+All five scripts here are **derived copies**. Editing them instead of
 canon reintroduces exactly the drift class recorded as limit 6 in
 [`security/posture.md`](../../../security/posture.md) — a copy that goes stale
 without dangling anything. Until cutover: **edit canon, then re-copy.** The
@@ -48,8 +48,10 @@ mechanical fix at cutover is to wire these paths into
 [`scripts/check-generated-drift.py`](../../../scripts/check-generated-drift.py),
 which already exists for exactly this shape of committed-derived-output.
 
-`config-change-guard.py` is the exception — this is currently its only versioned
-copy, and it should be promoted to a canonical location in its own change.
+`config-change-guard.py` used to be the exception — this was its only versioned
+copy. Promoted 2026-08-09 to [`hooks/config-change-guard.py`](../../../hooks/config-change-guard.py)
+under [ADR-013](../../../decisions/ADR-013-guard-canonicality-line.md), so the
+copy here is now derived like the other four.
 
 ## Cutover (a future session's job — do NOT do it as a side effect)
 
