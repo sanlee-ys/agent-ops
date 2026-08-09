@@ -1508,5 +1508,79 @@ class TestBlockReasonDoesNotAdvertiseTheOverride(GuardTestCase):
         self.assertAllowed(*self.ps("Get-Content ~/.env  # MASK-OK"))
 
 
+class TestBlockReasonMatchesTheDirection(GuardTestCase):
+    """v2.10. Until now the path-based default-deny emitted ONE message, phrased
+    entirely as a read ("Same exposure as `cat`-ing it"), for writes too. The
+    block is right and stays; the description was not, and a message that
+    misdescribes what tripped it sends the next reader after the block rather
+    than the string. These tests exist so the two wordings cannot silently
+    converge again — the failure they catch is a WORDING regression, which no
+    exit-code assertion anywhere else in this file can see."""
+
+    READ_MARK = "reads the content of"
+    WRITE_MARK = "WRITES TO or MODIFIES"
+
+    def assertReadWorded(self, tool, tin):
+        reason = guard_stderr(tool, tin)
+        self.assertIn(self.READ_MARK, reason, f"expected read wording: {tin}")
+        self.assertNotIn(self.WRITE_MARK, reason, f"wording collided: {tin}")
+
+    def assertWriteWorded(self, tool, tin):
+        reason = guard_stderr(tool, tin)
+        self.assertIn(self.WRITE_MARK, reason, f"expected write wording: {tin}")
+        self.assertNotIn(self.READ_MARK, reason, f"wording collided: {tin}")
+
+    def test_read_shaped_blocks_keep_the_read_wording(self):
+        self.assertReadWorded(*self.bash("cat ~/.claude.json"))
+        self.assertReadWorded(*self.ps("Get-Content ~/.env"))
+        self.assertReadWorded("Read", {"file_path": "/home/user/.ssh/id_rsa"})
+
+    def test_write_shaped_blocks_get_the_write_wording(self):
+        # The tool-shape default-deny: a write tool carrying a new value.
+        self.assertWriteWorded("Write", {"file_path": "/home/user/.ssh/id_rsa",
+                                         "content": "x"})
+        self.assertWriteWorded("Edit", {"file_path": "/home/user/.env",
+                                        "old_string": "a", "new_string": "b"})
+        # An UNHOOKED write tool, classified off the payload rather than a name
+        # allowlist — the 2026-07-04 tool-shape lesson applied to the wording.
+        self.assertWriteWorded("SomeFutureFileTool",
+                               {"target_file": "/home/user/.env",
+                                "contents": "x"})
+        # ...and off the name alone when the payload carries no body.
+        self.assertWriteWorded("DeleteFile", {"path": "/home/user/.env"})
+        # The shell half: a write-only cmdlet reaching the unknown-command deny.
+        self.assertWriteWorded(*self.ps("Set-Content ~/.env 'x'"))
+        self.assertWriteWorded(*self.ps("Add-Content ~/.claude.json 'x'"))
+
+    def test_both_wordings_keep_the_operator_tail(self):
+        for tool, tin in [("Read", {"file_path": "/home/user/.env"}),
+                          ("Write", {"file_path": "/home/user/.env",
+                                     "content": "x"}),
+                          self.ps("Set-Content ~/.env 'x'")]:
+            reason = guard_stderr(tool, tin)
+            self.assertIn("ask the operator", reason, f"tail dropped: {tin}")
+            self.assertIn("Do not work around this block", reason,
+                          f"tail dropped: {tin}")
+            self.assertNotIn("MASK-OK", reason, f"advertises override: {tin}")
+
+    def test_write_only_commands_still_block(self):
+        """_WRITE_ONLY_COMMANDS decides WORDING, never a verdict. Two ways it
+        could go wrong, both pinned here: an entry that stopped blocking (it was
+        moved into SAFE_COMMANDS, or the deny path changed), and an entry that
+        drifted out of the write message. A stale entry fails this suite rather
+        than the next audit — conventions/allowlists-fail-both-ways.md."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("credguard", GUARD)
+        guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(guard)
+        self.assertTrue(guard._WRITE_ONLY_COMMANDS, "the set went empty")
+        for cmd in sorted(guard._WRITE_ONLY_COMMANDS):
+            self.assertNotIn(cmd, guard.SAFE_COMMANDS,
+                             f"{cmd} is in SAFE_COMMANDS — it would be ALLOWED")
+            tool, tin = self.ps(f"{cmd} ~/.env 'x'")
+            self.assertBlocked(tool, tin, f"{cmd} no longer blocks")
+            self.assertWriteWorded(tool, tin)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
