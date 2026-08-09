@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.9 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.10 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -47,6 +47,16 @@
 # the model, which read it out of a block and used it. The override is unchanged
 # and still documented for humans in security/README.md; it is simply no longer
 # named in the agent-facing string. See "Block messages" below.
+# 2.10 (2026-08-09): WORDING ONLY — no verdict anywhere changes. The path-based
+# default-deny emitted one message, phrased entirely as a read ("Same exposure
+# as `cat`-ing it"), for writes as well: a `Write`/`Edit` at ~/.ssh/id_rsa, and
+# a write-only cmdlet reaching the unknown-command deny (`Set-Content ~/.env`).
+# Blocking those is deliberate and unchanged — clobbering the operator's live
+# secret is as bad an outcome as printing it — but describing a write as a read
+# makes a correct block look like a guard bug, which points the next session at
+# the block instead of the string. There is now a second message, _MSG_PATH_WRITE,
+# selected per call; both keep the "ask the operator" tail. Anything the
+# selector cannot classify gets the READ message, i.e. the previous behaviour.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -567,6 +577,20 @@ SAFE_COMMANDS = {
     "test-path", "get-item", "get-childitem", "resolve-path", "split-path",
     "remove-item", "new-item", "move-item", "copy-item", "rename-item",
     "get-location", "set-location", "get-acl",
+}
+
+# Commands that MODIFY a named file and print none of its prior content. They
+# are NOT in SAFE_COMMANDS and must never be moved there: they are unknown to
+# _reads_sensitive_path, so they default-deny, and that is the intended verdict
+# (clobbering a credential store is the outcome the default-deny exists for).
+# This set decides WORDING ONLY — which of _MSG_PATH / _MSG_PATH_WRITE the
+# block carries. A wrong entry therefore mis-describes a block; it can never
+# create or remove one. test_write_only_commands_still_block pins both halves
+# so a stale entry fails the suite rather than the next audit
+# (conventions/allowlists-fail-both-ways.md).
+_WRITE_ONLY_COMMANDS = {
+    "set-content", "add-content", "clear-content", "out-file",
+    "set-itemproperty", "new-itemproperty", "clear-itemproperty",
 }
 
 # grep-family: a read (prints matched lines) UNLESS in an existence/count mode,
@@ -1620,6 +1644,23 @@ _MSG_PATH = (
     "(ls / stat / Test-Path) or grep in files_with_matches / count mode.\n"
     + _OVERRIDE_LINE
 )
+# The same default-deny, worded for the other direction. _MSG_PATH used to be
+# emitted for both, so a `Write` at ~/.ssh/id_rsa came back described as a read
+# ("same exposure as `cat`-ing it") — which is not what happened, and reads as a
+# guard bug rather than a ruling. An agent that believes the message is wrong
+# goes looking for the wrong fix. Blocking the write is deliberate: the
+# tool-shape default-deny below has always covered writes, because clobbering
+# the operator's live secret is as bad an outcome as printing it.
+_MSG_PATH_WRITE = (
+    "CREDENTIAL GUARD (v2, path-based default-deny): this WRITES TO or MODIFIES\n"
+    "a known credential-store target (Claude config / .env / SSH or other\n"
+    "private keys / cloud, registry, or infra credential files). Nothing is\n"
+    "printed, so this is not a leak — it is blocked as a CLOBBER: it replaces or\n"
+    "destroys the operator's live secret, and the guard cannot tell a repair\n"
+    "from a destruction. To inspect the file without changing it, use a metadata\n"
+    "command (ls / stat / Test-Path).\n"
+    + _OVERRIDE_LINE
+)
 _MSG_ENV = (
     "CREDENTIAL GUARD: this dumps the environment (env / printenv / set /\n"
     "declare -p / Get-ChildItem Env:). Every credential-shaped var (*_TOKEN,\n"
@@ -1713,6 +1754,34 @@ def _field_targets_sensitive(obj, key_is_pathy=False):
             for k, v in obj.items()
         )
     return False
+
+
+# A tool call that carries a NEW value for its target is modifying it, whatever
+# the tool is called. Keyed on the PAYLOAD first and the tool name only as a
+# fallback, for the same reason _field_targets_sensitive is keyed on field names
+# rather than a {Read, Grep} pair: an unhooked write tool should still be
+# described correctly (the 2026-07-04 tool-shape gap's own lesson).
+_WRITE_CONTENT_FIELD = re.compile(
+    r"^(content|contents|text|file_text|new_str|new_string|new_source|"
+    r"replacement|edits)$", re.IGNORECASE
+)
+# Names that modify by construction even with no body in the payload (a delete,
+# a rename, a touch). Secondary to the field check, never primary.
+_WRITE_TOOL_NAME = re.compile(
+    r"write|edit|create|update|replace|delete|remove|rename|move", re.IGNORECASE
+)
+
+
+def _is_write_shaped(tool_name, tool_input):
+    """True if this tool call MODIFIES its path target rather than reading it.
+
+    Wording only — BOTH branches block, so this function cannot change a
+    verdict. When neither signal fires it returns False and the caller emits the
+    read message, which is the pre-2026-08-09 behaviour for every tool: a call
+    this cannot classify is described exactly as it was before."""
+    if any(_WRITE_CONTENT_FIELD.match(str(k)) for k in tool_input):
+        return True
+    return bool(_WRITE_TOOL_NAME.search(str(tool_name or "")))
 
 
 def _allow(payload):
@@ -1862,7 +1931,13 @@ def main():
             if _copy_launders_credential(resolved):
                 block(_MSG_COPY)
             if _reads_sensitive_path(resolved):
-                block(_MSG_PATH)
+                # Same verdict either way; only the wording is chosen here. A
+                # write-only cmdlet reaches this line through the unknown-
+                # command default-deny, which is correct as a BLOCK and wrong
+                # as the word "reads".
+                block(_MSG_PATH_WRITE
+                      if _leading_command(resolved) in _WRITE_ONLY_COMMANDS
+                      else _MSG_PATH)
         _allow(data)
 
     # Glob returns paths, not content — it can confirm a file exists (the safe
@@ -1877,7 +1952,8 @@ def main():
     # printing it; the human-runs-credentials protocol covers legitimate cases,
     # with Bash + MASK-OK as the escape hatch).
     if _field_targets_sensitive(tool_input):
-        block(_MSG_PATH)
+        block(_MSG_PATH_WRITE if _is_write_shaped(tool_name, tool_input)
+              else _MSG_PATH)
     _allow(data)
 
 
