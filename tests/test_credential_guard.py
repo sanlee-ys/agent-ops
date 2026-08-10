@@ -518,6 +518,70 @@ class TestProseFlagFalsePositive(GuardTestCase):
             'xxd --body ".env docs" /home/user/.env'))
 
 
+class TestSingleQuotedProseIsLiteral(GuardTestCase):
+    """2026-08-09 confirmed false positive: Markdown prose in a single-quoted
+    message flag.
+
+    The 2026-07-18 exemption above voids itself on any `$` or backtick in the
+    value, which is correct for a DOUBLE-quoted value (both substitute) and
+    wrong for a single-quoted one (neither does, in POSIX shells or in
+    PowerShell). A PR body written in Markdown is mostly backticks, so
+    `gh pr create --body '... `~/.claude/settings.json` ...'` was blocked as a
+    credential read. The author's only route was `--body-file`, which is the
+    "a guard that blocks prose gets routed around" failure posture.md names.
+
+    The exemption is narrow on purpose: single quotes ONLY, and only when the
+    value is not nested inside a double-quoted region, because there the outer
+    quotes expand first and the value is not literal at all.
+    """
+
+    def test_single_quoted_markdown_and_dollars_are_prose(self):
+        for cmd in [
+            "gh pr create --body 'see `~/.claude/settings.json` for details'",
+            "gh pr create --body 'costs $5; documents ~/.aws/credentials'",
+            "gh pr create --body 'never run $(cat ~/.env) yourself'",
+            "gh pr create --body 'set $ANTHROPIC_API_KEY before running'",
+            "git commit -m 'document `.env` handling'",
+        ]:
+            self.assertAllowed(*self.bash(cmd), msg=cmd)
+
+    def test_double_quoted_expansion_still_blocked(self):
+        # The original limit 3 is untouched for the quoting style that expands.
+        for cmd in [
+            'gh pr create --body "$(cat ~/.env)"',
+            'gh pr create --body "`cat ~/.env`"',
+            'gh pr create --body "leaked: $ANTHROPIC_API_KEY"',
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+    def test_single_quotes_nested_in_double_quotes_still_blocked(self):
+        # The whole subtlety. In `bash -c "... --body '$(cat ~/.env)'"` the
+        # OUTER double quotes substitute before the inner single quotes are
+        # interpreted, so the value is not literal and the secret is published.
+        for cmd in [
+            'bash -c "gh pr create --body \'$(cat ~/.env)\'"',
+            'sh -c "gh pr create --body \'`cat ~/.env`\'"',
+            'bash -c "gh pr create --body \'$ANTHROPIC_API_KEY\'"',
+            'powershell -c "gh pr create --body \'$(Get-Content ~/.env)\'"',
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+    def test_single_quoted_prose_does_not_disarm_a_real_read(self):
+        # Same guarantee the double-quoted exemption carries: blanking the
+        # prose value must not launder a reader elsewhere in the command.
+        self.assertBlocked(*self.bash(
+            "gh pr create --body 'mentions `.env` safely' && cat ~/.env"))
+        self.assertBlocked(*self.bash(
+            "xxd --body 'about `.env`' /home/user/.env"))
+
+    def test_body_file_still_reads_regardless_of_quoting(self):
+        for cmd in [
+            "gh pr create --body-file ~/.claude.json",
+            "gh pr create -F /home/user/.env",
+        ]:
+            self.assertBlocked(*self.bash(cmd), msg=cmd)
+
+
 class TestEnvDriveFalsePositive(GuardTestCase):
     """2026-07-26 confirmed false positive: `$env:NAME` used as part of a
     filesystem path, read as a PowerShell environment dump.
