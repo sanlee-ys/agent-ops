@@ -9,7 +9,7 @@ put it alongside its README and `posture.md`.
 | File | Event / matcher | What it refuses |
 | --- | --- | --- |
 | [`git-staging-guard.py`](git-staging-guard.py) | `PreToolUse` / shells | whole-tree staging (`git add -A\|-u\|.`, `git commit -a`), which sweeps a parallel session's uncommitted work into this session's commit |
-| [`published-history-guard.py`](published-history-guard.py) | `PreToolUse` / shells | a force-push or backward reset on `main` when the discarded range holds a commit the remote already has |
+| [`published-history-guard.py`](published-history-guard.py) | `PreToolUse` / shells | any command that would move `main` backwards over a commit the remote already has — force-push, reset, `commit --amend`, `rebase`, `branch -f`/`-M`, `checkout -B`/`switch -C`, `update-ref`, `filter-branch`/`filter-repo`, or deleting the remote branch |
 | [`config-change-guard.py`](config-change-guard.py) | `ConfigChange` | a settings change that leaves the file disarmed: a guard hook not wired where it can fire, `disableAllHooks`, `permissions.defaultMode: bypassPermissions`, an unrestricted-shell allow rule, or an `env` key that redirects model traffic |
 
 These are **deployed, not imported**: the machine-config repo's setup scripts

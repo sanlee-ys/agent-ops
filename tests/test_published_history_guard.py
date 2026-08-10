@@ -7,7 +7,7 @@ would only prove the guard's own assumptions back to itself, and the assumption
 that broke in the incident (that a tracking ref tells you what the remote has)
 is precisely the kind a mock would have preserved.
 
-Three groups:
+Four groups:
 
   - **The incident, reconstructed.** Two clones of one bare remote playing the
     parts of Session A and Session B, reproducing 2026-07-26 commit for commit.
@@ -16,6 +16,12 @@ Three groups:
   - **Allowed shapes.** The far more important half. A guard that fires on
     feature-branch rebases, on prose quoting it, or on a plain push gets routed
     around, and a routed-around guard protects nothing.
+  - **The other entry points** (`TestOtherWaysToRewriteMain`). v1.0 dispatched
+    on `push` and `reset` only, so `commit --amend`, `rebase`, `branch -f`,
+    `checkout -B`, `update-ref`, `filter-branch` and a remote-branch delete all
+    reached `main` uninspected. Every verb there is paired: the rewrite that
+    drops a published commit, and the same verb used safely. The pairing is the
+    point — a one-sided suite proves a guard blocks, not that it is usable.
 
 Stdlib only (no pytest) so CI is a bare `python -m unittest`. The guard is
 driven exactly as the harness drives it: a PreToolUse JSON payload on stdin,
@@ -314,6 +320,305 @@ class TestAllowedShapes(GitFixture):
             text=True,
         )
         self.assertEqual(proc.returncode, ALLOW)
+
+
+class TestOtherWaysToRewriteMain(GitFixture):
+    """Every entry point the two-verb dispatch never saw.
+
+    v1.0 inspected `git push` and `git reset` and nothing else, so six other
+    spellings of "move `main` backwards over somebody's published commit"
+    reached the ref uninspected — and `commit --amend` on a pushed commit is a
+    reflex, not an attack.
+
+    Each verb is tested twice, and the *allow* half is the load-bearing one. A
+    guard that blocks `git commit --amend` on an unpushed commit, or a rebase of
+    a purely local branch, is a guard somebody disables wholesale — at which
+    point the block cases protect nothing.
+
+    The fixture: `main` at `base` -> `second`, both pushed. So HEAD is
+    published, which is the normal state of a direct-to-main repo and the state
+    every one of these verbs is dangerous in.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.repo = self.seeded_clone("repo")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        self.second = commit(self.repo, "second.md", "second\n", "second commit")
+        git(self.repo, "push", "origin", "main")
+
+    def unpushed(self) -> str:
+        """Add a commit that the remote does not have."""
+        return commit(self.repo, "local.md", "local\n", "unpushed work")
+
+    def on_feature(self, name: str = "feature-x") -> None:
+        git(self.repo, "checkout", "-b", name)
+
+    # --- git commit --amend ------------------------------------------------
+
+    def test_amend_of_a_pushed_commit_is_blocked(self) -> None:
+        """The routine slip. HEAD is on the remote; amending replaces it."""
+        self.assertEqual(
+            run(f'git -C {self.repo} commit --amend -m "reworded"'), BLOCK
+        )
+
+    def test_amend_of_an_unpushed_commit_is_allowed(self) -> None:
+        """The same command one commit later, and it must not fire.
+
+        This is the near-miss that decides whether the amend check is usable:
+        amending your own not-yet-pushed tip is the overwhelmingly common case.
+        """
+        self.unpushed()
+        self.assertEqual(
+            run(f'git -C {self.repo} commit --amend -m "reworded"'), ALLOW
+        )
+
+    def test_amend_on_a_feature_branch_is_allowed(self) -> None:
+        self.on_feature()
+        commit(self.repo, "mine.md", "work\n", "feature work")
+        self.assertEqual(run(f"git -C {self.repo} commit --amend --no-edit"), ALLOW)
+
+    def test_plain_commit_is_allowed(self) -> None:
+        self.assertEqual(run(f'git -C {self.repo} commit -m "ordinary"'), ALLOW)
+
+    def test_amend_in_a_repo_with_no_remote_is_allowed(self) -> None:
+        """Nothing configured means nothing published — not "cannot verify".
+
+        Without this the guard would fail closed in every `git init` scratch
+        repo, which is how a guard gets switched off rather than fixed.
+        """
+        solo = self.tmp / "solo"
+        solo.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", str(solo)], capture_output=True, check=True
+        )
+        git(solo, "config", "user.email", "test@example.invalid")
+        git(solo, "config", "user.name", "Test Session")
+        commit(solo, "a.md", "a\n", "first")
+        self.assertEqual(run(f"git -C {solo} commit --amend --no-edit"), ALLOW)
+
+    # --- git rebase --------------------------------------------------------
+
+    def test_interactive_rebase_over_published_commits_is_blocked(self) -> None:
+        """`git rebase -i <base>` gives every replayed commit a new sha.
+
+        This is the incident's own shape: Session B was rewording its work when
+        it went past somebody else's commit.
+        """
+        self.assertEqual(run(f"git -C {self.repo} rebase -i {self.base}"), BLOCK)
+
+    def test_rebase_of_a_purely_local_branch_is_allowed(self) -> None:
+        """The single most common rebase there is; it must stay frictionless."""
+        self.on_feature()
+        commit(self.repo, "mine.md", "one\n", "feature one")
+        commit(self.repo, "mine.md", "two\n", "feature two")
+        self.assertEqual(run(f"git -C {self.repo} rebase -i HEAD~2"), ALLOW)
+
+    def test_rebase_onto_the_remote_tip_is_allowed(self) -> None:
+        """Replaying unpushed work onto the remote — the guard's own remedy."""
+        self.unpushed()
+        self.assertEqual(run(f"git -C {self.repo} rebase origin/main"), ALLOW)
+
+    def test_rebase_of_main_from_another_branch_is_blocked(self) -> None:
+        """`git rebase <upstream> <branch>` names its victim explicitly."""
+        self.on_feature()
+        self.assertEqual(run(f"git -C {self.repo} rebase {self.base} main"), BLOCK)
+
+    def test_rebase_continue_is_allowed(self) -> None:
+        """Blocking mid-rebase strands the repo with no unblocked way out."""
+        for control in ("--continue", "--abort", "--skip"):
+            with self.subTest(control=control):
+                self.assertEqual(run(f"git -C {self.repo} rebase {control}"), ALLOW)
+
+    def test_pull_rebase_is_never_guarded(self) -> None:
+        """It replays onto the remote tip, so nothing published is in range."""
+        self.unpushed()
+        self.assertEqual(run(f"git -C {self.repo} pull --rebase"), ALLOW)
+
+    # --- git branch -f / -M ------------------------------------------------
+
+    def test_branch_force_move_of_main_is_blocked(self) -> None:
+        self.on_feature()
+        self.assertEqual(
+            run(f"git -C {self.repo} branch -f main {self.base}"), BLOCK
+        )
+
+    def test_branch_force_move_of_a_feature_branch_is_allowed(self) -> None:
+        """`main`-only is deliberate; other refs pass with no network call."""
+        git(self.repo, "branch", "feature-x")
+        self.assertEqual(
+            run(f"git -C {self.repo} branch -f feature-x {self.base}"), ALLOW
+        )
+
+    def test_branch_force_move_of_main_forward_is_allowed(self) -> None:
+        """Re-pointing `main` at something that still contains the remote tip."""
+        self.on_feature()
+        self.assertEqual(
+            run(f"git -C {self.repo} branch -f main origin/main"), ALLOW
+        )
+
+    def test_branch_rename_clobbering_main_is_blocked(self) -> None:
+        """`git branch -M <src> main` takes its destination last."""
+        git(self.repo, "branch", "scratch", self.base)
+        self.on_feature()
+        self.assertEqual(run(f"git -C {self.repo} branch -M scratch main"), BLOCK)
+
+    def test_branch_listing_is_allowed(self) -> None:
+        for args in ("--list", "-a", "--show-current", "-v"):
+            with self.subTest(args=args):
+                self.assertEqual(run(f"git -C {self.repo} branch {args}"), ALLOW)
+
+    # --- git checkout -B / git switch -C -----------------------------------
+
+    def test_checkout_force_create_over_main_is_blocked(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} checkout -B main {self.base}"), BLOCK
+        )
+
+    def test_switch_force_create_over_main_is_blocked(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} switch -C main {self.base}"), BLOCK
+        )
+
+    def test_checkout_force_create_of_another_branch_is_allowed(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} checkout -B scratch {self.base}"), ALLOW
+        )
+
+    def test_checkout_force_create_of_main_at_the_remote_tip_is_allowed(self) -> None:
+        """The CI idiom `git checkout -B main origin/main` drops nothing."""
+        self.assertEqual(
+            run(f"git -C {self.repo} checkout -B main origin/main"), ALLOW
+        )
+
+    def test_ordinary_checkout_is_allowed(self) -> None:
+        for args in ("main", "-b feature-x", "-- second.md", "--force main"):
+            with self.subTest(args=args):
+                self.assertEqual(run(f"git -C {self.repo} checkout {args}"), ALLOW)
+
+    # --- git update-ref ----------------------------------------------------
+
+    def test_update_ref_moving_main_backwards_is_blocked(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} update-ref refs/heads/main {self.base}"), BLOCK
+        )
+
+    def test_update_ref_on_another_ref_is_allowed(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} update-ref refs/heads/scratch {self.base}"),
+            ALLOW,
+        )
+
+    def test_update_ref_that_moves_nothing_is_allowed(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} update-ref refs/heads/main {self.second}"),
+            ALLOW,
+        )
+
+    # --- git filter-branch / git filter-repo --------------------------------
+
+    def test_filter_branch_on_main_is_blocked(self) -> None:
+        """No rev-list argument means HEAD, and HEAD is `main` here."""
+        self.assertEqual(
+            run(f"git -C {self.repo} filter-branch -f --msg-filter cat"), BLOCK
+        )
+
+    def test_filter_branch_over_all_refs_is_blocked(self) -> None:
+        self.on_feature()
+        self.assertEqual(
+            run(f"git -C {self.repo} filter-branch -f --msg-filter cat -- --all"),
+            BLOCK,
+        )
+
+    def test_filter_branch_on_another_branch_is_allowed(self) -> None:
+        self.on_feature()
+        self.assertEqual(
+            run(f"git -C {self.repo} filter-branch -f --msg-filter cat"), ALLOW
+        )
+
+    def test_filter_branch_naming_another_ref_is_allowed(self) -> None:
+        git(self.repo, "branch", "feature-x")
+        self.assertEqual(
+            run(
+                f"git -C {self.repo} filter-branch -f --msg-filter cat -- feature-x"
+            ),
+            ALLOW,
+        )
+
+    def test_filter_repo_is_blocked(self) -> None:
+        """It rewrites every ref by default, so what is checked out is moot."""
+        self.on_feature()
+        self.assertEqual(
+            run(f"git -C {self.repo} filter-repo --path second.md --invert-paths"),
+            BLOCK,
+        )
+
+    def test_filter_repo_with_nothing_published_is_allowed(self) -> None:
+        solo = self.tmp / "solo-filter"
+        solo.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main", str(solo)], capture_output=True, check=True
+        )
+        git(solo, "config", "user.email", "test@example.invalid")
+        git(solo, "config", "user.name", "Test Session")
+        commit(solo, "a.md", "a\n", "first")
+        self.assertEqual(run(f"git -C {solo} filter-repo --path a.md"), ALLOW)
+
+    # --- deleting the published branch outright -----------------------------
+
+    def test_push_delete_of_main_is_blocked(self) -> None:
+        self.assertEqual(
+            run(f"git -C {self.repo} push --delete origin main"), BLOCK
+        )
+
+    def test_push_colon_refspec_delete_of_main_is_blocked(self) -> None:
+        """`git push origin :main` is the same deletion, spelled older."""
+        self.assertEqual(run(f"git -C {self.repo} push origin :main"), BLOCK)
+
+    def test_push_delete_of_a_feature_branch_is_allowed(self) -> None:
+        """Deleting a merged PR branch is routine and must cost nothing."""
+        git(self.repo, "push", "origin", "main:feature-x")
+        self.assertEqual(
+            run(f"git -C {self.repo} push --delete origin feature-x"), ALLOW
+        )
+
+    def test_push_colon_refspec_delete_of_a_feature_branch_is_allowed(self) -> None:
+        git(self.repo, "push", "origin", "main:feature-x")
+        self.assertEqual(run(f"git -C {self.repo} push origin :feature-x"), ALLOW)
+
+    # --- posture, across the new entry points -------------------------------
+
+    def test_override_works_on_a_newly_covered_verb(self) -> None:
+        self.assertEqual(
+            run(f'REWRITE-MAIN-OK git -C {self.repo} commit --amend -m "x"'), ALLOW
+        )
+
+    def test_unreachable_remote_still_fails_closed_on_a_new_verb(self) -> None:
+        """The `_CANNOT_VERIFY` posture must extend with the coverage."""
+        git(self.repo, "remote", "set-url", "origin", str(self.tmp / "does-not-exist"))
+        self.on_feature()
+        self.assertEqual(
+            run(f"git -C {self.repo} branch -f main {self.base}"), BLOCK
+        )
+
+    def test_prose_quoting_a_newly_covered_verb_is_allowed(self) -> None:
+        """The guard still has to be able to document itself."""
+        command = (
+            f"git -C {self.repo} commit -F - <<'EOF'\n"
+            "Extend published-history guard past push and reset\n\n"
+            "Now also catches `git commit --amend`, `git rebase -i HEAD~3`,\n"
+            "`git branch -f main <sha>` and `git push --delete origin main`.\n"
+            "EOF"
+        )
+        self.assertEqual(run(command), ALLOW)
+
+    def test_caught_in_the_second_half_of_a_compound_command(self) -> None:
+        self.assertEqual(
+            run(
+                f"git -C {self.repo} status && git -C {self.repo} branch -f main {self.base}"
+            ),
+            BLOCK,
+        )
 
 
 if __name__ == "__main__":
