@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.10 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.11 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -57,6 +57,17 @@
 # the block instead of the string. There is now a second message, _MSG_PATH_WRITE,
 # selected per call; both keep the "ask the operator" tail. Anything the
 # selector cannot classify gets the READ message, i.e. the previous behaviour.
+# 2.11 (2026-08-09): SINGLE-QUOTED prose is literal. The 2.1 prose exemption
+# voids itself on any `$` or backtick, which is right for a double-quoted value
+# and wrong for a single-quoted one — neither expands, in POSIX shells or in
+# PowerShell. A Markdown PR body is mostly backticks, so `gh pr create --body
+# '... `~/.claude/settings.json` ...'` blocked as a credential read and the only
+# way through was `--body-file`, i.e. routing around the guard. Narrow by
+# construction: single quotes ONLY, and only when the value is not nested in a
+# double-quoted region — in `bash -c "... --body '$(cat ~/.env)'"` the outer
+# quotes substitute first, so that stays blocked (measured, all four nestings).
+# The same literalness test now gates PROSE_FLAG_CRED_VAR, since `--body
+# '$ANTHROPIC_API_KEY'` publishes the literal name, not the key.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -530,15 +541,66 @@ _PROSE_FLAG_VALUE = re.compile(
 )
 _EXPANDABLE = re.compile(r"[$`]")
 
+# 2026-08-09 false positive: a PR body written in Markdown is mostly backticks,
+# and limit 3 above voids the prose exemption on any `$` or backtick. So
+# `gh pr create --body '... `~/.claude/settings.json` ...'` was blocked as a
+# credential read, though a single-quoted value cannot read anything: in POSIX
+# shells AND in PowerShell, `$` and backtick inside '...' are literal. The
+# author's only route was `--body-file`, i.e. routing around the guard — the
+# failure mode posture.md names as the reason a guard must not block prose.
+#
+# The exemption is for SINGLE quotes only, and only when the value is not
+# itself sitting inside a double-quoted region. That second half is the whole
+# subtlety: in `bash -c "gh pr create --body '$(cat ~/.env)'"` the OUTER double
+# quotes expand before the inner single quotes are ever interpreted, so the
+# secret is substituted and the value is not literal at all. Measured: all
+# three nested shapes stay blocked because of this check.
+def _inside_double_quotes(text, index):
+    """True if `index` falls inside an unescaped double-quoted region."""
+    in_dq = False
+    i = 0
+    while i < index and i < len(text):
+        c = text[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == '"':
+            in_dq = not in_dq
+        i += 1
+    return in_dq
+
+
+def _is_literal_quoted(seg, start, value):
+    """True if `value` at `start` in `seg` cannot expand anything.
+
+    Conservative by construction: anything that is not a plainly single-quoted,
+    non-nested value falls through to the existing expandable check.
+    """
+    return value[:1] == "'" and not _inside_double_quotes(seg, start)
+
 # A credential-shaped var interpolated INTO a prose value publishes the secret
 # (a PR body is a public surface). CRED_VAR_READ only recognises the echo family
 # before a `$VAR`, so this shape was silently allowed before 2026-07-18; found
 # by the regression test written for the false positive above.
 PROSE_FLAG_CRED_VAR = re.compile(
-    r"(?:" + _PROSE_FLAG + r")\s*=?\s*['\"][^'\"]*"
+    r"(?:" + _PROSE_FLAG + r")\s*=?\s*(['\"])[^'\"]*"
     r"\$(?:\{)?(?:env:)?" + _CRED_VAR,
     re.IGNORECASE,
 )
+
+
+def _prose_flag_publishes_cred_var(seg):
+    """True if a message flag interpolates a credential var into its value.
+
+    A non-nested single-quoted value is skipped: it publishes the literal text
+    `$ANTHROPIC_API_KEY`, not the key. Same reasoning as `_is_literal_quoted`,
+    and the nested case still counts because the outer quotes expand first.
+    """
+    for m in PROSE_FLAG_CRED_VAR.finditer(seg):
+        if _is_literal_quoted(seg, m.start(), m.group(1)):
+            continue
+        return True
+    return False
 
 
 def _strip_prose_flag_values(seg):
@@ -547,7 +609,7 @@ def _strip_prose_flag_values(seg):
     itself, and leaves any value that could expand ($ / backtick), in place."""
     def _blank(m):
         value = m.group(1)
-        if _EXPANDABLE.search(value):
+        if not _is_literal_quoted(seg, m.start(), value) and _EXPANDABLE.search(value):
             return m.group(0)
         return m.group(0).replace(value, '""')
     return _PROSE_FLAG_VALUE.sub(_blank, seg)
@@ -1880,7 +1942,7 @@ def main():
                 block(_MSG_GIT)
             # Interpolating a credential var into a message flag publishes it.
             # Checked on the RAW segment, before prose values are blanked.
-            if PROSE_FLAG_CRED_VAR.search(seg):
+            if _prose_flag_publishes_cred_var(seg):
                 block(_MSG_VAR)
             # A prose flag's quoted value is a message, not a path position, so
             # the remaining checks run against the segment with those values

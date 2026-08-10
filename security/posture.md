@@ -203,6 +203,26 @@ honest lesson below.
    surely as a missed bypass does — a guard nobody can use gets routed
    around. Reverted in favor of requiring an actual read construct in the
    same segment, not just a filename appearing anywhere.
+
+   **Recurred 2026-08-09, and the prediction came true exactly.** The v2.1
+   prose exemption voids itself on any `$` or backtick in the value. That is
+   correct for a double-quoted value, where both substitute — and wrong for a
+   single-quoted one, where neither does, in POSIX shells or in PowerShell. A
+   Markdown PR body is mostly backticks, so `gh pr create --body '... \`~/.claude/settings.json\` ...'`
+   was refused as a credential read. Note what happened next, because it is the
+   whole point of this limit: the author did not stop and ask, the author
+   switched to `--body-file` and carried on. **A false positive is not a
+   nuisance, it is a training signal that teaches the workaround** — and here
+   the workaround (`--body-file`) is a flag that genuinely reads a file, i.e.
+   the guard pushed traffic from a shape it could analyse to one it must
+   default-deny.
+
+   Fixed in v2.11 by making the literalness test quote-aware rather than by
+   loosening the pattern: single quotes only, and only when the value is not
+   nested inside a double-quoted region — in `bash -c "... --body '$(cat ~/.env)'"`
+   the outer quotes expand first, so that stays blocked. Verified both ways
+   before shipping, per the discipline below: four nested shapes still block,
+   four literal shapes now pass, and the existing suite is unchanged.
 6. **Duplicated logic drifting out of sync.** A separate bootstrap path
    (for provisioning a fresh machine without an existing clone to read the
    canonical hook from) embeds its own copy of the same logic. A fix to the

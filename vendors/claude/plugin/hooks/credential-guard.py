@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.9 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.11 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -47,6 +47,27 @@
 # the model, which read it out of a block and used it. The override is unchanged
 # and still documented for humans in security/README.md; it is simply no longer
 # named in the agent-facing string. See "Block messages" below.
+# 2.10 (2026-08-09): WORDING ONLY — no verdict anywhere changes. The path-based
+# default-deny emitted one message, phrased entirely as a read ("Same exposure
+# as `cat`-ing it"), for writes as well: a `Write`/`Edit` at ~/.ssh/id_rsa, and
+# a write-only cmdlet reaching the unknown-command deny (`Set-Content ~/.env`).
+# Blocking those is deliberate and unchanged — clobbering the operator's live
+# secret is as bad an outcome as printing it — but describing a write as a read
+# makes a correct block look like a guard bug, which points the next session at
+# the block instead of the string. There is now a second message, _MSG_PATH_WRITE,
+# selected per call; both keep the "ask the operator" tail. Anything the
+# selector cannot classify gets the READ message, i.e. the previous behaviour.
+# 2.11 (2026-08-09): SINGLE-QUOTED prose is literal. The 2.1 prose exemption
+# voids itself on any `$` or backtick, which is right for a double-quoted value
+# and wrong for a single-quoted one — neither expands, in POSIX shells or in
+# PowerShell. A Markdown PR body is mostly backticks, so `gh pr create --body
+# '... `~/.claude/settings.json` ...'` blocked as a credential read and the only
+# way through was `--body-file`, i.e. routing around the guard. Narrow by
+# construction: single quotes ONLY, and only when the value is not nested in a
+# double-quoted region — in `bash -c "... --body '$(cat ~/.env)'"` the outer
+# quotes substitute first, so that stays blocked (measured, all four nestings).
+# The same literalness test now gates PROSE_FLAG_CRED_VAR, since `--body
+# '$ANTHROPIC_API_KEY'` publishes the literal name, not the key.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -520,15 +541,66 @@ _PROSE_FLAG_VALUE = re.compile(
 )
 _EXPANDABLE = re.compile(r"[$`]")
 
+# 2026-08-09 false positive: a PR body written in Markdown is mostly backticks,
+# and limit 3 above voids the prose exemption on any `$` or backtick. So
+# `gh pr create --body '... `~/.claude/settings.json` ...'` was blocked as a
+# credential read, though a single-quoted value cannot read anything: in POSIX
+# shells AND in PowerShell, `$` and backtick inside '...' are literal. The
+# author's only route was `--body-file`, i.e. routing around the guard — the
+# failure mode posture.md names as the reason a guard must not block prose.
+#
+# The exemption is for SINGLE quotes only, and only when the value is not
+# itself sitting inside a double-quoted region. That second half is the whole
+# subtlety: in `bash -c "gh pr create --body '$(cat ~/.env)'"` the OUTER double
+# quotes expand before the inner single quotes are ever interpreted, so the
+# secret is substituted and the value is not literal at all. Measured: all
+# three nested shapes stay blocked because of this check.
+def _inside_double_quotes(text, index):
+    """True if `index` falls inside an unescaped double-quoted region."""
+    in_dq = False
+    i = 0
+    while i < index and i < len(text):
+        c = text[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == '"':
+            in_dq = not in_dq
+        i += 1
+    return in_dq
+
+
+def _is_literal_quoted(seg, start, value):
+    """True if `value` at `start` in `seg` cannot expand anything.
+
+    Conservative by construction: anything that is not a plainly single-quoted,
+    non-nested value falls through to the existing expandable check.
+    """
+    return value[:1] == "'" and not _inside_double_quotes(seg, start)
+
 # A credential-shaped var interpolated INTO a prose value publishes the secret
 # (a PR body is a public surface). CRED_VAR_READ only recognises the echo family
 # before a `$VAR`, so this shape was silently allowed before 2026-07-18; found
 # by the regression test written for the false positive above.
 PROSE_FLAG_CRED_VAR = re.compile(
-    r"(?:" + _PROSE_FLAG + r")\s*=?\s*['\"][^'\"]*"
+    r"(?:" + _PROSE_FLAG + r")\s*=?\s*(['\"])[^'\"]*"
     r"\$(?:\{)?(?:env:)?" + _CRED_VAR,
     re.IGNORECASE,
 )
+
+
+def _prose_flag_publishes_cred_var(seg):
+    """True if a message flag interpolates a credential var into its value.
+
+    A non-nested single-quoted value is skipped: it publishes the literal text
+    `$ANTHROPIC_API_KEY`, not the key. Same reasoning as `_is_literal_quoted`,
+    and the nested case still counts because the outer quotes expand first.
+    """
+    for m in PROSE_FLAG_CRED_VAR.finditer(seg):
+        if _is_literal_quoted(seg, m.start(), m.group(1)):
+            continue
+        return True
+    return False
 
 
 def _strip_prose_flag_values(seg):
@@ -537,7 +609,7 @@ def _strip_prose_flag_values(seg):
     itself, and leaves any value that could expand ($ / backtick), in place."""
     def _blank(m):
         value = m.group(1)
-        if _EXPANDABLE.search(value):
+        if not _is_literal_quoted(seg, m.start(), value) and _EXPANDABLE.search(value):
             return m.group(0)
         return m.group(0).replace(value, '""')
     return _PROSE_FLAG_VALUE.sub(_blank, seg)
@@ -567,6 +639,20 @@ SAFE_COMMANDS = {
     "test-path", "get-item", "get-childitem", "resolve-path", "split-path",
     "remove-item", "new-item", "move-item", "copy-item", "rename-item",
     "get-location", "set-location", "get-acl",
+}
+
+# Commands that MODIFY a named file and print none of its prior content. They
+# are NOT in SAFE_COMMANDS and must never be moved there: they are unknown to
+# _reads_sensitive_path, so they default-deny, and that is the intended verdict
+# (clobbering a credential store is the outcome the default-deny exists for).
+# This set decides WORDING ONLY — which of _MSG_PATH / _MSG_PATH_WRITE the
+# block carries. A wrong entry therefore mis-describes a block; it can never
+# create or remove one. test_write_only_commands_still_block pins both halves
+# so a stale entry fails the suite rather than the next audit
+# (conventions/allowlists-fail-both-ways.md).
+_WRITE_ONLY_COMMANDS = {
+    "set-content", "add-content", "clear-content", "out-file",
+    "set-itemproperty", "new-itemproperty", "clear-itemproperty",
 }
 
 # grep-family: a read (prints matched lines) UNLESS in an existence/count mode,
@@ -1620,6 +1706,23 @@ _MSG_PATH = (
     "(ls / stat / Test-Path) or grep in files_with_matches / count mode.\n"
     + _OVERRIDE_LINE
 )
+# The same default-deny, worded for the other direction. _MSG_PATH used to be
+# emitted for both, so a `Write` at ~/.ssh/id_rsa came back described as a read
+# ("same exposure as `cat`-ing it") — which is not what happened, and reads as a
+# guard bug rather than a ruling. An agent that believes the message is wrong
+# goes looking for the wrong fix. Blocking the write is deliberate: the
+# tool-shape default-deny below has always covered writes, because clobbering
+# the operator's live secret is as bad an outcome as printing it.
+_MSG_PATH_WRITE = (
+    "CREDENTIAL GUARD (v2, path-based default-deny): this WRITES TO or MODIFIES\n"
+    "a known credential-store target (Claude config / .env / SSH or other\n"
+    "private keys / cloud, registry, or infra credential files). Nothing is\n"
+    "printed, so this is not a leak — it is blocked as a CLOBBER: it replaces or\n"
+    "destroys the operator's live secret, and the guard cannot tell a repair\n"
+    "from a destruction. To inspect the file without changing it, use a metadata\n"
+    "command (ls / stat / Test-Path).\n"
+    + _OVERRIDE_LINE
+)
 _MSG_ENV = (
     "CREDENTIAL GUARD: this dumps the environment (env / printenv / set /\n"
     "declare -p / Get-ChildItem Env:). Every credential-shaped var (*_TOKEN,\n"
@@ -1713,6 +1816,34 @@ def _field_targets_sensitive(obj, key_is_pathy=False):
             for k, v in obj.items()
         )
     return False
+
+
+# A tool call that carries a NEW value for its target is modifying it, whatever
+# the tool is called. Keyed on the PAYLOAD first and the tool name only as a
+# fallback, for the same reason _field_targets_sensitive is keyed on field names
+# rather than a {Read, Grep} pair: an unhooked write tool should still be
+# described correctly (the 2026-07-04 tool-shape gap's own lesson).
+_WRITE_CONTENT_FIELD = re.compile(
+    r"^(content|contents|text|file_text|new_str|new_string|new_source|"
+    r"replacement|edits)$", re.IGNORECASE
+)
+# Names that modify by construction even with no body in the payload (a delete,
+# a rename, a touch). Secondary to the field check, never primary.
+_WRITE_TOOL_NAME = re.compile(
+    r"write|edit|create|update|replace|delete|remove|rename|move", re.IGNORECASE
+)
+
+
+def _is_write_shaped(tool_name, tool_input):
+    """True if this tool call MODIFIES its path target rather than reading it.
+
+    Wording only — BOTH branches block, so this function cannot change a
+    verdict. When neither signal fires it returns False and the caller emits the
+    read message, which is the pre-2026-08-09 behaviour for every tool: a call
+    this cannot classify is described exactly as it was before."""
+    if any(_WRITE_CONTENT_FIELD.match(str(k)) for k in tool_input):
+        return True
+    return bool(_WRITE_TOOL_NAME.search(str(tool_name or "")))
 
 
 def _allow(payload):
@@ -1811,7 +1942,7 @@ def main():
                 block(_MSG_GIT)
             # Interpolating a credential var into a message flag publishes it.
             # Checked on the RAW segment, before prose values are blanked.
-            if PROSE_FLAG_CRED_VAR.search(seg):
+            if _prose_flag_publishes_cred_var(seg):
                 block(_MSG_VAR)
             # A prose flag's quoted value is a message, not a path position, so
             # the remaining checks run against the segment with those values
@@ -1862,7 +1993,13 @@ def main():
             if _copy_launders_credential(resolved):
                 block(_MSG_COPY)
             if _reads_sensitive_path(resolved):
-                block(_MSG_PATH)
+                # Same verdict either way; only the wording is chosen here. A
+                # write-only cmdlet reaches this line through the unknown-
+                # command default-deny, which is correct as a BLOCK and wrong
+                # as the word "reads".
+                block(_MSG_PATH_WRITE
+                      if _leading_command(resolved) in _WRITE_ONLY_COMMANDS
+                      else _MSG_PATH)
         _allow(data)
 
     # Glob returns paths, not content — it can confirm a file exists (the safe
@@ -1877,7 +2014,8 @@ def main():
     # printing it; the human-runs-credentials protocol covers legitimate cases,
     # with Bash + MASK-OK as the escape hatch).
     if _field_targets_sensitive(tool_input):
-        block(_MSG_PATH)
+        block(_MSG_PATH_WRITE if _is_write_shaped(tool_name, tool_input)
+              else _MSG_PATH)
     _allow(data)
 
 
