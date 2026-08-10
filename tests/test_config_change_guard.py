@@ -13,7 +13,7 @@ change, are separate facts that a unit test cannot reach; both are unmeasured an
 recorded as such in `hooks/README.md`. A green suite here means "the guard would
 refuse the right things if it ran", not "the guard is enforcing anything".
 
-Three groups:
+Groups:
 
   - **Blocked.** A watched scope whose resulting file has lost a guard, or has
     `disableAllHooks` set.
@@ -24,6 +24,13 @@ Three groups:
     as allowed on purpose.
   - **Fail-open.** Every error path must exit 0 and say why on stderr, because
     silence is indistinguishable from "the hook never fired".
+  - **v1.1 escalations.** The shapes v1.0's substring check reported as an
+    intact chain while the config had no protection left: `bypassPermissions`,
+    an unrestricted-shell allow rule, a traffic-redirecting `env` key, and the
+    three ways to keep a guard's *name* while stopping it from firing (moved to
+    a non-blocking event, given an empty matcher, repointed at
+    `<guard>-disabled.py`). Each is paired with the near-miss benign shape it
+    must NOT flag, because that pairing is what keeps the guard usable.
 
 Stdlib only (no pytest) so CI is a bare `python -m unittest`. Verdict shape: the
 guard always exits 0 and signals a block with `{"decision": "block"}` on stdout
@@ -162,7 +169,14 @@ class TestAllowedShapes(GuardTestCase):
         self.assertFalse(blocked(out))
 
     def test_spelling_is_not_load_bearing(self):
-        """Matched as substrings, so an absolute path or `uv run` still counts."""
+        """Interpreter and directory are free; the `<guard>.py` filename is not.
+
+        v1.1 tightened this from "the guard's name appears somewhere in the
+        serialized hooks blob" to "a command under the expected event references
+        the exact `<guard>.py` filename". How the script is *invoked* is still
+        nobody's business — `uv run`, `python3`, a bare `py`, an absolute path, a
+        `~`-relative one — so all four spellings below must stay allowed.
+        """
         body = {
             "hooks": {
                 "PreToolUse": [
@@ -253,6 +267,222 @@ class TestFailsOpen(GuardTestCase):
     def test_empty_stdin(self):
         out, err = run(None, raw="")
         self._assert_fail_open(out, err)
+
+
+def realistic_wiring(**extra):
+    """The live wiring's *shape*: several PreToolUse entries, varied matchers.
+
+    `settings_with()` gives every guard its own `*`-matched entry, which is a
+    fine baseline but not what a real settings.json looks like. The false-block
+    regression that matters is against the real shape — guards grouped under
+    narrow matchers (`Workflow`, `Bash|PowerShell`) alongside a `*` one, plus a
+    matcher-less `ConfigChange` entry. Kept structural, with no machine-specific
+    paths, so it stays valid in a public repo.
+    """
+    h = '$HOME/.claude/hooks'
+    body = {
+        "hooks": {
+            "PreToolUse": [
+                {"matcher": "Workflow", "hooks": [
+                    {"type": "command", "command": 'python3 "%s/fanout-guard.py"' % h}]},
+                {"matcher": "Bash|PowerShell", "hooks": [
+                    {"type": "command", "command": 'python3 "%s/git-staging-guard.py"' % h},
+                    {"type": "command",
+                     "command": 'python3 "%s/published-history-guard.py"' % h}]},
+                {"matcher": "*", "hooks": [
+                    {"type": "command", "command": 'python3 "%s/credential-guard.py"' % h}]},
+            ],
+            "ConfigChange": [
+                {"hooks": [{"type": "command",
+                            "command": 'python3 "%s/config-change-guard.py"' % h}]}],
+        },
+        "permissions": {
+            "defaultMode": "auto",
+            "allow": ["Bash(git status:*)", "Bash(gh pr:*)", "Read", "Grep", "Glob"],
+        },
+    }
+    body.update(extra)
+    return body
+
+
+class TestRealWiringIsAllowed(GuardTestCase):
+    """The regression that costs the most if it breaks: a false block.
+
+    A wrong block here bricks the config, and the repair is itself a config
+    change this guard blocks again. So the real wiring shape is pinned as
+    allowed, separately from the synthetic baseline.
+    """
+
+    def test_realistic_wiring_allowed(self):
+        path = self.write_settings(realistic_wiring())
+        out, err = self.check(path)
+        self.assertFalse(blocked(out), "false block on the real wiring shape: %s" % err)
+
+    def test_bare_tool_names_that_are_not_shells_are_fine(self):
+        """`Read`/`Grep`/`Glob`/`Agent` as bare allow entries are normal."""
+        s = realistic_wiring()
+        s["permissions"]["allow"].extend(["Agent", "Workflow", "WebFetch"])
+        out, _ = self.check(self.write_settings(s))
+        self.assertFalse(blocked(out))
+
+
+class TestPermissionLayer(GuardTestCase):
+    """v1.1 check 1 and 2 — v1.0 never read `permissions` at all.
+
+    Each of these leaves all four guard names present and correctly wired, so
+    v1.0 passed them while the config had no protection left.
+    """
+
+    def test_bypass_permissions_blocked(self):
+        s = realistic_wiring()
+        s["permissions"]["defaultMode"] = "bypassPermissions"
+        out, err = self.check(self.write_settings(s))
+        self.assertTrue(blocked(out))
+        self.assertIn("bypassPermissions", out)
+        self.assertIn("bypassPermissions", err)
+
+    def test_ordinary_modes_allowed(self):
+        """plan/acceptEdits/default/auto are user preferences, not tampering."""
+        for mode in ("default", "auto", "plan", "acceptEdits"):
+            with self.subTest(mode=mode):
+                s = realistic_wiring()
+                s["permissions"]["defaultMode"] = mode
+                out, _ = self.check(self.write_settings(s))
+                self.assertFalse(blocked(out))
+
+    def test_unrestricted_shell_rules_blocked(self):
+        for rule in ("Bash", "Bash(*)", "Bash(:*)", "Bash(*:*)", "Bash()",
+                     "PowerShell(*)", "Shell(:*)", "  Bash( * )  "):
+            with self.subTest(rule=rule):
+                s = realistic_wiring()
+                s["permissions"]["allow"].append(rule)
+                out, _ = self.check(self.write_settings(s))
+                self.assertTrue(blocked(out), "%r should be refused" % rule)
+
+    def test_prefixed_shell_rules_not_flagged(self):
+        """The usability half: narrowing these is /doctor's job, not a tripwire.
+
+        A guard that fires on ordinary allowlist maintenance gets routed around
+        within a week, so every one of these must stay silent.
+        """
+        for rule in ("Bash(git status)", "Bash(gh pr view *)", "Bash(uv run:*)",
+                     "Bash(npm test)", "PowerShell(Get-ChildItem:*)",
+                     "mcp__kb-agent__search_kb", "Bash(rm -rf:*)"):
+            with self.subTest(rule=rule):
+                s = realistic_wiring()
+                s["permissions"]["allow"].append(rule)
+                out, err = self.check(self.write_settings(s))
+                self.assertFalse(blocked(out), "false block on %r: %s" % (rule, err))
+
+    def test_permissions_absent_or_malformed_is_not_a_block(self):
+        """Fail-open discipline: a missing/odd `permissions` key is not tamper."""
+        for value in (None, [], "auto", 3):
+            with self.subTest(value=value):
+                s = realistic_wiring()
+                if value is None:
+                    s.pop("permissions")
+                else:
+                    s["permissions"] = value
+                out, _ = self.check(self.write_settings(s))
+                self.assertFalse(blocked(out))
+
+
+class TestAmbientEnvInjection(GuardTestCase):
+    """v1.1 check 3 — an `env` block per se is normal; these keys are not."""
+
+    def test_traffic_redirect_and_ambient_credentials_blocked(self):
+        for key in ("ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+                    "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+            with self.subTest(key=key):
+                s = realistic_wiring(env={key: "x"})
+                out, _ = self.check(self.write_settings(s))
+                self.assertTrue(blocked(out))
+                self.assertIn(key, out)
+
+    def test_key_match_is_case_insensitive(self):
+        s = realistic_wiring(env={"anthropic_base_url": "http://elsewhere"})
+        out, _ = self.check(self.write_settings(s))
+        self.assertTrue(blocked(out))
+
+    def test_benign_env_allowed(self):
+        s = realistic_wiring(env={"EDITOR": "vim", "TZ": "UTC",
+                                  "CLAUDE_CODE_ENABLE_TELEMETRY": "0"})
+        out, err = self.check(self.write_settings(s))
+        self.assertFalse(blocked(out), "false block on a benign env block: %s" % err)
+
+
+class TestStructuralGuardCheck(GuardTestCase):
+    """v1.1 check 4 — the three ways to keep a guard's NAME but stop it firing.
+
+    Every case here passed v1.0's substring test, which asked only whether the
+    string `credential-guard` appeared anywhere in the serialized hooks blob.
+    """
+
+    def test_guard_moved_to_a_non_blocking_event(self):
+        """PostToolUse runs *after* the tool call, so it cannot refuse anything."""
+        s = realistic_wiring()
+        moved = s["hooks"]["PreToolUse"].pop()          # the credential-guard entry
+        s["hooks"]["PostToolUse"] = [moved]
+        out, _ = self.check(self.write_settings(s))
+        self.assertTrue(blocked(out))
+        self.assertIn("credential-guard", out)
+
+    def test_guard_neutered_with_an_empty_matcher(self):
+        s = realistic_wiring()
+        s["hooks"]["PreToolUse"][-1]["matcher"] = ""
+        out, _ = self.check(self.write_settings(s))
+        self.assertTrue(blocked(out))
+        self.assertIn("credential-guard", out)
+
+    def test_guard_repointed_at_a_disabled_copy(self):
+        """`credential-guard-disabled.py` *contains* `credential-guard`.
+
+        This is the case that most cleanly separates v1.1 from v1.0: the
+        substring check matches the decoy filename, the filename check does not.
+        """
+        s = realistic_wiring()
+        s["hooks"]["PreToolUse"][-1]["hooks"][0]["command"] = (
+            'python3 "$HOME/.claude/hooks/credential-guard-disabled.py"')
+        out, _ = self.check(self.write_settings(s))
+        self.assertTrue(blocked(out))
+        self.assertIn("credential-guard", out)
+
+    def test_absent_matcher_means_all_tools_and_is_allowed(self):
+        """No `matcher` key at all is Claude Code's "every tool" — not neutering.
+
+        Only an explicitly empty matcher is the neutering shape. Getting this
+        backwards would false-block the matcher-less entries the live file uses.
+        """
+        s = realistic_wiring()
+        s["hooks"]["PreToolUse"][-1].pop("matcher")
+        out, err = self.check(self.write_settings(s))
+        self.assertFalse(blocked(out), "false block on a matcher-less entry: %s" % err)
+
+    def test_guards_may_share_one_entry(self):
+        """Grouping all four under a single matcher is valid wiring."""
+        h = '$HOME/.claude/hooks'
+        s = {"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+            {"type": "command", "command": 'python3 "%s/%s.py"' % (h, g)}
+            for g in ALL_GUARDS]}]}}
+        out, _ = self.check(self.write_settings(s))
+        self.assertFalse(blocked(out))
+
+    def test_malformed_hook_entries_do_not_crash_the_guard(self):
+        """Junk in the hooks tree must fail toward a verdict, never a traceback.
+
+        A traceback is a non-zero exit, which the harness reports as a hook
+        *error* rather than a verdict — a different thing entirely, and the one
+        outcome `run()` refuses to accept.
+        """
+        s = realistic_wiring()
+        s["hooks"]["PreToolUse"].extend([None, "junk", {"hooks": None},
+                                         {"hooks": ["junk"]}, {"matcher": 7}])
+        out, _ = self.check(self.write_settings(s))
+        self.assertFalse(blocked(out))
+
+    def test_hooks_is_not_a_dict(self):
+        out, _ = self.check(self.write_settings({"hooks": []}))
+        self.assertTrue(blocked(out))
 
 
 if __name__ == "__main__":
