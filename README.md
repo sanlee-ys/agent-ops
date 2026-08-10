@@ -4,6 +4,13 @@ Field notes on running an agentic coding CLI as a real teammate on a real
 machine, with real credentials sitting nearby — written by one engineer,
 for one machine, published because the failure modes don't stay put.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/operating-layer-hero-dark.svg">
+  <img src="images/operating-layer-hero-light.svg"
+       alt="Instrument-panel diagram of the agent-ops operating layer: human-set DCB (Direction, Contracts, Bar); fleet seats Claude (control plane), Codex, Cursor, Antigravity, and Grok Build (guard-wired only); a mechanical-guard fence (credential-guard, git-staging-guard, published-history-guard, fanout-guard on PreToolUse; config-change-guard on ConfigChange; redline-guard at pre-commit); supporting rails for incidents, skills, conventions, and decisions. Telltale observes only."
+       title="agent-ops operating layer">
+</picture>
+
 ## Why this exists
 
 Agentic CLIs like Claude Code don't just edit files anymore. They run shell

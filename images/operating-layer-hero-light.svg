@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">agent-ops operating layer</title>
+  <desc id="desc">
+    Instrument-panel diagram of the agent operating layer: human-set DCB
+    (Direction, Contracts, Bar) above a multi-vendor fleet (Claude control plane,
+    Codex second opinion, Cursor IDE lane, Antigravity research/overflow, Grok
+    guard-wired only), bounded by mechanical PreToolUse and ConfigChange guards,
+    with incidents, skills, conventions, and decisions as supporting rails.
+    Telltale observes but never routes.
+  </desc>
+  <defs>
+    <style>
+      .bg { fill: #eef1f4; }
+      .panel { fill: #f7f9fb; stroke: #c5ced6; stroke-width: 1; }
+      .inset { fill: #ffffff; stroke: #d0d8e0; stroke-width: 1; }
+      .rule { stroke: #c5ced6; stroke-width: 1; fill: none; }
+      .accent { stroke: #2f7f78; stroke-width: 1.25; fill: none; }
+      .accent-fill { fill: #2f7f78; }
+      .amber { fill: #9a7818; }
+      .amber-stroke { stroke: #9a7818; stroke-width: 1; fill: none; }
+      .seat { fill: #ffffff; stroke: #b8c2cc; stroke-width: 1; }
+      .seat-ctrl { fill: #eef7f6; stroke: #2f7f78; stroke-width: 1.25; }
+      .seat-wire { fill: #f4f6f8; stroke: #9aa7b2; stroke-width: 1; stroke-dasharray: 3 2; }
+      .fence { fill: #f0f3f6; stroke: #aeb8c2; stroke-width: 1; }
+      .guard { fill: #ffffff; stroke: #a8b4be; stroke-width: 1; }
+      .rail { fill: #ffffff; stroke: #c5ced6; stroke-width: 1; }
+      .t { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #1c242c; }
+      .t-dim { fill: #5c6b78; }
+      .t-accent { fill: #2f7f78; }
+      .t-amber { fill: #8a6c14; }
+      .t-sm { font-size: 10px; }
+      .t-xs { font-size: 9px; }
+      .t-md { font-size: 11px; }
+      .t-lg { font-size: 13px; letter-spacing: 0.08em; }
+      .t-xl { font-size: 12px; letter-spacing: 0.14em; }
+      .tick { stroke: #aeb8c2; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <!-- chassis -->
+  <rect class="bg" width="960" height="520" rx="6"/>
+  <rect class="panel" x="16" y="16" width="928" height="488" rx="4"/>
+
+  <!-- corner ticks -->
+  <path class="accent" d="M28 36 H44 M28 36 V52"/>
+  <path class="accent" d="M932 36 H916 M932 36 V52"/>
+  <path class="accent" d="M28 484 H44 M28 484 V468"/>
+  <path class="accent" d="M932 484 H916 M932 484 V468"/>
+
+  <!-- header -->
+  <text class="t t-xl t-accent" x="40" y="48">AGENT-OPS</text>
+  <text class="t t-sm t-dim" x="140" y="48">OPERATING LAYER</text>
+  <line class="rule" x1="280" y1="44" x2="700" y2="44"/>
+  <circle class="amber" cx="724" cy="42" r="3.5"/>
+  <text class="t t-xs t-amber" x="736" y="46">TELLTALE · OBSERVES ONLY</text>
+
+  <!-- band 1: DCB -->
+  <rect class="inset" x="36" y="64" width="888" height="56" rx="3"/>
+  <text class="t t-xs t-dim" x="48" y="82">HUMAN SETS</text>
+  <text class="t t-lg t-accent" x="48" y="104">DCB</text>
+  <g transform="translate(120,78)">
+    <rect class="seat" x="0" y="0" width="180" height="28" rx="2"/>
+    <text class="t t-sm" x="12" y="18">DIRECTION</text>
+    <text class="t t-xs t-dim" x="100" y="18">what / done</text>
+  </g>
+  <g transform="translate(312,78)">
+    <rect class="seat" x="0" y="0" width="200" height="28" rx="2"/>
+    <text class="t t-sm" x="12" y="18">CONTRACTS</text>
+    <text class="t t-xs t-dim" x="108" y="18">checkable rules</text>
+  </g>
+  <g transform="translate(524,78)">
+    <rect class="seat" x="0" y="0" width="220" height="28" rx="2"/>
+    <text class="t t-sm" x="12" y="18">BAR</text>
+    <text class="t t-xs t-dim" x="52" y="18">verify against the repo</text>
+  </g>
+  <text class="t t-xs t-dim" x="760" y="96">model does the typing</text>
+
+  <!-- band 2: fleet seats -->
+  <text class="t t-xs t-dim" x="40" y="146">FLEET SEATS</text>
+  <text class="t t-xs t-dim" x="120" y="146">harness · surface · model family are separate axes</text>
+
+  <!-- Claude -->
+  <g transform="translate(36,156)">
+    <rect class="seat-ctrl" width="168" height="88" rx="3"/>
+    <text class="t t-xs t-accent" x="12" y="18">CONTROL PLANE</text>
+    <text class="t t-md" x="12" y="40">Claude</text>
+    <text class="t t-xs t-dim" x="12" y="58">implement · integrate</text>
+    <text class="t t-xs t-dim" x="12" y="74">primary lane</text>
+  </g>
+  <!-- Codex -->
+  <g transform="translate(216,156)">
+    <rect class="seat" width="168" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="12" y="18">SPECIALIST</text>
+    <text class="t t-md" x="12" y="40">Codex</text>
+    <text class="t t-xs t-dim" x="12" y="58">challenge · review</text>
+    <text class="t t-xs t-dim" x="12" y="74">diagnosis when stuck</text>
+  </g>
+  <!-- Cursor -->
+  <g transform="translate(396,156)">
+    <rect class="seat" width="168" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="12" y="18">SPECIALIST</text>
+    <text class="t t-md" x="12" y="40">Cursor</text>
+    <text class="t t-xs t-dim" x="12" y="58">IDE · edit-test loops</text>
+    <text class="t t-xs t-dim" x="12" y="74">bounded UI work</text>
+  </g>
+  <!-- Antigravity -->
+  <g transform="translate(576,156)">
+    <rect class="seat" width="168" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="12" y="18">SPECIALIST</text>
+    <text class="t t-md" x="12" y="40">Antigravity</text>
+    <text class="t t-xs t-dim" x="12" y="58">research · overflow</text>
+    <text class="t t-xs t-dim" x="12" y="74">Gemini family (AGY)</text>
+  </g>
+  <!-- Grok -->
+  <g transform="translate(756,156)">
+    <rect class="seat-wire" width="168" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="12" y="18">WIRED · NOT ROUTED</text>
+    <text class="t t-md" x="12" y="40">Grok Build</text>
+    <text class="t t-xs t-dim" x="12" y="58">guard obligation only</text>
+    <text class="t t-xs t-dim" x="12" y="74">not a fleet lane</text>
+  </g>
+
+  <!-- down-flow ticks into fence -->
+  <g class="tick">
+    <line x1="120" y1="244" x2="120" y2="262"/>
+    <line x1="300" y1="244" x2="300" y2="262"/>
+    <line x1="480" y1="244" x2="480" y2="262"/>
+    <line x1="660" y1="244" x2="660" y2="262"/>
+    <line x1="840" y1="244" x2="840" y2="262"/>
+  </g>
+
+  <!-- band 3: guard fence -->
+  <rect class="fence" x="36" y="262" width="888" height="118" rx="3"/>
+  <path class="accent" d="M36 274 H924"/>
+  <text class="t t-xs t-accent" x="48" y="288">MECHANICAL GUARDS</text>
+  <text class="t t-xs t-dim" x="180" y="288">fence at tool time · policy is fleet-wide · wiring is per vendor</text>
+
+  <!-- PreToolUse row -->
+  <text class="t t-xs t-amber" x="48" y="312">PreToolUse</text>
+  <g transform="translate(120,298)">
+    <rect class="guard" width="178" height="32" rx="2"/>
+    <text class="t t-xs" x="10" y="20">credential-guard</text>
+  </g>
+  <g transform="translate(306,298)">
+    <rect class="guard" width="178" height="32" rx="2"/>
+    <text class="t t-xs" x="10" y="20">git-staging-guard</text>
+  </g>
+  <g transform="translate(492,298)">
+    <rect class="guard" width="198" height="32" rx="2"/>
+    <text class="t t-xs" x="10" y="20">published-history-guard</text>
+  </g>
+  <g transform="translate(698,298)">
+    <rect class="guard" width="158" height="32" rx="2"/>
+    <text class="t t-xs" x="10" y="20">fanout-guard</text>
+  </g>
+
+  <!-- ConfigChange row -->
+  <text class="t t-xs t-amber" x="48" y="356">ConfigChange</text>
+  <g transform="translate(120,342)">
+    <rect class="guard" width="200" height="32" rx="2"/>
+    <text class="t t-xs" x="10" y="20">config-change-guard</text>
+  </g>
+  <text class="t t-xs t-dim" x="336" y="362">+ redline-guard at pre-commit (publication boundary)</text>
+
+  <!-- band 4: rails -->
+  <text class="t t-xs t-dim" x="40" y="406">SUPPORTING RAILS</text>
+  <g transform="translate(36,416)">
+    <rect class="rail" width="210" height="52" rx="2"/>
+    <text class="t t-sm" x="12" y="22">incidents/</text>
+    <text class="t t-xs t-dim" x="12" y="40">blameless postmortems</text>
+  </g>
+  <g transform="translate(258,416)">
+    <rect class="rail" width="210" height="52" rx="2"/>
+    <text class="t t-sm" x="12" y="22">skills</text>
+    <text class="t t-xs t-dim" x="12" y="40">dcb · park · handoff · …</text>
+  </g>
+  <g transform="translate(480,416)">
+    <rect class="rail" width="210" height="52" rx="2"/>
+    <text class="t t-sm" x="12" y="22">conventions/</text>
+    <text class="t t-xs t-dim" x="12" y="40">working agreements</text>
+  </g>
+  <g transform="translate(702,416)">
+    <rect class="rail" width="222" height="52" rx="2"/>
+    <text class="t t-sm" x="12" y="22">decisions/</text>
+    <text class="t t-xs t-dim" x="12" y="40">ADRs · fleet routing</text>
+  </g>
+
+  <!-- footer strip -->
+  <line class="rule" x1="36" y1="484" x2="924" y2="484"/>
+  <text class="t t-xs t-dim" x="40" y="498">every vendor reads and writes · guard wiring is the bound · not lane shape</text>
+  <text class="t t-xs t-dim" x="700" y="498">vendors/ · hooks/ · security/</text>
+</svg>
