@@ -62,40 +62,59 @@ Exit codes are the interface: 0 clean, 1 drift (rebuild and commit), 2
 operator/config error (dirty watched path before the build, broken build
 command, missing config). Test suite: `tests/test_generated_drift.py`.
 
-## settings-toggle.py — two settings keys, and no way to reach a third
+## settings-toggle.py — two settings, and no way to reach a third
 
-Flipping a skill's visibility or disabling an MCP server is routine and
-reversible. Doing it without a permission prompt is not: the only grant that
-permits it is write access to `settings.json` as a *file*, and that same grant
-admits `permissions`, `env` and `hooks` — including switching
-`bypassPermissions` back on. Guard wiring is the whole of the control
+Turning a skill off or disabling an MCP server is routine and reversible. Doing
+it without a permission prompt is not: the only grant that permits it is write
+access to `settings.json` as a *file*, and that same grant admits `permissions`,
+`env` and `hooks` — including switching `bypassPermissions` back on. Guard
+wiring is the whole of the control
 ([ADR-012](../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)),
 the guards are wired *by* `hooks`, and what may run at all is decided *by*
 `permissions`. So a convenience grant shaped to allow the toggle also allows
 turning the guards off. The gap is path-shaped; the fix is a program narrow
 enough to allowlist by name.
 
-It owns exactly two keys — `skillOverrides` and `disabledMcpServers` — and
-passes everything else through untouched:
+It performs exactly two operations, and the harness does not keep them in one
+place — so neither does the program:
+
+| Operation | Key it writes | File |
+|---|---|---|
+| `--skill NAME --off` / `--on` | `skillOverrides` | `~/.claude/settings.json` |
+| `--mcp-server NAME --disable` / `--enable` | `projects[P].disabledMcpServers` | `~/.claude.json` |
 
 ```
-uv run python scripts/settings-toggle.py --settings PATH show
-uv run python scripts/settings-toggle.py --settings PATH set skillOverrides some-skill off
-uv run python scripts/settings-toggle.py --settings PATH unset skillOverrides some-skill
+uv run python scripts/settings-toggle.py --settings PATH --skill some-skill --off
+uv run python scripts/settings-toggle.py --settings PATH --skill some-skill --on
+uv run python scripts/settings-toggle.py --settings PATH --mcp-server some-server --disable --project DIR
+uv run python scripts/settings-toggle.py --settings PATH --mcp-server some-server --enable --project DIR
+uv run python scripts/settings-toggle.py --settings PATH --show [--project DIR]
 ```
 
-`--dry-run` prints the result instead of writing it. Exit codes are the
+`--project` defaults to the current directory and must already exist in the
+document — the harness creates a project's entry the first time it runs there,
+and inventing one produces a key that looks right and disables nothing.
+`--dry-run` prints the one-line diff and writes nothing. Exit codes are the
 interface: 0 applied (or already in that state), 1 refused, 2 usage error.
 
 Verify it actually refuses — the same decoy discipline the redline guard's
 entry demands, because "the code looks right" is not the bar:
 
 ```
-uv run python scripts/settings-toggle.py --settings PATH set permissions allow "Bash(rm:*)"
+uv run python scripts/settings-toggle.py --settings PATH --permissions "Bash(rm:*)"
 ```
 
-Expect exit 2 and `invalid choice`, with the two owned keys named. Then confirm
-the convenience half still works with a `--dry-run set skillOverrides`.
+Expect exit 2: there is no such flag, and no flag that takes a key name at all.
+Then confirm the convenience half still works, which is the "now what?" for the
+check above:
+
+```
+uv run python scripts/settings-toggle.py --settings PATH --dry-run --skill some-skill --off
+```
+
+Expect exit 0 and two lines — `--- would change PATH` and the single key's
+before/after. If you get more than that, or anything from `env` or `mcpServers`,
+that is a bug worth reporting: see "It never prints the file" below.
 
 ### `--settings` is required, and that is the security property
 
@@ -133,59 +152,102 @@ sees what the command string says, so any default resolved after the check is
 outside the control.** Applies to every guard in `hooks/` and to any future
 tool that takes a path.
 
-Three design points worth keeping:
+Five design points worth keeping:
 
-- **The narrowness is structural, not configured.** One mutation primitive
-  (`_replace_owned`) shallow-copies the parsed document and assigns a single
-  key, checked against `OWNED_KEYS` first. Every other key is carried across by
-  reference and never traversed, so an unowned key cannot change even in
-  principle. There is deliberately no `set <any-key> <value>` verb — the
-  argument parser restricts the key to two literals and the primitive refuses
-  again underneath it, so loosening the CLI alone does not widen the hole.
+- **The narrowness is structural, not configured.** Which key is writable is
+  decided by the *operation*, not by the caller: `--skill` owns
+  `skillOverrides` and `--mcp-server` owns `projects`, and neither can reach
+  the other's. One mutation primitive (`_replace_owned`) shallow-copies the
+  parsed document and assigns a single key, checked against the operation's
+  owned tuple first. Every other key is carried across by reference and never
+  traversed, so an unowned key cannot change even in principle. There is no
+  verb that takes a key name, a key path, or a blob of JSON — so there is no
+  input at all that can name `permissions`, and loosening the CLI alone does
+  not widen the hole.
+- **The nested write is as narrow as the flat one.** `projects` is nearly all
+  of `~/.claude.json` — every project's MCP servers, allowed tools and prompt
+  history. So the program shallow-copies the `projects` map, then the *one*
+  addressed entry, then assigns `disabledMcpServers` on that copy, and asserts
+  afterwards that no sibling project and no other key inside the entry moved.
 - **The guarantee is asserted, not just argued.** Before writing, the program
   re-derives the diff between the document as parsed and the document about to
-  be serialized, and refuses if any key outside `OWNED_KEYS` differs. That is
-  what the test suite can watch fail; a design argument is not.
-- **It refuses rather than guesses.** Invalid JSON, a non-object document, a
-  duplicate key (which `json.loads` would silently resolve by dropping one), a
-  wrongly-typed owned key, or an unrecognised override value all abort with
-  nothing written. Writes are atomic — temp file beside the destination, then
-  `os.replace` — and a UTF-8 BOM or CRLF endings are detected and reproduced,
-  so a file last touched by PowerShell 5.1 does not come back as a whole-file
-  diff.
+  be serialized, and refuses if anything outside the owned path differs. That
+  is what the test suite can watch fail; a design argument is not.
+- **Names are untrusted, and JSON is never built by concatenation.** A skill or
+  server name comes from whoever composed the command line, which in an agent
+  session is not necessarily a person. The document is parsed, an object is
+  mutated, and `json.dump` re-serializes it, so a crafted name cannot break out
+  of its string — and it is *still* refused unless it matches
+  `[A-Za-z0-9 _.-]{1,128}`. **Known gap:** that charset excludes `:` and `/`,
+  so a plugin-scoped skill (`plugin:skill`) cannot be named. Widening a
+  security-relevant validation is an operator decision, left open deliberately.
+- **It refuses rather than guesses, and keeps the original.** Invalid JSON, a
+  non-object document, a duplicate key (which `json.loads` would silently
+  resolve by dropping one), a wrongly-typed owned key, a non-string in the
+  server list, or an unknown project all abort with nothing written. Writes are
+  atomic — temp file beside the destination, then `os.replace` — and preceded
+  by a copy of the untouched original to `<name>.bak-<UTC timestamp>`. A UTF-8
+  BOM, CRLF endings and the existing indentation (including a compact
+  single-line `~/.claude.json`) are detected and reproduced, so a routine
+  toggle does not come back as a whole-file diff.
+
+### It never prints the file
+
+`~/.claude.json` holds `mcpServers` blocks with API keys in their `headers`,
+OAuth account details, and the full prompt history of every project;
+`settings.json` holds `env`. And stdout here is read by the *agent* that ran the
+command. So the program prints only the specific key it is changing — a
+one-line before/after for a skill, a `+ "name"` delta for a server — and never
+the document, not even under `--dry-run`, and not even in a refusal (an unknown
+`--project` reports a count of known entries, never their paths). A helper that
+dumps the file to stdout would defeat the guard it exists to work alongside.
+`TestNothingLeaks` is the regression cover.
+
+The backup's name is load-bearing for the same reason. The credential guard's
+sensitive-file pattern is suffix-tolerant and already recognises
+`settings.json.bak-20260806`, so `<name>.bak-<stamp>` inherits the same
+protection as its original. A differently-named copy would be an unguarded
+plaintext duplicate of a credential-bearing file sitting right beside it — the
+laundering shape closed in the guard by PR #74.
 
 Test suite: `tests/test_settings_toggle.py`, organised around the claim about
 what the program *cannot* do rather than around its features.
 
-### The `disabledMcpServers` half does not work, and cannot be pointed at a file where it would
+### The `disabledMcpServers` half used to be inert; 2.0 moved it to where the harness looks
 
-Measured against the published docs on 2026-08-09, closing the caveat this
-section used to leave open. **Writing `disabledMcpServers` into a
-`settings.json` has no effect on any MCP server.** The key is real, but the
-harness reads it only from `~/.claude.json`, and the
+Kept as a record, because the failure shape is more instructive than the fix.
+Version 1.0 owned `disabledMcpServers` as a **flat top-level key of
+`settings.json`**. Measured against the published docs on 2026-08-09: the key is
+real, but the harness reads it only from `~/.claude.json`, and the
 [settings reference](https://code.claude.com/docs/en/settings) does not list it
-as a `settings.json` key at all. So the toggle applies cleanly, the file
-validates, and nothing is disabled — a silent no-op, which is the failure shape
+as a `settings.json` key at all. So the toggle applied cleanly, the file
+validated, the command reported success — and nothing was disabled. A silent
+no-op, which is exactly the failure shape
 [`conventions/agent-success-signals.md`](../conventions/agent-success-signals.md)
 is about.
 
-Pointing `--settings` at `~/.claude.json` does **not** rescue it. Per the
+Pointing `--settings` at `~/.claude.json` did not rescue it either. Per the
 [MCP reference](https://code.claude.com/docs/en/mcp#managing-your-servers), the
-harness records that choice **per project** — nested under the project's own
-entry — whereas this program writes a flat top-level array. A top-level
-`disabledMcpServers` is not where the harness looks for any project, so the
-"whichever JSON object it is pointed at" escape hatch has no target that works.
-The same page states the key is unrelated to `disabledMcpjsonServers` /
-`enabledMcpjsonServers`, the `settings.json` keys that approve or reject
-servers declared in a project's `.mcp.json`; those two are **not** owned here,
-and widening a security boundary is not something to do in passing.
+harness records that choice **per project**, nested under the project's own
+entry, whereas 1.0 wrote a flat top-level array. So the fix was never a flag: it
+was moving the owned key, one level down and into a different file — and the
+owned key *is* the security boundary, so it waited for a reviewed decision
+rather than being taken as a doc fix.
 
-Net: of the two owned keys, only `skillOverrides` actually takes effect against
-`settings.json`. The `disabledMcpServers` verbs are left in place rather than
-removed — removing them is a change to `OWNED_KEYS`, which is the security
-boundary and a reviewed decision, not a doc fix. Until that decision is taken,
-**disable an MCP server with the `/mcp` panel**, which writes the per-project
-list the harness actually reads.
+2.0 takes that decision. `--mcp-server` now owns `projects` in `~/.claude.json`
+and writes `projects[P].disabledMcpServers`, with the nested trespass assertion
+described above standing in for the narrowness that a flat single-key write got
+for free. Two things did **not** change: `disabledMcpjsonServers` /
+`enabledMcpjsonServers` — the unrelated `settings.json` keys that approve or
+reject servers declared in a project's `.mcp.json` — are still **not** owned;
+and `--skill` still cannot touch `projects`, nor `--mcp-server` touch
+`skillOverrides`.
+
+The generalizable bit, and the reason this section survives its own fix: **a
+config write that lands in a valid-but-unread location fails green.** The file
+parses, the diff looks right, the exit code is 0, and the setting does nothing.
+Neither a test asserting the file was written nor a reviewer reading the diff
+would catch it — only checking where the *consumer* reads from does.
 
 ## redline-guard.py — the publication boundary, enforced
 
