@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-# hook-version: 1.1 (2026-08-04) — cursor-agent compatibility: BOM-tolerant
+# hook-version: 1.2 (2026-08-09) — the invariant check is no longer reachable
+# from only `push` and `reset`. An audit found six other ways to drop a
+# published commit from `main` (amend, rebase, branch -f/-M, checkout -B /
+# switch -C, update-ref, filter-branch/filter-repo, and a remote-branch
+# delete), every one of them uninspected. Rather than add six verb-specific
+# checks — the move ADR-007 exists to reject — every guarded verb is now
+# *normalised* into one `Rewrite` record and a single invariant check decides.
+# See "ONE INVARIANT, MANY SPELLINGS" below.
+# 1.1 (2026-08-04) — cursor-agent compatibility: BOM-tolerant
 # stdin (its Windows PowerShell wrapper prepends a UTF-8 BOM that made
 # json.load raise, failing the guard open), its shell tool's name "Shell"
 # accepted alongside Bash/PowerShell, and an explicit allow verdict on stdout
@@ -35,15 +43,45 @@ in the command string. It is in the repository. No prefix rule and no classifier
 reading the command can reach it, which is why this guard is stateful: it asks
 git, at the moment of the call.
 
-WHAT IS BLOCKED. Two shapes, one invariant (`main` only — see below):
+ONE INVARIANT, MANY SPELLINGS. v1.0 dispatched on two subcommands, `push` and
+`reset`, and that was the shape ADR-007 warned against: a verb list is a list of
+the ways somebody already thought of. `git commit --amend` on a pushed commit is
+an ordinary slip, and it walked straight through. So did `git rebase -i HEAD~3`,
+`git branch -f main <sha>`, `git checkout -B main <sha>`,
+`git update-ref refs/heads/main <sha>`, `git filter-branch`, and
+`git push --delete origin main`.
 
-  1. A **history-rewriting push** (`--force`, `-f`, `--force-with-lease[=...]`,
-     `--force-if-includes`, a `+refspec`, or `--mirror`) that would drop commits
-     the remote currently has.
-  2. A **backward `git reset`** whose discarded range contains commits that are
-     already published. This is the earlier and cheaper catch: it fires before
-     the session builds anything on a doomed base. In the incident it would have
-     fired 49 seconds before the destructive push.
+The fix is structural, not additive. Every one of those commands does the same
+thing to the repository:
+
+    `main`'s tip moves from OLD to NEW, and any commit reachable from OLD but
+    not from NEW leaves the branch.
+
+So each verb now has one job — *translate its own syntax into that sentence* —
+and returns a `Rewrite(old, new, ...)`. Reading the syntax is unavoidably
+per-verb; only git knows that `-M` takes its destination last. But the
+**decision** is made exactly once, in `_check_rewrite`, and it is verb-blind: it
+asks the repository which of the departing commits the remote already has. Add a
+seventh spelling tomorrow and it writes an extractor, not a check.
+
+A deletion (`push --delete`, `push origin :main`) and a whole-history rewrite
+(`filter-branch`, `rebase --root`) are the same sentence with `NEW = nothing`.
+
+WHAT IS NOT GUARDED, AND WHY. Three deliberate omissions, so the next reader
+does not mistake them for gaps:
+
+  - **`git pull --rebase`.** It replays your work *onto* the remote tip, so a
+    published commit is never in the discarded range. It is also this guard's
+    own recommended remedy; blocking it would leave no way out.
+  - **`git rebase --continue|--abort|--skip`.** The rewrite was already decided
+    at the `git rebase` that started it, which is where the check fires.
+    Blocking mid-rebase strands the repo with no non-blocked escape.
+  - **Local-only deletions** (`git branch -D main`, `git update-ref -d`). They
+    drop a local ref; the remote still holds every commit, so the invariant —
+    *published* commits don't get dropped — is not violated. `git push --delete`
+    is the one that is, and it is guarded.
+  - **`git update-ref --stdin`.** The refs arrive on stdin, which a PreToolUse
+    hook cannot see. Recorded as a real residual hole rather than papered over.
 
 GROUND TRUTH IS `ls-remote`, NOT THE TRACKING REF. The tracking ref is what
 defeated `--force-with-lease` here, so the guard never consults it. It asks the
@@ -57,12 +95,34 @@ The exposure this exists for is the direct-to-main repo, where there is no PR
 gate and every session pushes to the one shared ref. Non-`main` refs pass
 silently.
 
+CHEAP BY CONSTRUCTION. This runs on *every* Bash/PowerShell call, so the
+expensive path has to stay rare. Three filters in ascending cost, and a command
+that fails any of them never reaches the next:
+
+  1. **String only, no subprocess.** Is this segment a git call, and does the
+     verb carry the flag that makes it a rewrite at all? `git commit -m ...`,
+     `git push`, `git branch --list` and `git checkout -b x` stop here, having
+     cost nothing.
+  2. **Local git, no network.** Is `main` the ref being moved, and does anything
+     actually leave it? A fast-forward or a no-op stops here.
+  3. **The network.** `ls-remote`, and a single `fetch` if the remote tip is not
+     already local. Only a positively identified, genuinely destructive `main`
+     rewrite gets this far.
+
 FAIL OPEN, WITH ONE STATED EXCEPTION. Unparseable payload, no git binary, not a
 repo, an unrecognised command — every one of those exits 0. A hook must not
 break unrelated work. The exception: when the guard has positively identified a
 rewrite of `main` but *cannot verify* what it would destroy (no network, no
 auth, a ref that will not resolve), it blocks. Failing open there would reopen
 the exact hole it was written to close, and the override is one token away.
+
+One case that looks like that exception and is not: a remote *named* but not
+configured. That is not an unanswered question — it is the answer. Nothing in
+the repo has ever been published, so nothing can be dropped, and it exits 0. A
+configured-but-unreachable `origin` still fails closed. The distinction matters
+now that `commit --amend` is guarded: without it, amending on `main` in any
+`git init` scratch repo would block, and a guard that fires on scratch repos is
+one that gets switched off.
 
 OVERRIDE. Prefix the command with `REWRITE-MAIN-OK` when dropping published
 commits is genuinely the intent — San's de-identification squash of `career` on
@@ -102,6 +162,38 @@ _FORCE_FLAGS = {"--force", "-f", "--force-if-includes", "--mirror"}
 
 # Flags that take a separate value, so the next token is not a positional.
 _PUSH_VALUE_FLAGS = {"--repo", "-o", "--push-option", "--exec", "--receive-pack"}
+
+# Same idea for rebase. `-S`/`--gpg-sign` is deliberately absent: its value is
+# optional and attached in practice (`-Skeyid`), so treating the next token as
+# its value would swallow the upstream and fail the guard open.
+_REBASE_VALUE_FLAGS = {
+    "--onto",
+    "-x",
+    "--exec",
+    "-s",
+    "--strategy",
+    "-X",
+    "--strategy-option",
+}
+
+# Sub-commands of an *in-progress* rebase. The decision was already made at the
+# `git rebase` that started it; blocking these only strands the repo.
+_REBASE_CONTROL = {
+    "--continue",
+    "--abort",
+    "--skip",
+    "--quit",
+    "--edit-todo",
+    "--show-current-patch",
+}
+
+# `-M` and `-C` are `--move`/`--copy` with `--force` folded in.
+_BRANCH_FORCE_FLAGS = {"-f", "--force", "-M", "-C"}
+_BRANCH_MOVE_FLAGS = {"-m", "--move", "-M", "-c", "--copy", "-C"}
+
+# `git checkout -B` / `git switch -C` force-create, which clobbers an existing
+# branch. Lowercase `-b`/`-c` fail when the branch exists, so they cannot.
+_FORCE_CREATE_FLAGS = {"-B", "-C", "--force-create"}
 
 
 def _strip_prose(command: str) -> str:
@@ -192,6 +284,18 @@ def _is_ancestor(repo: str | None, older: str, newer: str) -> bool | None:
     return None
 
 
+def _resolve(repo: str | None, rev: str) -> str | None:
+    """The commit sha for ``rev``, or None if it will not resolve."""
+    return git(repo, "rev-parse", "--verify", f"{rev}^{{commit}}")
+
+
+def _rev_list(repo: str | None, *args: str) -> list[str] | None:
+    out = git(repo, "rev-list", *args)
+    if out is None:
+        return None
+    return out.splitlines()
+
+
 def _remote_head(repo: str | None, remote: str, branch: str) -> str | None:
     """The remote's actual tip for ``branch``, straight from the remote.
 
@@ -228,41 +332,33 @@ def _describe(repo: str | None, rev_range: str, limit: int = MAX_LISTED) -> list
     return out.splitlines() if out else []
 
 
+def _describe_shas(repo: str | None, shas: list[str]) -> list[str]:
+    """One-line summaries for an explicit commit set, newest-first order kept."""
+    if not shas:
+        return []
+    out = git(repo, "log", "--no-walk", "--format=%h %an  %s", *shas[:MAX_LISTED])
+    return out.splitlines() if out else []
+
+
 def _current_branch(repo: str | None) -> str | None:
     return git(repo, "rev-parse", "--abbrev-ref", "HEAD")
 
 
-def _push_target(args: list[str]) -> tuple[str, str | None, bool]:
-    """(remote, branch_or_None, rewrites) parsed from `git push` arguments."""
-    rewrites = False
-    positionals: list[str] = []
-    skip_next = False
-    for arg in args:
-        if skip_next:
-            skip_next = False
-            continue
-        if arg in _PUSH_VALUE_FLAGS:
-            skip_next = True
-            continue
-        if arg in _FORCE_FLAGS or arg.startswith("--force-with-lease"):
-            rewrites = True
-            continue
-        if arg.startswith("-"):
-            continue
-        positionals.append(arg)
+def _looks_like_remote_name(remote: str) -> bool:
+    """True for `origin`, false for a URL or a filesystem path.
 
-    remote = positionals[0] if positionals else "origin"
-    branch: str | None = None
-    if len(positionals) > 1:
-        refspec = positionals[1]
-        if refspec.startswith("+"):
-            rewrites = True
-            refspec = refspec[1:]
-        # src:dst — the remote-side name is what matters.
-        branch = refspec.split(":")[-1] if refspec else None
-        if branch:
-            branch = branch.rsplit("/", 1)[-1] if branch.startswith("refs/") else branch
-    return remote, branch, rewrites
+    A URL or path is pushable without being configured, so it must never take
+    the "not configured, therefore nothing is published" short-circuit.
+    """
+    return bool(remote) and not any(c in remote for c in ":/\\.")
+
+
+def _short_ref(ref: str) -> str:
+    if ref.startswith("refs/heads/"):
+        return ref[len("refs/heads/") :]
+    if ref.startswith("refs/"):
+        return ref.rsplit("/", 1)[-1]
+    return ref
 
 
 class Verdict:
@@ -272,127 +368,503 @@ class Verdict:
         self.message = message
 
 
-def _check_push(repo: str | None, args: list[str]) -> Verdict | None:
-    remote, branch, rewrites = _push_target(args)
-    if not rewrites:
+# `old` is the remote's tip, which only the network knows. Used by the push
+# checks, where the ref being overwritten lives on the far side.
+REMOTE_TIP = object()
+
+
+class Rewrite:
+    """What a command would do to `main`, said in one sentence.
+
+    ``old`` is the tip being abandoned (a rev expression, or ``REMOTE_TIP``);
+    ``new`` is the proposed tip, or ``None`` when nothing of the old branch
+    survives. Everything downstream of this record is verb-blind.
+    """
+
+    def __init__(
+        self,
+        action: str,
+        old: object,
+        new: str | None,
+        template: str,
+        remedy: str = "",
+        remote: str = "origin",
+        target: str = "",
+    ) -> None:
+        self.action = action
+        self.old = old
+        self.new = new
+        self.template = template
+        self.remedy = remedy
+        self.remote = remote
+        self.target = target
+
+
+# --------------------------------------------------------------------------
+# Intent extraction. One function per verb, and each has exactly one job:
+# translate this verb's syntax into a `Rewrite`. No verdicts are reached here,
+# and every one of them bails on string evidence alone before spending a
+# subprocess.
+# --------------------------------------------------------------------------
+
+
+def _push_target(args: list[str]) -> tuple[str, list[tuple[str, str]], bool, bool]:
+    """(remote, [(src, dst)], rewrites, deletes) parsed from `git push` args."""
+    rewrites = False
+    deletes = False
+    positionals: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in _PUSH_VALUE_FLAGS:
+            skip_next = True
+            continue
+        if arg in {"--delete", "-d"}:
+            deletes = True
+            continue
+        if arg in _FORCE_FLAGS or arg.startswith("--force-with-lease"):
+            rewrites = True
+            continue
+        if arg.startswith("-"):
+            continue
+        positionals.append(arg)
+
+    remote = positionals[0] if positionals else "origin"
+    specs: list[tuple[str, str]] = []
+    for raw in positionals[1:]:
+        spec = raw
+        if spec.startswith("+"):
+            rewrites = True
+            spec = spec[1:]
+        if ":" in spec:
+            src, dst = spec.split(":", 1)
+            if src == "":
+                deletes = True  # `git push origin :main` is a delete
+        else:
+            src = dst = spec
+        specs.append((src, _short_ref(dst)))
+    return remote, specs, rewrites, deletes
+
+
+def _rewrite_from_push(repo: str | None, args: list[str]) -> Rewrite | None:
+    remote, specs, rewrites, deletes = _push_target(args)
+    if not (rewrites or deletes):
         return None  # a plain push cannot destroy remote history; git refuses it
 
-    if branch is None:
-        branch = _current_branch(repo)
-    if branch != PROTECTED_BRANCH:
-        return None  # feature branches are one session's own lane
-
-    remote_sha = _remote_head(repo, remote, branch)
-    if remote_sha is None:
-        return Verdict(
-            _CANNOT_VERIFY.format(
-                action=f"force-push to {remote}/{branch}",
-                reason=f"`git ls-remote {remote}` did not answer",
-                override=OVERRIDE,
-            )
-        )
-    if remote_sha == "":
-        return None  # branch does not exist on the remote; nothing to destroy
-
-    local = git(repo, "rev-parse", "HEAD")
-    if local is None:
-        return None  # not a usable repo; stay out of the way
-
-    if not _ensure_local(repo, remote, branch, remote_sha):
-        return Verdict(
-            _CANNOT_VERIFY.format(
-                action=f"force-push to {remote}/{branch}",
-                reason=f"the remote tip {remote_sha[:9]} could not be fetched for inspection",
-                override=OVERRIDE,
-            )
-        )
-
-    ancestor = _is_ancestor(repo, remote_sha, local)
-    if ancestor is True:
-        return None  # fast-forward; --force is redundant but harmless
-    if ancestor is None:
-        return Verdict(
-            _CANNOT_VERIFY.format(
-                action=f"force-push to {remote}/{branch}",
-                reason="the local/remote relationship could not be determined",
-                override=OVERRIDE,
-            )
-        )
-
-    dropped = _describe(repo, f"{local}..{remote_sha}")
-    return Verdict(
-        _PUSH_BLOCK.format(
+    if deletes:
+        targets = [dst for _, dst in specs]
+        if not targets:
+            return None  # `git push --delete` with no ref is a git error
+        if PROTECTED_BRANCH not in targets:
+            return None  # deleting a feature branch is routine cleanup
+        return Rewrite(
+            action=f"deletion of {remote}/{PROTECTED_BRANCH}",
+            old=REMOTE_TIP,
+            new=None,
+            template=_DELETE_BLOCK,
             remote=remote,
-            branch=branch,
-            count=len(dropped),
-            plural="" if len(dropped) == 1 else "s",
-            listing="\n".join(f"    {line}" for line in dropped) or "    (unreadable)",
-            override=OVERRIDE,
         )
+
+    if "--mirror" in args:
+        # `--mirror` pushes every local ref regardless of what is checked out,
+        # so the local `main` is the proposed tip no matter where HEAD is.
+        source = f"refs/heads/{PROTECTED_BRANCH}"
+    elif specs:
+        matching = [src for src, dst in specs if dst == PROTECTED_BRANCH]
+        if not matching:
+            return None  # feature branches are one session's own lane
+        source = matching[0] or "HEAD"
+    else:
+        if _current_branch(repo) != PROTECTED_BRANCH:
+            return None
+        source = "HEAD"
+
+    return Rewrite(
+        action=f"force-push to {remote}/{PROTECTED_BRANCH}",
+        old=REMOTE_TIP,
+        new=source,
+        template=_PUSH_BLOCK,
+        remote=remote,
     )
 
 
-def _check_reset(repo: str | None, args: list[str]) -> Verdict | None:
-    targets = [a for a in args if not a.startswith("-")]
+def _rewrite_from_reset(repo: str | None, args: list[str]) -> Rewrite | None:
     if "--" in args:  # `git reset -- <paths>` is a pathspec unstage, not a move
         return None
+    targets = [a for a in args if not a.startswith("-")]
     if not targets:
         return None  # bare `git reset` unstages; it does not move the branch
 
-    branch = _current_branch(repo)
+    if _current_branch(repo) != PROTECTED_BRANCH:
+        return None
+
+    return Rewrite(
+        action=f"reset of {PROTECTED_BRANCH} back to {targets[0]}",
+        old="HEAD",
+        new=targets[0],
+        template=_RESET_BLOCK,
+        target=targets[0],
+    )
+
+
+def _rewrite_from_commit(repo: str | None, args: list[str]) -> Rewrite | None:
+    """`git commit --amend` replaces the tip — a rewrite whenever it is pushed.
+
+    This is the ordinary-accident case the verb list missed: amending is a
+    reflex, and on a direct-to-main repo the tip is usually already published.
+    """
+    if "--amend" not in args:
+        return None
+    if _current_branch(repo) != PROTECTED_BRANCH:
+        return None
+    # The parent survives the amend; the current tip does not. A root commit
+    # has no parent, so nothing survives.
+    parent = _resolve(repo, "HEAD~1")
+    return Rewrite(
+        action="`git commit --amend` on the tip of `main`",
+        old="HEAD",
+        new=parent,
+        template=_REWRITE_BLOCK,
+        remedy=(
+            "Amending replaces a commit the remote already has. Land the change as a\n"
+            "new commit instead - it is the same content, and nobody's clone breaks:\n"
+            "    git -C <repo> commit -m '<what changed>'"
+        ),
+    )
+
+
+def _rewrite_from_rebase(repo: str | None, args: list[str]) -> Rewrite | None:
+    """A rebase replays `<upstream>..HEAD`, so those commits leave the branch.
+
+    `git pull --rebase` is not this verb and is never guarded: it replays onto
+    the remote tip, so nothing published is in the range. It is also the remedy
+    this guard recommends.
+    """
+    if any(a in _REBASE_CONTROL for a in args):
+        return None  # an in-progress rebase; the decision was made earlier
+
+    positionals: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in _REBASE_VALUE_FLAGS:
+            skip_next = True
+            continue
+        if arg.startswith("-"):
+            continue
+        positionals.append(arg)
+
+    # `git rebase [--onto <newbase>] [<upstream> [<branch>]]` — `--onto`'s value
+    # is consumed above, so the positionals line up either way.
+    branch = positionals[1] if len(positionals) > 1 else _current_branch(repo)
     if branch != PROTECTED_BRANCH:
         return None
 
-    target = targets[0]
-    head = git(repo, "rev-parse", "HEAD")
-    if head is None or git(repo, "rev-parse", "--verify", f"{target}^{{commit}}") is None:
-        return None  # cannot resolve; not this hook's business to guess
+    old = positionals[1] if len(positionals) > 1 else "HEAD"
+    if "--root" in args:
+        upstream = None  # every commit on the branch is replayed
+    elif positionals:
+        upstream = positionals[0]
+    else:
+        upstream = "@{upstream}"  # bare `git rebase`; git errors if unset
 
-    out = git(repo, "rev-list", f"{target}..HEAD")
-    if not out:
-        return None  # nothing leaves the branch
+    return Rewrite(
+        action="`git rebase` of `main`",
+        old=old,
+        new=upstream,
+        template=_REWRITE_BLOCK,
+        remedy=(
+            "A rebase gives every replayed commit a new sha, so the published ones stop\n"
+            "existing. Replay only your *unpushed* work instead:\n"
+            "    git -C <repo> pull --rebase        # onto the remote tip, rewrites nothing published\n"
+            "    git -C <repo> log --oneline -5     # confirm both sides survived"
+        ),
+    )
 
-    dropping = out.splitlines()
 
-    remote_sha = _remote_head(repo, "origin", branch)
-    if remote_sha is None:
-        return Verdict(
-            _CANNOT_VERIFY.format(
-                action=f"reset of {branch} back to {target}",
-                reason="`git ls-remote origin` did not answer",
-                override=OVERRIDE,
-            )
-        )
-    if remote_sha == "":
+def _rewrite_from_branch(repo: str | None, args: list[str]) -> Rewrite | None:
+    """`git branch -f main <sha>` / `git branch -M <src> main` move the ref.
+
+    Neither requires `main` to be checked out, which is why the current-branch
+    test the other verbs use does not apply here — the branch is named.
+    """
+    flags = {a for a in args if a.startswith("-")}
+    if not (flags & _BRANCH_FORCE_FLAGS):
+        return None  # `--list`, `-a`, `--show-current`, plain create: harmless
+    positionals = [a for a in args if not a.startswith("-")]
+    if not positionals:
         return None
 
-    if not _ensure_local(repo, "origin", branch, remote_sha):
-        return Verdict(
-            _CANNOT_VERIFY.format(
-                action=f"reset of {branch} back to {target}",
-                reason=f"the remote tip {remote_sha[:9]} could not be fetched for inspection",
-                override=OVERRIDE,
-            )
+    if flags & _BRANCH_MOVE_FLAGS:
+        # `git branch -M [<oldname>] <newname>` — the destination is last, and
+        # it is the ref that gets clobbered.
+        dest = positionals[-1]
+        source = positionals[-2] if len(positionals) > 1 else "HEAD"
+    else:
+        # `git branch -f <name> [<start-point>]`
+        dest = positionals[0]
+        source = positionals[1] if len(positionals) > 1 else "HEAD"
+
+    if _short_ref(dest) != PROTECTED_BRANCH:
+        return None
+
+    return Rewrite(
+        action=f"`git branch` overwrite of `{PROTECTED_BRANCH}`",
+        old=f"refs/heads/{PROTECTED_BRANCH}",
+        new=source,
+        template=_REWRITE_BLOCK,
+        remedy=_MOVE_REF_REMEDY,
+    )
+
+
+def _rewrite_from_force_create(repo: str | None, args: list[str]) -> Rewrite | None:
+    """`git checkout -B main <sha>` / `git switch -C main <sha>`.
+
+    Same move as `git branch -f`, spelled by the command people actually reach
+    for. Lowercase `-b`/`-c` refuse to clobber an existing branch, so they are
+    not a rewrite and are not matched.
+    """
+    for i, arg in enumerate(args):
+        if arg not in _FORCE_CREATE_FLAGS or i + 1 >= len(args):
+            continue
+        dest = args[i + 1]
+        if _short_ref(dest) != PROTECTED_BRANCH:
+            return None
+        source = "HEAD"
+        if i + 2 < len(args) and not args[i + 2].startswith("-"):
+            source = args[i + 2]
+        return Rewrite(
+            action=f"force-create of `{PROTECTED_BRANCH}`",
+            old=f"refs/heads/{PROTECTED_BRANCH}",
+            new=source,
+            template=_REWRITE_BLOCK,
+            remedy=_MOVE_REF_REMEDY,
+        )
+    return None
+
+
+def _rewrite_from_update_ref(repo: str | None, args: list[str]) -> Rewrite | None:
+    """`git update-ref refs/heads/main <sha>` — the ref move with no safety net.
+
+    `--stdin` is not covered: the refs arrive on a stream a PreToolUse hook
+    cannot read. `-d` is not covered either — deleting the *local* ref loses
+    nothing the remote still has.
+    """
+    if "--stdin" in args:
+        return None
+    positionals: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == "-m":
+            skip_next = True
+            continue
+        if arg.startswith("-"):
+            continue
+        positionals.append(arg)
+
+    if len(positionals) < 2:
+        return None  # a delete, or malformed; either way no new tip is proposed
+    if positionals[0] not in {PROTECTED_BRANCH, f"refs/heads/{PROTECTED_BRANCH}"}:
+        return None
+
+    return Rewrite(
+        action=f"`git update-ref` of `{PROTECTED_BRANCH}`",
+        old=f"refs/heads/{PROTECTED_BRANCH}",
+        new=positionals[1],
+        template=_REWRITE_BLOCK,
+        remedy=_MOVE_REF_REMEDY,
+    )
+
+
+def _whole_history_rewrite() -> Rewrite:
+    """Nothing of the old branch survives, so `new` is None and the invariant
+    check compares the old tip against the remote directly."""
+    return Rewrite(
+        action=f"whole-history rewrite of `{PROTECTED_BRANCH}`",
+        old=f"refs/heads/{PROTECTED_BRANCH}",
+        new=None,
+        template=_REWRITE_BLOCK,
+        remedy=(
+            "A whole-history rewrite cannot avoid dropping the published commits - that\n"
+            "is what it is for. Make sure every clone on every machine is idle and can be\n"
+            "re-cloned afterwards, then re-run with the override."
+        ),
+    )
+
+
+def _rewrite_from_filter_branch(repo: str | None, args: list[str]) -> Rewrite | None:
+    """`git filter-branch [<filter opts>] [-- <rev-list options>]`.
+
+    The rev-list portion after `--` names what gets rewritten; with none, it is
+    HEAD, which only matters when HEAD is `main`.
+    """
+    revs = args[args.index("--") + 1 :] if "--" in args else []
+    named = [r for r in revs if not r.startswith("-")]
+    if "--all" in revs or any(_short_ref(r) == PROTECTED_BRANCH for r in named):
+        return _whole_history_rewrite()
+    if named:
+        return None  # some other ref is being rewritten
+    if _current_branch(repo) != PROTECTED_BRANCH:
+        return None
+    return _whole_history_rewrite()
+
+
+def _rewrite_from_filter_repo(repo: str | None, args: list[str]) -> Rewrite | None:
+    """`git filter-repo` — the modern spelling, and it rewrites every ref by
+    default rather than just HEAD, so what is checked out is irrelevant."""
+    return _whole_history_rewrite()
+
+
+# The verb list answers only "what would this do to the ref?" — a syntax
+# question, and syntax is per-verb. Whether it gets blocked is decided once,
+# below, by the repository.
+_EXTRACTORS = {
+    "push": _rewrite_from_push,
+    "reset": _rewrite_from_reset,
+    "commit": _rewrite_from_commit,
+    "rebase": _rewrite_from_rebase,
+    "branch": _rewrite_from_branch,
+    "checkout": _rewrite_from_force_create,
+    "switch": _rewrite_from_force_create,
+    "update-ref": _rewrite_from_update_ref,
+    "filter-branch": _rewrite_from_filter_branch,
+    "filter-repo": _rewrite_from_filter_repo,
+}
+
+
+# --------------------------------------------------------------------------
+# The invariant, asked once.
+# --------------------------------------------------------------------------
+
+
+def _cannot_verify(rw: Rewrite, reason: str) -> Verdict:
+    return Verdict(
+        _CANNOT_VERIFY.format(action=rw.action, reason=reason, override=OVERRIDE)
+    )
+
+
+def _check_rewrite(repo: str | None, rw: Rewrite) -> Verdict | None:
+    """Would this rewrite drop a commit the remote already has?
+
+    Verb-blind on purpose: by this point `git commit --amend` and
+    `git push --force` are the same record, and the answer comes from the
+    repository rather than from the command string.
+    """
+    # --- Phase 2 of the cost ladder: local git only, no network yet. ---
+    new_sha: str | None = None
+    if rw.new is not None:
+        new_sha = _resolve(repo, rw.new)
+        if new_sha is None:
+            return None  # the proposed tip will not resolve; git would fail too
+
+    old_sha: str | None = None
+    discarded: list[str] = []
+    if rw.old is not REMOTE_TIP:
+        old_sha = _resolve(repo, str(rw.old))
+        if old_sha is None:
+            return None  # no such local ref; nothing of ours is at stake
+        if new_sha is not None:
+            listed = _rev_list(repo, f"{new_sha}..{old_sha}")
+            if not listed:
+                return None  # fast-forward or no-op: the branch loses nothing
+            discarded = listed
+
+    # A remote that is named but not configured is not "cannot verify" — it is
+    # verified: nothing in this repo has ever been published, so nothing can be
+    # dropped. Without this, `git commit --amend` on `main` in any `git init`
+    # scratch repo would fail closed, and a guard that fires on scratch repos is
+    # a guard that gets switched off. Deliberately narrow: only a bare remote
+    # *name* short-circuits, so `git push --force <url> main` still goes to the
+    # network, and a configured-but-unreachable `origin` still fails closed.
+    if _looks_like_remote_name(rw.remote):
+        configured = git(repo, "remote")
+        if configured is not None and rw.remote not in configured.split():
+            return None
+
+    # --- Phase 3: the network. Only a real `main` rewrite reaches this line. ---
+    remote_sha = _remote_head(repo, rw.remote, PROTECTED_BRANCH)
+    if remote_sha is None:
+        return _cannot_verify(rw, f"`git ls-remote {rw.remote}` did not answer")
+    if remote_sha == "":
+        return None  # the branch is not on the remote; nothing is published yet
+    if not _ensure_local(repo, rw.remote, PROTECTED_BRANCH, remote_sha):
+        return _cannot_verify(
+            rw,
+            f"the remote tip {remote_sha[:9]} could not be fetched for inspection",
         )
 
-    published = [c for c in dropping if _is_ancestor(repo, c, remote_sha) is True]
-    if not published:
-        return None  # your own unpushed work; the reflog has you covered
+    if rw.old is REMOTE_TIP:
+        old_sha = remote_sha
 
-    listing = _describe(repo, f"{target}..HEAD")
+    if new_sha is None:
+        # Nothing of the old branch survives (a delete, `--root`, filter-branch).
+        # Everything the old tip and the remote share is lost.
+        base = git(repo, "merge-base", str(old_sha), remote_sha)
+        if not base:
+            return None  # unrelated histories; nothing published is dropped
+        counted = git(repo, "rev-list", "--count", base)
+        published_count = int(counted) if counted and counted.isdigit() else 1
+        listing = _describe(repo, base)
+    elif rw.old is REMOTE_TIP:
+        ancestor = _is_ancestor(repo, remote_sha, new_sha)
+        if ancestor is True:
+            return None  # fast-forward; --force is redundant but harmless
+        if ancestor is None:
+            return _cannot_verify(
+                rw, "the local/remote relationship could not be determined"
+            )
+        # Every commit reachable from the remote tip is by definition published.
+        published = _rev_list(repo, f"{new_sha}..{remote_sha}") or []
+        if not published:
+            return None
+        published_count = len(published)
+        listing = _describe_shas(repo, published)
+    else:
+        # The discarded commits that the remote also has. One rev-list rather
+        # than an ancestry probe per commit, and exactly equivalent: reachable
+        # from the remote tip *is* an ancestor of it.
+        on_remote = _rev_list(repo, f"{new_sha}..{remote_sha}")
+        if on_remote is None:
+            return None  # cannot enumerate; local-scope posture is fail-open
+        remote_set = set(on_remote)
+        published = [c for c in discarded if c in remote_set]
+        if not published:
+            return None  # your own unpushed work; the reflog has you covered
+        published_count = len(published)
+        listing = _describe_shas(repo, published)
+
     ahead = git(repo, "rev-list", "--count", f"HEAD..{remote_sha}") or "?"
     return Verdict(
-        _RESET_BLOCK.format(
-            branch=branch,
-            target=target,
-            count=len(published),
-            plural="" if len(published) == 1 else "s",
+        rw.template.format(
+            action=rw.action,
+            remedy=rw.remedy,
+            remote=rw.remote,
+            branch=PROTECTED_BRANCH,
+            target=rw.target,
+            count=published_count,
+            plural="" if published_count == 1 else "s",
             listing="\n".join(f"    {line}" for line in listing) or "    (unreadable)",
             ahead=ahead,
-            remote=remote_sha[:9],
+            sha=remote_sha[:9],
             override=OVERRIDE,
         )
     )
+
+
+_MOVE_REF_REMEDY = (
+    "Moving the `main` ref does the same damage as a reset, without even the\n"
+    "reflog entry a reset leaves on the branch you were on. Point it somewhere\n"
+    "that still contains the remote's tip, or look before you move it:\n"
+    "    git -C <repo> fetch origin main\n"
+    "    git -C <repo> log --oneline FETCH_HEAD -5"
+)
 
 
 _PUSH_BLOCK = """PUBLISHED-HISTORY GUARD: this force-push would delete {count} commit{plural} from {remote}/{branch}.
@@ -418,7 +890,7 @@ _RESET_BLOCK = """PUBLISHED-HISTORY GUARD: this reset would drop {count} publish
 `git reset ... {target}` discards these, and the remote already has them:
 {listing}
 
-origin/{branch} is at {remote} and is {ahead} commit(s) ahead of you, so this
+origin/{branch} is at {sha} and is {ahead} commit(s) ahead of you, so this
 branch has diverged - another session pushed while you were working. Resetting
 does not resolve that; it just builds your next commits on a base the remote has
 moved past, and the force-push that follows is what destroys their work.
@@ -428,6 +900,37 @@ Rebase onto what the remote has instead:
     git -C <repo> log --oneline -5     # confirm both sides survived
 
 If you are deliberately rewriting published history, prefix with {override}.
+"""
+
+_REWRITE_BLOCK = """PUBLISHED-HISTORY GUARD: this {action} would drop {count} published commit{plural} from `{branch}`.
+
+Rewritten away, and the remote already has them:
+{listing}
+
+{remote}/{branch} is at {sha}. Another session may have written these commits and
+may already have pulled them. On 2026-07-26 a rewrite of this shape erased a
+sibling session's commit in `career`; it was recovered from the reflog by luck,
+not by design.
+
+{remedy}
+
+If rewriting published history really is the intent - a deliberate rewrite, like
+the de-identification squash - prefix the command with {override}.
+"""
+
+_DELETE_BLOCK = """PUBLISHED-HISTORY GUARD: this would delete {remote}/{branch} outright, discarding {count} published commit{plural}.
+
+The most recent of them:
+{listing}
+
+Deleting the shared branch is not a rewrite of it - it is the whole branch at
+once, and every session that has not pulled loses the base it is working on.
+There is no reflog on the remote.
+
+If you meant to delete a feature branch, name it:
+    git -C <repo> push --delete origin <branch-name>
+
+If deleting {remote}/{branch} really is the intent, prefix with {override}.
 """
 
 _CANNOT_VERIFY = """PUBLISHED-HISTORY GUARD: cannot verify what this {action} would destroy.
@@ -482,13 +985,13 @@ def main() -> None:
         repo = repo_dir or cwd
         sub, args = rest[0], rest[1:]
 
+        extractor = _EXTRACTORS.get(sub)
+        if extractor is None:
+            continue
+
         try:
-            if sub == "push":
-                verdict = _check_push(repo, args)
-            elif sub == "reset":
-                verdict = _check_reset(repo, args)
-            else:
-                continue
+            rewrite = extractor(repo, args)
+            verdict = _check_rewrite(repo, rewrite) if rewrite else None
         except Exception:
             continue  # a guard that crashes must not take the session with it
 
