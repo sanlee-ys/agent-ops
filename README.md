@@ -81,6 +81,23 @@ nothing and might get the next gap found by a reader instead of a leak.
   and asks `ls-remote`, never the tracking ref, since a stale-then-refreshed
   tracking ref is what defeated `--force-with-lease` in the incident behind it.
   Reasoning in [`decisions/ADR-007`](decisions/ADR-007-guard-the-invariant-not-the-verb.md).
+- **`hooks/config-change-guard.py`** — a `ConfigChange` hook that refuses a
+  settings change leaving the guard chain disarmed: a redline guard not wired
+  where it can fire, `disableAllHooks`, `permissions.defaultMode:
+  bypassPermissions`, an unrestricted-shell allow rule, or an `env` key that
+  redirects model traffic. Canonical here per
+  [`decisions/ADR-013`](decisions/ADR-013-guard-canonicality-line.md). **Wired
+  but unmeasured** — CI proves the logic; whether `ConfigChange` fires and
+  whether a block actually vetoes the write has not been observed on a live
+  harness (`hooks/README.md` states the gap and how to close it).
+- **`vendors/claude/plugin/hooks/fanout-guard.py`** — a `PreToolUse` hook on
+  `Workflow` that blocks multi-agent fan-out without a token cap (and a Fable
+  fan-out without an explicit `PREMIUM-OK`). The harness-level backstop for the
+  2026-07-02 uncapped-premium-fanout incident. This tree holds a *derived*
+  copy only; canon lives in the private machine-config repo as a cost-control
+  preference, not a fleet redline
+  ([`decisions/ADR-013`](decisions/ADR-013-guard-canonicality-line.md)). The
+  draft plugin package under `vendors/claude/plugin/` is not installed.
 - **`incidents/`** — five blameless postmortems, held to a deliberate bar:
   real exposure, real spend, or a live control failing. They share a spine —
   summary, impact, root cause, the fixes actually applied, lessons learned —
@@ -129,13 +146,15 @@ nothing and might get the next gap found by a reader instead of a leak.
   root stays vendor-neutral canon; anything in a specific harness's format
   or dialect lives one directory per vendor. `vendors/claude/skills/` holds
   five custom skills (`dcb`, `descope-sweep`, `park`, `proglog`, `handoff`)
-  published as patterns;   `vendors/codex/` documents the second-opinion
+  published as patterns; `vendors/codex/` documents the second-opinion
   vendor's wiring, inter-agent channel, and escalation packet;
   `vendors/cursor/` documents the IDE lane (bounded edit-test loops, UI
   verification, parallel non-colliding concerns — see
   [`decisions/ADR-009`](decisions/ADR-009-cursor-ide-lane-in-fleet.md));
   `vendors/gemini/` documents Google Antigravity (AGY), the measured
-  Gemini-family research/overflow lane, including its open guard obligation.
+  Gemini-family research/overflow lane, including its open guard obligation;
+  `vendors/grok/` documents Grok Build (xAI) — guard wiring only, not a
+  routing lane, but installed and capable, so ADR-012 owes it a guard.
   Every vendor reads and writes; guard wiring rather than lane shape is what
   bounds them
   ([`decisions/ADR-012`](decisions/ADR-012-capability-parity-and-the-guard-obligation.md)).
@@ -169,6 +188,20 @@ nothing and might get the next gap found by a reader instead of a leak.
     dim placeholder nobody had typed. Corrected twice on the day of writing.
     A defect claimed from a single correlated observation is a hypothesis;
     reproduce it before writing decisions on top of it.
+  - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
+    same decision the same afternoon, on different machines, and the
+    in-flight scan that should have caught it returned nothing truthfully:
+    one session's work was an untracked file, the other's an unpushed
+    branch. The fix isn't a channel between sessions — both believed they
+    owned the concern, and peers who agree on that collide however well they
+    can talk. Push the branch before doing the work, so the claim exists
+    where the other machines can see it.
+  - `ADR-007-guard-the-invariant-not-the-verb.md` — a permission allowlist
+    that pins destructive *verbs* still lets a session erase another session's
+    published commit, because the fact that condemns the command is in the
+    repository, not in the verb. The design of
+    `hooks/published-history-guard.py`: refuse any rewrite that would drop a
+    commit `main` already has on the remote, regardless of which verb does it.
   - `ADR-008-agent-ops-rename-and-vendor-layer.md` — the rename from the
     founding single-vendor name, why "llm-ops" and a per-vendor repo split
     were both rejected, and the `vendors/` adapter contract. Historical
@@ -186,14 +219,12 @@ nothing and might get the next gap found by a reader instead of a leak.
     guard wiring becomes the only one. Records the permissive Antigravity
     permission store that prompted the ruling, and the `PreToolUse` deny
     mechanism that makes parity a build task rather than a blocker.
-  - `ADR-006-claim-the-concern-before-working-it.md` — two sessions wrote the
-    same decision the same afternoon, on different machines, and the
-    in-flight scan that should have caught it returned nothing truthfully:
-    one session's work was an untracked file, the other's an unpushed
-    branch. The fix isn't a channel between sessions — both believed they
-    owned the concern, and peers who agree on that collide however well they
-    can talk. Push the branch before doing the work, so the claim exists
-    where the other machines can see it.
+  - `ADR-013-guard-canonicality-line.md` — which hooks are system-of-record
+    here versus in the private machine-config repo. Fleet redline guards
+    (credentials, published history, consequential mutations, and the
+    config-change guard that protects their wiring) are canonical in this
+    repo; local preference and cost-control hooks (`fanout-guard.py`) stay
+    private. Machine-config keeps no copy of a redline hook.
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned
@@ -219,9 +250,9 @@ nothing and might get the next gap found by a reader instead of a leak.
 This is one engineer's machine, not a team or a platform. There's no
 *organization* — no shared incident channel, no on-call rotation — every
 "postmortem" here is a solo session catching its own mistake in the same turn
-it happened. ("Fleet" elsewhere in this repo means the four agent vendors on
-that one machine, not people.) It's
-published anyway because the failure modes (tool-shape gaps in a mechanical
+it happened. ("Fleet" elsewhere in this repo means the five agent seats on
+that one machine — Claude, Codex, Cursor, Antigravity, and Grok — not people.)
+It's published anyway because the failure modes (tool-shape gaps in a mechanical
 guard, uncapped multi-agent fan-out cost, a debugging session in production
 credentials by accident) don't depend on team size. They just need an agent
 with shell access and a person who trusts it a little too soon.
