@@ -145,6 +145,17 @@ path and setting `AGENT_OPS_ROOT`). **The global root is the only one that
 works** — a workspace `.agents/hooks.json` is not picked up by the CLI, so it
 cannot carry a fleet guard.
 
+**Resolve the interpreter per platform — do not copy the reference verbatim.**
+[`hooks.json`](hooks.json) invokes `python`, which does not exist on macOS
+(only `python3`), measured on the MBP 2026-08-10. Combined with the fail-open
+rule below, that is the worst shape a guard can fail in: the hook never
+launches, Antigravity proceeds, and the file is sitting in the right place
+looking installed while guarding nothing. The Mac's live file was written with
+`python3` and an absolute adapter path. Whatever writes this file — a setup
+script or a pair of hands — has to pick the interpreter for the platform, and
+whatever audits it has to check the command *launches*, not that the file
+exists.
+
 Cost: roughly 0.8s per shell tool call and 0.6s per other call on this
 machine, synchronous, since hooks block the agent loop.
 
@@ -182,6 +193,20 @@ The `deny` path had never been exercised anywhere before this change.
 - **Quotes in the `command` are passed through literally** rather than
   consumed by a shell, so a quoted path fails to launch — which, per the
   fail-open rule above, silently removes the guard.
+- **Verify a deployment by piping payloads into the adapter, both
+  directions** — it needs no vendor turn and no quota. Confirmed on macOS
+  2026-08-10 against a decoy holding a fabricated value: a `run_command`
+  naming `cat <decoy>/.env` returned `{"decision": "deny", ...}` carrying the
+  guard's message, and the same shape against an ordinary file returned
+  nothing, which is the pass-through.
+
+  **Name a shell tool the adapter actually knows, or the test proves
+  nothing.** `_SHELL_TOOLS` is `run_command` / `shell_exec` /
+  `send_command_input`. A payload naming `run_shell_command` — a plausible
+  guess, and wrong — is not treated as a command at all: it falls through to
+  the generic path-field scan, finds no sensitive *field*, and is **allowed**,
+  silently and with the guard working perfectly. A green test written that way
+  is measuring its own typo.
 
 ### Residual gaps
 
