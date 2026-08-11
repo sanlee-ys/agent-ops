@@ -233,6 +233,14 @@ nothing and might get the next gap found by a reader instead of a leak.
   - `ADR-014-pi-harness-kimi-model-target.md` — Pi as a routing harness;
     Kimi (K3) is the model-family target; interim Grok-on-Pi is capacity
     only and is not Grok Build admission.
+  - `ADR-016-loops-do-not-inherit-merge-authorization.md` — an agentic loop
+    restarts, so it keeps no memory of the intended end state between passes.
+    Give it the standing merge authorization and it merges its own drift, then
+    reads the drift as the base state. The authorization stops at the loop
+    boundary; a loop re-earns it through script-level caps, stuck detection,
+    worktree isolation, and a two-part gate — a mechanical verifier *and* a
+    blast-radius file set declared before the first iteration. Rule:
+    [`conventions/loop-safety.md`](conventions/loop-safety.md).
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned

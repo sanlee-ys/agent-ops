@@ -59,7 +59,12 @@ with Pi's harness/model split in
   [`agent-in-ci.md`](conventions/agent-in-ci.md) — the assembly rule for
   running an agent as a sandboxed CI step: scoped credentials, proposal-only
   output, a deterministic verifier after it, and the guards travel with the
-  job. And from a rename that
+  job. One from the same day's loop-safety review:
+  [`loop-safety.md`](conventions/loop-safety.md) — an agentic loop does not
+  inherit the standing merge authorization; it re-earns the right to merge
+  through seven script-level rails plus a verifier-and-blast-radius gate
+  ([`decisions/ADR-016`](decisions/ADR-016-loops-do-not-inherit-merge-authorization.md)).
+  And from a rename that
   wedged the session that ran it:
   [`hooks-gate-their-own-repair.md`](conventions/hooks-gate-their-own-repair.md)
   — **this repo hosts live hooks.** `~/.claude/hooks/credential-guard.py`,
