@@ -26,10 +26,14 @@ const SECRET_PATHS = [
 // Redline 2: published-history destruction. The lesson from the 2026-07-26
 // incident: a soft reset erased a pushed commit, so reset is blocked in every
 // form, not only --hard.
+//
+// `git branch -D` is force-delete and blocked. Plain `git branch -d` (merged
+// only) must pass. Do not put the /i flag on the -D pattern — it made -d match
+// -D and blocked ordinary local cleanup (observed 2026-08-11).
 const GIT_DESTRUCTIVE = [
   /git\b.*\bpush\b.*(--force|-f\b|--force-with-lease)/i,
   /git\b.*\breset\b/i,
-  /git\b.*\bbranch\b.*-D\b/i,
+  /git\b.*\bbranch\b.*(?:\s-D\b|\s--delete\s+--force\b|\s--force\s+--delete\b|\s-d\s+--force\b|\s--force\s+-d\b)/,
   /git\b.*\bclean\b.*-[a-z]*f/i,
   /git\b.*\bfilter-(branch|repo)\b/i,
 ];

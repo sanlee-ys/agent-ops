@@ -68,7 +68,8 @@ The extension blocks the three fleet redlines:
 1. Credential and secret-store paths (`.ssh`, `.aws/credentials`, `.gnupg`,
    `.netrc`, and similar).
 2. Published-history destruction (`git reset` in every form, force-push,
-   `branch -D`, `git clean -f`, `filter-branch`/`filter-repo`).
+   force branch delete (`-D` / `--delete --force`), `git clean -f`,
+   `filter-branch`/`filter-repo`). Plain merged-only `git branch -d` is allowed.
 3. Broad destructive mutations (`rm -rf`, `Remove-Item -Recurse -Force`,
    `rmdir /s`, `format`).
 
@@ -110,6 +111,9 @@ Measured 2026-08-11 on the Windows PC, Pi v0.84.1 (interim xAI backend):
 - Probe (recheck): `pi -p --no-session` returned `PI_PROBE_OK`.
 - Deny: a `git branch -D <nonexistent>` request through Pi returned the
   guard's block message. The tool call did not execute.
+- False positive fixed 2026-08-11: the force-delete pattern used `/i`, so
+  `git branch -d` (merged-only) matched `-D` and blocked ordinary cleanup.
+  Pattern is now case-sensitive on `-D` and also matches `--delete --force`.
 - The deny is verified for `bash`-tool commands and path arguments. Other
   tools pass through unless their input matches the path patterns. Treat the
   guard as a floor, not a policy engine.
