@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-# hook-version: 1.1 (2026-08-04) — cursor-agent compatibility: BOM-tolerant
+# hook-version: 1.2 (2026-08-11) — two measured bypasses of the v1.0 matcher,
+# both of which stage the whole tree and both of which exited 0 before this
+# change: `git stage -A` (`stage` is a built-in synonym for `add`, and only
+# `add` was matched) and `git add -Au` (a combined short flag; only the exact
+# tokens `-A` and `-u` were matched). The `commit` branch had already handled
+# combined shorts via `-am`; the `add` branch had not. Same failure shape as
+# every other guard in this repo: the matcher covered the surface its author
+# enumerated, not the surface that existed.
+# 1.1 (2026-08-04) — cursor-agent compatibility: BOM-tolerant
 # stdin (its Windows PowerShell wrapper prepends a UTF-8 BOM that made
 # json.load raise, failing the guard open), its shell tool's name "Shell"
 # accepted alongside Bash/PowerShell, and an explicit allow verdict on stdout
@@ -32,7 +40,9 @@ durable fix for a reflex is a mechanism, not an intention.
 
 WHAT IS BLOCKED. Only whole-tree staging:
 
-    git add -A | --all | -u | --update | .
+    git add   -A | --all | -u | --update | .
+    git stage -A | --all | -u | --update | .   (`stage` is a git synonym for `add`)
+    git add   -Au | -fA | … (any combined short flag containing 'A' or 'u')
     git commit -a | --all | -am (any combined short flag containing 'a')
 
 WHAT IS NOT. Explicit paths — ``git add src/api.py tests/test_api.py`` — which
@@ -74,6 +84,18 @@ _HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1.*?^\2\s*$", re.DOTALL | re.MULTIL
 _SPLIT = re.compile(r"&&|\|\||[;\n|&]")
 
 _ADD_WHOLE_TREE = {"-A", "--all", "-u", "--update", "--no-ignore-removal"}
+
+# `git stage` is a built-in synonym for `git add` — same options, same effect.
+# v1.0 matched the subcommand name rather than the operation, so `git stage -A`
+# passed. Match both names.
+_ADD_SUBCOMMANDS = {"add", "stage"}
+
+# Short options of `git add` whose presence means "the whole tree", wherever
+# they appear in a combined short flag. `git add -Au` is valid and stages
+# everything; v1.0 compared whole tokens, so it saw an unknown flag and allowed
+# it. No other `git add` short option uses these letters (`-n`, `-N`, `-f`,
+# `-i`, `-p`, `-e`, `-v`), so a letter match here cannot collide.
+_ADD_WHOLE_TREE_LETTERS = set("Au")
 
 
 def _strip_prose(command: str) -> str:
@@ -128,12 +150,23 @@ def _offence(tokens: list[str]) -> str | None:
     if "--" in args:
         args = args[: args.index("--")]
 
-    if sub == "add":
+    if sub in _ADD_SUBCOMMANDS:
         for arg in args:
             if arg in _ADD_WHOLE_TREE:
-                return f"git add {arg}"
+                return f"git {sub} {arg}"
             if arg == ".":
-                return "git add ."
+                return f"git {sub} ."
+            # Combined short flags: `-Au`, `-fA`. A single leading dash, no
+            # second dash (so `--amend`-shaped long options never reach here),
+            # letters only, and one of them means whole-tree.
+            if (
+                len(arg) > 2
+                and arg[0] == "-"
+                and arg[1] != "-"
+                and arg[1:].isalpha()
+                and _ADD_WHOLE_TREE_LETTERS & set(arg[1:])
+            ):
+                return f"git {sub} {arg}"
         return None
 
     if sub == "commit":
