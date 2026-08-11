@@ -11,7 +11,7 @@ see each `SKILL.md` for the note on that.
 
 | Skill | Purpose |
 |---|---|
-| [`dcb`](dcb/SKILL.md) | Scaffold ambiguous or consequential work into Direction / Contracts / Bar before starting, so the three get set explicitly instead of assumed. |
+| [`dcb`](dcb/SKILL.md) | Scaffold ambiguous or consequential work into Direction / Contracts / Bar before starting, so the three get set explicitly instead of assumed. For consequential work it then asks the open questions, writes a short plan document (current state, desired end state, constraints, open questions), and **stops for review before implementing** — the plan doubles as the frozen brief for the Codex challenge lane. |
 | [`descope-sweep`](descope-sweep/SKILL.md) | Sweep every repo for stale references to something cut, renamed, ported, or scrapped — including the long tail (ADRs, config templates, KB stubs, doc sources, metric tables), not just the obvious README. |
 | [`park`](park/SKILL.md) | Append a stray, not-yet-ready idea to a private parking-lot file in a fixed entry format, so it's captured without derailing current work. |
 | [`proglog`](proglog/SKILL.md) | Append a dated, first-person pairing-journal entry (concepts relearned, what got built) and check at session start for a missed entry from last time. |

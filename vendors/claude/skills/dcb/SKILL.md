@@ -1,6 +1,6 @@
 ---
 name: dcb
-description: Scaffold a task into the user's DCB framework (Direction, Contracts, Bar) before starting ambiguous, consequential, or hard-to-reverse work with Claude. Invoke via /dcb <task description>, or /dcb alone to be asked what task is being scoped. Use this when the user explicitly types /dcb, or says things like "let's DCB this", "set direction/contracts/bar for X", or asks to scope out a risky/ambiguous piece of work before diving in. Do NOT use for quick mechanical edits, renames, or bounded tasks the user has already fully specified — DCB is overhead there, not help.
+description: Scaffold a task into the user's DCB framework (Direction, Contracts, Bar) before starting ambiguous, consequential, or hard-to-reverse work with Claude, and for consequential work also produce a short plan document that is reviewed before any implementation starts. Invoke via /dcb <task description>, or /dcb alone to be asked what task is being scoped. Use this when the user explicitly types /dcb, or says things like "let's DCB this", "set direction/contracts/bar for X", or asks to scope out a risky/ambiguous piece of work before diving in. Do NOT use for quick mechanical edits, renames, or bounded tasks the user has already fully specified — DCB is overhead there, not help.
 ---
 
 # DCB scaffolding
@@ -64,3 +64,78 @@ than a generic "tests pass."
    This block is meant to be dropped at the top of the real working prompt (or just kept
    as the operating contract for the rest of the session) — not filed away as a document.
    Don't create a separate file for it unless the user asks.
+
+6. **Decide whether the work is consequential.** If it is, continue to the Questions step
+   and the plan document below, and do not start implementing. If it is not, the scaffold
+   above is the whole output — stop here and get to work.
+
+## The plan document (consequential work only)
+
+Added 2026-08-11. Design source: **RPI / QRSPI** (Dex Horthy) — Questions, Research,
+Sketch/Plan, Implement. The DCB scaffold above is unchanged: Direction, Contracts and Bar
+keep their names, their order, and their meaning. The plan document is an **addition after
+them**, not a rename of any of them.
+
+DCB says what the work is bound to. It does not say what the work *is*. For a bounded task
+that gap does not matter, because the task fits in the prompt. For consequential work it is
+the whole risk: the session and the user agree on the contract and then discover, an hour
+in, that they never agreed on the change.
+
+**Consequential** means at least one of: it is hard to reverse; it changes a contract other
+work depends on; it spans several files or repos; or it encodes a design decision with a
+real fork in it. Bounded, already-decided work is not consequential however important it is.
+
+### Step 1 — Questions, before the plan
+
+Ask the open questions **first**, and wait for the answers. This step is ahead of the plan
+on purpose. A plan written over an unasked question buries the question: it becomes an
+assumption inside a document that now reads as settled, and the review that follows reviews
+the assumption without ever seeing it as a choice.
+
+Ask only what changes the plan. Three or four real questions beat a questionnaire. If a
+question has an obvious default, state the default in the question so the user can agree in
+one word.
+
+### Step 2 — The plan document
+
+Write it short. Four headings, and it should fit on a screen:
+
+```
+## Current state
+What is true in the repo now. Verified, not remembered - name the files read.
+
+## Desired end state
+What is true when this is done. Observable, so the Bar can check it.
+
+## Constraints
+What the work must not do or must not break. Blast radius: the files this
+expects to touch.
+
+## Open questions
+What is still undecided, and what happens by default if it stays undecided.
+```
+
+Keep "Open questions" even after Step 1. Step 1 clears the questions that block the plan;
+this heading holds the ones the plan can proceed without, and it is where an honest plan
+admits what it guessed.
+
+### Step 3 — Stop for review
+
+**Present the plan and stop. Do not start implementing.** This is a hard stop, not a
+checkpoint the session may pass on its own judgement. The plan is the artifact the user
+reviews, and a plan reviewed after the code is written is a description, not a plan.
+
+The user may approve it, edit it, or reject the framing. All three are cheap here and
+expensive later, which is the entire reason the step exists.
+
+### The plan doubles as the frozen brief
+
+A consequential change is also the class that goes to the **Codex challenge lane**. That
+lane needs a *frozen brief*: inspectable state, an explicit file boundary, and an exact
+revision — not a prose retelling of a conversation Codex cannot see.
+
+The plan document is already that brief. "Current state" names the revision and the files
+read, "Constraints" carries the file boundary, and "Open questions" tells the challenger
+where to push hardest. So write it to be handed over as-is, and hand over the reviewed
+version rather than re-summarising it. A retelling is a second artifact that can drift from
+the first, and the challenger has no way to detect the drift.
