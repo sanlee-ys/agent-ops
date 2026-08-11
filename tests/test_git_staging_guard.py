@@ -74,6 +74,62 @@ class TestWholeTreeStagingBlocked(unittest.TestCase):
         self.assertEqual(run("git add -A -- src/"), BLOCK)
 
 
+class TestV12BypassesClosed(unittest.TestCase):
+    """Two shapes that v1.0 allowed. Both were measured at exit 0 on
+    2026-08-11 before the fix, and both stage the whole tree.
+
+    They are the repo's recurring failure: the matcher covered the surface its
+    author enumerated, not the surface that existed.
+    """
+
+    def test_stage_is_a_synonym_for_add(self) -> None:
+        """`git stage` is a built-in synonym for `git add`, same options."""
+        self.assertEqual(run("git stage -A"), BLOCK)
+        self.assertEqual(run("git stage -u"), BLOCK)
+        self.assertEqual(run("git stage ."), BLOCK)
+        self.assertEqual(run("git stage --all"), BLOCK)
+        self.assertEqual(run("git -C /some/repo stage -u"), BLOCK)
+
+    def test_combined_short_flags_on_add(self) -> None:
+        """`git add -Au` is valid and stages everything; v1.0 saw one token."""
+        self.assertEqual(run("git add -Au"), BLOCK)
+        self.assertEqual(run("git add -uA"), BLOCK)
+        self.assertEqual(run("git add -fA"), BLOCK)
+        self.assertEqual(run("git add -vu"), BLOCK)
+        self.assertEqual(run("git stage -Au"), BLOCK)
+
+
+class TestV12DidNotWidenTooFar(unittest.TestCase):
+    """The near misses. A letter match is only safe while these stay allowed.
+
+    No other `git add` short option uses 'A' or 'u', so these pin that claim:
+    break it by adding such an option and a test fails on purpose.
+    """
+
+    def test_other_add_short_flags_still_allowed(self) -> None:
+        self.assertEqual(run("git add -N src/api.py"), ALLOW)
+        self.assertEqual(run("git add -f build/out.js"), ALLOW)
+        self.assertEqual(run("git add -nv src/api.py"), ALLOW)
+        self.assertEqual(run("git add -ip"), ALLOW)
+
+    def test_stage_explicit_paths_allowed(self) -> None:
+        self.assertEqual(run("git stage src/api.py"), ALLOW)
+
+    def test_stash_is_not_stage(self) -> None:
+        """One letter apart, and `git stash -u` is a legitimate command."""
+        self.assertEqual(run("git stash -u"), ALLOW)
+        self.assertEqual(run("git stash push -u -m 'wip'"), ALLOW)
+
+    def test_prose_still_passes(self) -> None:
+        """v1.2 must still be able to document itself."""
+        self.assertEqual(run("git commit -m 'closed the git stage -A bypass'"), ALLOW)
+        self.assertEqual(run("echo 'git add -Au also stages everything'"), ALLOW)
+
+    def test_override_covers_the_new_shapes(self) -> None:
+        self.assertEqual(run("STAGE-ALL-OK git stage -A"), ALLOW)
+        self.assertEqual(run("STAGE-ALL-OK git add -Au"), ALLOW)
+
+
 class TestCorrectHabitAllowed(unittest.TestCase):
     """Explicit paths — the behaviour the guard is steering toward."""
 

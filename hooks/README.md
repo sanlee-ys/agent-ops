@@ -8,7 +8,7 @@ put it alongside its README and `posture.md`.
 
 | File | Event / matcher | What it refuses |
 | --- | --- | --- |
-| [`git-staging-guard.py`](git-staging-guard.py) | `PreToolUse` / shells | whole-tree staging (`git add -A\|-u\|.`, `git commit -a`), which sweeps a parallel session's uncommitted work into this session's commit |
+| [`git-staging-guard.py`](git-staging-guard.py) | `PreToolUse` / shells | whole-tree staging (`git add\|stage -A\|-u\|.`, any combined short flag carrying `A` or `u`, `git commit -a`), which sweeps a parallel session's uncommitted work into this session's commit. Override: `STAGE-ALL-OK` per command |
 | [`published-history-guard.py`](published-history-guard.py) | `PreToolUse` / shells | any command that would move `main` backwards over a commit the remote already has — force-push, reset, `commit --amend`, `rebase`, `branch -f`/`-M`, `checkout -B`/`switch -C`, `update-ref`, `filter-branch`/`filter-repo`, or deleting the remote branch |
 | [`config-change-guard.py`](config-change-guard.py) | `ConfigChange` | a settings change that leaves the file disarmed: a guard hook not wired where it can fire, `disableAllHooks`, `permissions.defaultMode: bypassPermissions`, an unrestricted-shell allow rule, or an `env` key that redirects model traffic |
 | [`destructive-command-guard.py`](destructive-command-guard.py) | `PreToolUse` / shells | locally destructive commands, judged by a blast × reversibility score per rule id (`git reset --hard`, `git clean -f`, recursive deletes, …) — `git reset --soft` scores as safe and passes. Buckets: allow / warn / confirm / block; block = exit 2, which holds in every permission mode. Overrides: `RISK-OK` per command; `guard-scoring.json` per rule/cell; `AGENT_OPS_GUARD_SHADOW` logs without enforcement. See [ADR-015](../decisions/ADR-015-blast-reversibility-scoring-and-redaction.md) |
@@ -25,6 +25,35 @@ symlink them (macOS/Linux) or copy them (Windows) into `~/.claude/hooks/`, so
 this clone is load-bearing. Re-run the deploy after editing one, and check the
 deployed copy before trusting it — a copy goes stale without dangling anything
 (limit 6 in [`security/posture.md`](../security/posture.md)).
+
+## `git-staging-guard.py` v1.2: two synonyms the v1.0 matcher never named
+
+v1.0 matched the subcommand `add` and the exact flag tokens `-A`, `--all`,
+`-u`, `--update`, `.`. Two whole-tree shapes fell outside that list, and both
+were measured at exit 0 (allow) on 2026-08-11 before the fix:
+
+| Command | v1.0 | v1.2 | Why it stages everything |
+| --- | --- | --- | --- |
+| `git stage -A` | allowed | blocked | `stage` is a **built-in synonym** for `add` — same options, same effect. Only the name `add` was matched |
+| `git add -Au` | allowed | blocked | a valid **combined short flag**. v1.0 compared whole tokens, so it read `-Au` as an unknown flag and passed it |
+
+The second one is the sharper miss, because the `commit` branch had already
+solved it: `-am` was caught by scanning the letters of a combined short flag.
+The `add` branch was written against a fixed token list on the same day and
+never got the same treatment.
+
+This is the repo's throughline again, inside a guard written *about* that
+throughline: **a matcher covers the surface its author enumerated, not the
+surface that exists.** So v1.2 matches the *operation* rather than the spelling
+— both subcommand names, and any combined short flag carrying `A` or `u`.
+
+**The widening is bounded and pinned.** No other `git add` short option uses
+those letters (`-n`, `-N`, `-f`, `-i`, `-p`, `-e`, `-v`), so a letter match
+cannot collide. `tests/test_git_staging_guard.py` pins that claim from both
+sides: the new bypasses block, and `git add -N`, `git add -nv`, `git add -ip`,
+`git stage src/api.py` and `git stash -u` still pass. The prose cases are
+extended too — the guard must still be able to quote its own bypasses in a
+commit message, which is what this section does.
 
 ## `config-change-guard.py` v1.1: the gap between the name and the check
 

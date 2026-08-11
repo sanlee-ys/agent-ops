@@ -66,7 +66,8 @@ nothing and might get the next gap found by a reader instead of a leak.
   - `README.md` — how the hook is wired in, what it does and doesn't cover,
     and the override convention for legitimate reads it blocks.
 - **`hooks/git-staging-guard.py`** — a `PreToolUse` hook that blocks
-  whole-tree staging (`git add -A|-u|.`, `git commit -a`), so a session cannot
+  whole-tree staging (`git add` or its synonym `git stage` with `-A|-u|.` or a
+  combined short flag carrying those letters; `git commit -a`), so a session cannot
   sweep a *parallel* session's uncommitted work into an unrelated commit. The
   interesting constraint is that it must not block prose: the commit messages
   and postmortems describing the incidents quote those flags verbatim, so it
