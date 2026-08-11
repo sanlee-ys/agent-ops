@@ -3,10 +3,10 @@
   <desc id="desc">
     Instrument-panel diagram of the agent operating layer: human-set DCB
     (Direction, Contracts, Bar) above a multi-vendor fleet (Claude control plane,
-    Codex second opinion, Cursor IDE lane, Antigravity research/overflow, Grok
-    guard-wired only), bounded by mechanical PreToolUse and ConfigChange guards,
-    with incidents, skills, conventions, and decisions as supporting rails.
-    Telltale observes but never routes.
+    Codex second opinion, Cursor IDE lane, Antigravity research/overflow, Pi OSS
+    overflow with Kimi target, Grok guard-wired only), bounded by mechanical
+    PreToolUse and ConfigChange guards, with incidents, skills, conventions, and
+    decisions as supporting rails. Telltale observes but never routes.
   </desc>
   <defs>
     <style>
@@ -81,52 +81,61 @@
 
   <!-- Claude -->
   <g transform="translate(36,156)">
-    <rect class="seat-ctrl" width="168" height="88" rx="3"/>
-    <text class="t t-xs t-accent" x="12" y="18">CONTROL PLANE</text>
-    <text class="t t-md" x="12" y="40">Claude</text>
-    <text class="t t-xs t-dim" x="12" y="58">implement · integrate</text>
-    <text class="t t-xs t-dim" x="12" y="74">primary lane</text>
+    <rect class="seat-ctrl" width="140" height="88" rx="3"/>
+    <text class="t t-xs t-accent" x="10" y="18">CONTROL</text>
+    <text class="t t-md" x="10" y="40">Claude</text>
+    <text class="t t-xs t-dim" x="10" y="58">implement</text>
+    <text class="t t-xs t-dim" x="10" y="74">primary lane</text>
   </g>
   <!-- Codex -->
-  <g transform="translate(216,156)">
-    <rect class="seat" width="168" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="12" y="18">SPECIALIST</text>
-    <text class="t t-md" x="12" y="40">Codex</text>
-    <text class="t t-xs t-dim" x="12" y="58">challenge · review</text>
-    <text class="t t-xs t-dim" x="12" y="74">diagnosis when stuck</text>
+  <g transform="translate(184,156)">
+    <rect class="seat" width="140" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
+    <text class="t t-md" x="10" y="40">Codex</text>
+    <text class="t t-xs t-dim" x="10" y="58">challenge · review</text>
+    <text class="t t-xs t-dim" x="10" y="74">GPT family</text>
   </g>
   <!-- Cursor -->
-  <g transform="translate(396,156)">
-    <rect class="seat" width="168" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="12" y="18">SPECIALIST</text>
-    <text class="t t-md" x="12" y="40">Cursor</text>
-    <text class="t t-xs t-dim" x="12" y="58">IDE · edit-test loops</text>
-    <text class="t t-xs t-dim" x="12" y="74">bounded UI work</text>
+  <g transform="translate(332,156)">
+    <rect class="seat" width="140" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
+    <text class="t t-md" x="10" y="40">Cursor</text>
+    <text class="t t-xs t-dim" x="10" y="58">IDE · edit-test</text>
+    <text class="t t-xs t-dim" x="10" y="74">bounded UI</text>
   </g>
   <!-- Antigravity -->
-  <g transform="translate(576,156)">
-    <rect class="seat" width="168" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="12" y="18">SPECIALIST</text>
-    <text class="t t-md" x="12" y="40">Antigravity</text>
-    <text class="t t-xs t-dim" x="12" y="58">research · overflow</text>
-    <text class="t t-xs t-dim" x="12" y="74">Gemini family (AGY)</text>
+  <g transform="translate(480,156)">
+    <rect class="seat" width="140" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
+    <text class="t t-md" x="10" y="40">Antigravity</text>
+    <text class="t t-xs t-dim" x="10" y="58">research · audit</text>
+    <text class="t t-xs t-dim" x="10" y="74">Gemini (AGY)</text>
+  </g>
+  <!-- Pi -->
+  <g transform="translate(628,156)">
+    <rect class="seat" width="140" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
+    <text class="t t-md" x="10" y="40">Pi</text>
+    <text class="t t-xs t-dim" x="10" y="58">OSS overflow</text>
+    <text class="t t-xs t-dim" x="10" y="74">Kimi target</text>
   </g>
   <!-- Grok -->
-  <g transform="translate(756,156)">
-    <rect class="seat-wire" width="168" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="12" y="18">WIRED · NOT ROUTED</text>
-    <text class="t t-md" x="12" y="40">Grok Build</text>
-    <text class="t t-xs t-dim" x="12" y="58">guard obligation only</text>
-    <text class="t t-xs t-dim" x="12" y="74">not a fleet lane</text>
+  <g transform="translate(776,156)">
+    <rect class="seat-wire" width="148" height="88" rx="3"/>
+    <text class="t t-xs t-dim" x="10" y="18">WIRED · NOT ROUTED</text>
+    <text class="t t-md" x="10" y="40">Grok Build</text>
+    <text class="t t-xs t-dim" x="10" y="58">guard only</text>
+    <text class="t t-xs t-dim" x="10" y="74">not a lane</text>
   </g>
 
   <!-- down-flow ticks into fence -->
   <g class="tick">
-    <line x1="120" y1="244" x2="120" y2="262"/>
-    <line x1="300" y1="244" x2="300" y2="262"/>
-    <line x1="480" y1="244" x2="480" y2="262"/>
-    <line x1="660" y1="244" x2="660" y2="262"/>
-    <line x1="840" y1="244" x2="840" y2="262"/>
+    <line x1="106" y1="244" x2="106" y2="262"/>
+    <line x1="254" y1="244" x2="254" y2="262"/>
+    <line x1="402" y1="244" x2="402" y2="262"/>
+    <line x1="550" y1="244" x2="550" y2="262"/>
+    <line x1="698" y1="244" x2="698" y2="262"/>
+    <line x1="850" y1="244" x2="850" y2="262"/>
   </g>
 
   <!-- band 3: guard fence -->

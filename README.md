@@ -7,7 +7,7 @@ for one machine, published because the failure modes don't stay put.
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/operating-layer-hero-dark.svg">
   <img src="images/operating-layer-hero-light.svg"
-       alt="Instrument-panel diagram of the agent-ops operating layer: human-set DCB (Direction, Contracts, Bar); fleet seats Claude (control plane), Codex, Cursor, Antigravity, and Grok Build (guard-wired only); a mechanical-guard fence (credential-guard, git-staging-guard, published-history-guard, fanout-guard on PreToolUse; config-change-guard on ConfigChange; redline-guard at pre-commit); supporting rails for incidents, skills, conventions, and decisions. Telltale observes only."
+       alt="Instrument-panel diagram of the agent-ops operating layer: human-set DCB (Direction, Contracts, Bar); fleet seats Claude (control plane), Codex, Cursor, Antigravity, Pi (OSS overflow, Kimi target), and Grok Build (guard-wired only); a mechanical-guard fence (credential-guard, git-staging-guard, published-history-guard, fanout-guard on PreToolUse; config-change-guard on ConfigChange; redline-guard at pre-commit); supporting rails for incidents, skills, conventions, and decisions. Telltale observes only."
        title="agent-ops operating layer">
 </picture>
 
@@ -153,13 +153,18 @@ nothing and might get the next gap found by a reader instead of a leak.
   [`decisions/ADR-009`](decisions/ADR-009-cursor-ide-lane-in-fleet.md));
   `vendors/gemini/` documents Google Antigravity (AGY), the measured
   Gemini-family research/overflow lane, including its open guard obligation;
+  `vendors/pi/` documents Pi, the open-source overflow harness — target model
+  family Kimi (K3 when access lands) per
+  [`decisions/ADR-014`](decisions/ADR-014-pi-harness-kimi-model-target.md),
+  interim xAI only for capacity;
   `vendors/grok/` documents Grok Build (xAI) — guard wiring only, not a
   routing lane, but installed and capable, so ADR-012 owes it a guard.
   Every vendor reads and writes; guard wiring rather than lane shape is what
   bounds them
   ([`decisions/ADR-012`](decisions/ADR-012-capability-parity-and-the-guard-obligation.md)).
   The control-plane decision is
-  [`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md).
+  [`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md);
+  Pi's harness/model split is ADR-014.
   The adapter contract is [`vendors/README.md`](vendors/README.md).
 - **`decisions/`** — the repo's own contract, honestly versioned:
   - `ADR-001-public-claude-ops-repo.md` — the scope contract: what gets
@@ -225,6 +230,9 @@ nothing and might get the next gap found by a reader instead of a leak.
     config-change guard that protects their wiring) are canonical in this
     repo; local preference and cost-control hooks (`fanout-guard.py`) stay
     private. Machine-config keeps no copy of a redline hook.
+  - `ADR-014-pi-harness-kimi-model-target.md` — Pi as a routing harness;
+    Kimi (K3) is the model-family target; interim Grok-on-Pi is capacity
+    only and is not Grok Build admission.
 - **`scripts/redline-guard.py`** — that backstop: a pre-commit hook that
   scans staged content for the publication-boundary violations (credential
   shapes, private repo names, private memory links, local paths). Its banned
@@ -251,7 +259,7 @@ This is one engineer's machine, not a team or a platform. There's no
 *organization* — no shared incident channel, no on-call rotation — every
 "postmortem" here is a solo session catching its own mistake in the same turn
 it happened. ("Fleet" elsewhere in this repo means the five agent seats on
-that one machine — Claude, Codex, Cursor, Antigravity, and Grok — not people.)
+that one machine — Claude, Codex, Cursor, Antigravity, Pi, and Grok — not people.)
 It's published anyway because the failure modes (tool-shape gaps in a mechanical
 guard, uncapped multi-agent fan-out cost, a debugging session in production
 credentials by accident) don't depend on team size. They just need an agent

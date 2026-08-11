@@ -6,7 +6,9 @@ agent operating layer, across every vendor in the fleet (see
 for canonicality and
 [`decisions/ADR-008`](decisions/ADR-008-agent-ops-rename-and-vendor-layer.md)
 for the rename and vendor layout; fleet routing is
-[`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md)).
+[`decisions/ADR-010`](decisions/ADR-010-claude-led-four-vendor-orchestration.md),
+with Pi's harness/model split in
+[`decisions/ADR-014`](decisions/ADR-014-pi-harness-kimi-model-target.md)).
 
 - **Vendor adapters:** [`vendors/`](vendors/) — root is vendor-neutral
   canon; harness-specific material (skills, instruction-file wiring,

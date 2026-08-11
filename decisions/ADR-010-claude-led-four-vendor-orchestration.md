@@ -2,7 +2,10 @@
 
 **Status:** Accepted — 2026-08-02; decision 4 and the guard-posture table's
 "Routing consequence" column superseded by
-[`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md) (2026-08-04)
+[`ADR-012`](ADR-012-capability-parity-and-the-guard-obligation.md) (2026-08-04);
+harness roster extended by
+[`ADR-014`](ADR-014-pi-harness-kimi-model-target.md) (2026-08-11) for the Pi
+seat and its Kimi model target
 **Amends:** ADR-009 decision 5 and its telemetry consequences
 
 ## Context
@@ -65,6 +68,13 @@ are explicit and whose value can be measured.
    as `codex exec` and `agy -p` are deliberate case-by-case dispatches. No
    quota-based or automatic dispatcher is built until repeated manual routing
    proves a need.
+
+**Amendment, 2026-08-11 ([`ADR-014`](ADR-014-pi-harness-kimi-model-target.md)):**
+Pi is an additional routing harness (open-source overflow / extension-first).
+Its **target** model family is Kimi (K3 when access lands). An interim xAI
+`grok-4.5` backend may keep the seat warm but does not satisfy decision 5's
+independence test against Grok, and does not admit Grok Build as a routing
+lane. Anthropic pools stay on Claude Code, not behind Pi.
 
 ## Guard posture at this decision
 
