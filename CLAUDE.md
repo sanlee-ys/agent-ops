@@ -50,7 +50,14 @@ for the rename and vendor layout; fleet routing is
   closed question:
   [`settled-rulings-suppress-findings.md`](conventions/settled-rulings-suppress-findings.md)
   — a decided question is not a finding; drop it before it reaches a report,
-  and never let a chip restate it as an open tradeoff. And from a rename that
+  and never let a chip restate it as an open tradeoff. Two from the 2026-08-11 feedback-tier build-out:
+  [`feedback-hooks-are-not-guards.md`](conventions/feedback-hooks-are-not-guards.md)
+  — the hook layer has two tiers (redline gates vs fail-open feedback hooks)
+  and neither may absorb the other; and
+  [`agent-in-ci.md`](conventions/agent-in-ci.md) — the assembly rule for
+  running an agent as a sandboxed CI step: scoped credentials, proposal-only
+  output, a deterministic verifier after it, and the guards travel with the
+  job. And from a rename that
   wedged the session that ran it:
   [`hooks-gate-their-own-repair.md`](conventions/hooks-gate-their-own-repair.md)
   — **this repo hosts live hooks.** `~/.claude/hooks/credential-guard.py`,
