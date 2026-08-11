@@ -44,11 +44,19 @@ harness's own format or dialect.
   ADR-012 is enough to owe it a guard; admitting it to the fleet would be a
   separate decision. Its README carries the measured hook semantics and the
   runtime checks still outstanding.
+- [`pi/`](pi/) — Pi (earendil-works), the open-source overflow harness.
+  Admitted 2026-08-11 with a verified `tool_call` deny guard. **Target model
+  family is Kimi (K3 when access lands)** per
+  [`ADR-014`](../decisions/ADR-014-pi-harness-kimi-model-target.md). Interim
+  backend is xAI `grok-4.5` for capacity only — that does **not** make this
+  a Grok routing lane and does **not** count as independence from Grok.
 
 The fleet routes on two axes: the **harness** selects tools and working
 surface; the **model family** determines whether a second opinion is
-independent. The complete routing decision is
-[`ADR-010`](../decisions/ADR-010-claude-led-four-vendor-orchestration.md).
+independent. The base routing decision is
+[`ADR-010`](../decisions/ADR-010-claude-led-four-vendor-orchestration.md);
+Pi's harness/model split is
+[`ADR-014`](../decisions/ADR-014-pi-harness-kimi-model-target.md).
 
 ## Commit attribution — Co-authored-by trailers
 
@@ -88,8 +96,9 @@ one vendor is a gap, not a default — see
 [`conventions/allowlists-fail-both-ways.md`](../conventions/allowlists-fail-both-ways.md)
 for the general principle.
 
-Current implementation truth: Claude, Codex, Antigravity, Cursor and Grok
-Build all have the fleet suite wired. The open rows are no longer *whether* a
+Current implementation truth: Claude, Codex, Antigravity, Cursor, Grok
+Build, and Pi all have the fleet suite wired (Pi via its `tool_call`
+extension; the others via their native hook adapters). The open rows are no longer *whether* a
 harness is wired but *how far each wiring has been observed working* — Cursor's
 was verified live on 2026-08-04, Grok's on 2026-08-09, both on the Windows
 workstation. Cursor is the row that still leaves a machine open: the macOS
