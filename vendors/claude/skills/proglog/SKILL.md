@@ -1,6 +1,7 @@
 ---
 name: proglog
-description: Append a dated entry to the user's private pairing-journal file — concepts relearned (with an analogy to a prior stack when one genuinely fits) and what got built this session. Invoke via /proglog, or proactively offer it at the end of a substantive hands-on pairing/relearning session. Also proactively check at the START of a session that looks like a continuation of pairing work: if the latest prog-log entry looks like it predates work that's evidently happened since, remind the user before diving back in. Do NOT use for quick one-off questions, mechanical edits, or sessions with no relearning/building content worth journaling — and don't nag if the user declines the reminder once.
+description: >-
+  Append a dated entry to the user's private pairing-journal file — concepts relearned (with an analogy to a prior stack when one genuinely fits) and what got built this session. Invoke via /proglog, or proactively offer it at the end of a substantive hands-on pairing/relearning session. Also proactively check at the START of a session that looks like a continuation of pairing work: if the latest prog-log entry looks like it predates work that's evidently happened since, remind the user before diving back in. Do NOT use for quick one-off questions, mechanical edits, or sessions with no relearning/building content worth journaling — and don't nag if the user declines the reminder once.
 ---
 
 # Prog-log entry
