@@ -1,6 +1,7 @@
 ---
 name: handoff
-description: Produce a paste-ready handoff brief capturing the LIVE state of the current work session, so another Claude Code window (which cannot read this one's transcript) or a future session can resume without losing the thread. Invoke via /handoff. Use when the user is pausing, switching windows/machines, ending a pairing session, or says things like "hand this off", "write a handoff", "I'm moving to the editor", "pick this up later". Distinct from DCB: DCB is a PRE-flight scaffold (Direction/Contracts/Bar set before work starts); handoff is a POST-flight snapshot (state captured to resume/transfer work already in progress). Do NOT use as a substitute for actually committing/pushing work, and skip it for trivial one-off questions where there is no in-progress state worth transferring.
+description: >-
+  Produce a paste-ready handoff brief capturing the LIVE state of the current work session, so another Claude Code window (which cannot read this one's transcript) or a future session can resume without losing the thread. Invoke via /handoff. Use when the user is pausing, switching windows/machines, ending a pairing session, or says things like "hand this off", "write a handoff", "I'm moving to the editor", "pick this up later". Distinct from DCB: DCB is a PRE-flight scaffold (Direction/Contracts/Bar set before work starts); handoff is a POST-flight snapshot (state captured to resume/transfer work already in progress). Do NOT use as a substitute for actually committing/pushing work, and skip it for trivial one-off questions where there is no in-progress state worth transferring.
 ---
 
 # Session handoff
