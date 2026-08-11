@@ -11,6 +11,14 @@ put it alongside its README and `posture.md`.
 | [`git-staging-guard.py`](git-staging-guard.py) | `PreToolUse` / shells | whole-tree staging (`git add -A\|-u\|.`, `git commit -a`), which sweeps a parallel session's uncommitted work into this session's commit |
 | [`published-history-guard.py`](published-history-guard.py) | `PreToolUse` / shells | any command that would move `main` backwards over a commit the remote already has — force-push, reset, `commit --amend`, `rebase`, `branch -f`/`-M`, `checkout -B`/`switch -C`, `update-ref`, `filter-branch`/`filter-repo`, or deleting the remote branch |
 | [`config-change-guard.py`](config-change-guard.py) | `ConfigChange` | a settings change that leaves the file disarmed: a guard hook not wired where it can fire, `disableAllHooks`, `permissions.defaultMode: bypassPermissions`, an unrestricted-shell allow rule, or an `env` key that redirects model traffic |
+| [`destructive-command-guard.py`](destructive-command-guard.py) | `PreToolUse` / shells | locally destructive commands, judged by a blast × reversibility score per rule id (`git reset --hard`, `git clean -f`, recursive deletes, …) — `git reset --soft` scores as safe and passes. Buckets: allow / warn / confirm / block; block = exit 2, which holds in every permission mode. Overrides: `RISK-OK` per command; `guard-scoring.json` per rule/cell; `AGENT_OPS_GUARD_SHADOW` logs without enforcement. See [ADR-015](../decisions/ADR-015-blast-reversibility-scoring-and-redaction.md) |
+
+A fourth `PreToolUse` guard lives in [`security/`](../security/):
+[`secret-redaction-guard.py`](../security/secret-redaction-guard.py) rewrites
+instead of refusing — a literal secret value in `tool_input` is replaced with
+`[REDACTED:<rule_id>]` and the call proceeds via
+`hookSpecificOutput.updatedInput` (deny + exit 2 on the codex target, whose
+contract cannot rewrite input). Same ADR.
 
 These are **deployed, not imported**: the machine-config repo's setup scripts
 symlink them (macOS/Linux) or copy them (Windows) into `~/.claude/hooks/`, so
