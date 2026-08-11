@@ -90,7 +90,11 @@ with Pi's harness/model split in
   + the `workflow_call` wrapper in `.github/workflows/generated-drift.yml`
   (consumer wiring: [`scripts/README.md`](scripts/README.md)).
 - **Delegation policy** — task classes × autonomy levels, each gated on a
-  verifier: [`delegation-policy.md`](delegation-policy.md).
+  verifier: [`delegation-policy.md`](delegation-policy.md). It also carries the
+  **review finding disposition**: every review finding is labelled `auto-fix`
+  (safe and mechanical — the applying session resolves it) or `ask-user`
+  (touches intent — escalated), the reviewer assigns the label, and an
+  unlabelled finding defaults to `ask-user`.
 - **Decisions:** [`decisions/`](decisions/). **Incidents:** [`incidents/`](incidents/) —
   held to a severity bar (real exposure, real spend, or a live control
   failing); write-ups below that bar go in [`debug-notes/`](debug-notes/),

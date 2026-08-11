@@ -42,6 +42,13 @@ check it deliberately, don't trust it silently.
 - **Boundary:** Codex reviews read-only; it never edits the branch under
   review. Its findings are reconciled against live repo state before any
   are acted on — the branch may have moved since the review snapshot.
+- **Every finding carries a disposition label**, `auto-fix` or `ask-user`,
+  assigned by the reviewer at the moment it is written. `auto-fix` is safe and
+  mechanical and the applying session resolves it without asking; `ask-user`
+  touches intent and is escalated. An unlabelled finding is `ask-user`. The
+  reviewer assigns it because the applying session is the author, and the
+  author's bias runs toward `auto-fix`. Full rule:
+  [`delegation-policy.md`](../../delegation-policy.md).
 
 ## Escalation packet
 
