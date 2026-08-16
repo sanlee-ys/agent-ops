@@ -47,9 +47,9 @@ harness's own format or dialect.
 - [`pi/`](pi/) — Pi (earendil-works), the open-source overflow harness.
   Admitted 2026-08-11 with a verified `tool_call` deny guard. **Target model
   family is Kimi (K3 when access lands)** per
-  [`ADR-014`](../decisions/ADR-014-pi-harness-kimi-model-target.md). Interim
-  backend is xAI `grok-4.5` for capacity only — that does **not** make this
-  a Grok routing lane and does **not** count as independence from Grok.
+  [`ADR-014`](../decisions/ADR-014-pi-harness-kimi-model-target.md). The
+  interim xAI ride was declined on 2026-08-16. The seat is parked until
+  Kimi. That does **not** make Grok Build a routing lane.
 
 The fleet routes on two axes: the **harness** selects tools and working
 surface; the **model family** determines whether a second opinion is

@@ -44,6 +44,9 @@ on the waitlist; the interim backend must be labeled interim.
    warm and drain an otherwise unused subscription, but it does **not**
    count as model-family independence from Grok, and it does **not** admit
    Grok Build as a routing lane by the back door.
+   **Amendment, 2026-08-16:** San declined that interim ride. The Pi seat
+   is parked until Kimi access lands. Do not put Grok, Claude, or GPT
+   behind Pi to keep the chair warm.
 4. **Do not put Anthropic Pro/Max (or any Claude pool) behind Pi.**
    Unsupported third-party ride; duplicates Claude Code with a worse tool
    surface. Same prohibition shape as the Cline evaluation.
@@ -64,6 +67,9 @@ on the waitlist; the interim backend must be labeled interim.
   explicitly, rather than describing Pi as "the xAI lane."
 - Agents must not treat "I am in Pi" as "I am a non-Grok second opinion"
   while the interim backend is still Grok.
+- **2026-08-16:** the interim Grok backend is off. Pi has no model until
+  Kimi cutover. A launch that needs a model is not a reason to restore
+  xAI, Claude, or GPT on this seat.
 - Subscription economics for Kimi land in the private strategy when the
   waitlist converts; this ADR only locks the routing intent.
 - If the Kimi waitlist never converts, revisit the target family — do not
