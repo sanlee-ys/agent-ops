@@ -1,9 +1,10 @@
 /**
- * fleet-guard.ts. Thin Pi tool_call wrapper for the fleet guards.
+ * fleet-guard.ts. Thin Pi wrapper for the fleet guards.
  *
- * This file holds no redline patterns. On tool_call it writes the event
- * as JSON and it runs vendors/pi/hooks/pi-guard-adapter.py. A pass
- * returns nothing. A deny returns { block: true, reason }.
+ * This file holds no redline patterns. On tool_call and user_bash it
+ * writes the event as JSON and it runs vendors/pi/hooks/pi-guard-adapter.py.
+ * A pass returns nothing. A tool_call deny returns { block: true, reason }.
+ * A user_bash deny returns a finished command result with exitCode 2.
  *
  * How this file finds Python. Fail closed if no interpreter is found.
  * 1. Use process.execPath only when its file name is a Python interpreter.
@@ -125,38 +126,86 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {};
 }
 
+function resolveCwd(eventCwd: unknown, ctx: { cwd?: unknown } | undefined): string {
+  if (typeof eventCwd === "string" && eventCwd) {
+    return eventCwd;
+  }
+  if (typeof ctx?.cwd === "string" && ctx.cwd) {
+    return ctx.cwd;
+  }
+  return process.cwd();
+}
+
+/** Spawn the adapter. Return the deny reason, or undefined when the call may run. */
+function runAdapter(
+  payload: Record<string, unknown>,
+  cwd: string,
+): string | undefined {
+  try {
+    const python = findPython();
+    if (!python) {
+      return "PI FLEET GUARD: no Python interpreter. The fleet adapter cannot run. A check that did not run is not a pass.";
+    }
+    const root = repoRoot();
+    if (!root) {
+      return "PI FLEET GUARD: agent-ops checkout not found. Set AGENT_OPS_ROOT or run from the checkout. A check that did not run is not a pass.";
+    }
+    const adapter = adapterPath(root);
+    if (!adapter) {
+      return "PI FLEET GUARD: pi-guard-adapter.py is missing. A check that did not run is not a pass.";
+    }
+
+    const result = spawnSync(python, [adapter], {
+      input: JSON.stringify(payload),
+      encoding: "utf8",
+      timeout: TIMEOUT_MS,
+      windowsHide: true,
+      env: { ...process.env, AGENT_OPS_ROOT: root },
+      cwd,
+    });
+
+    if (result.error) {
+      const code = (result.error as NodeJS.ErrnoException).code;
+      if (code === "ETIMEDOUT") {
+        return "PI FLEET GUARD: the adapter did not finish in time. A check that did not run is not a pass.";
+      }
+      return `PI FLEET GUARD: the adapter did not start. ${result.error.message}`;
+    }
+    if (result.status === 0) {
+      return undefined;
+    }
+    if (result.status === 2) {
+      return (
+        (result.stdout || "").trim() ||
+        (result.stderr || "").trim() ||
+        "PI FLEET GUARD: the adapter denied this call and gave no reason."
+      );
+    }
+    return `PI FLEET GUARD: the adapter exited ${result.status}. A check that did not run is not a pass.`;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return `PI FLEET GUARD: internal error. ${detail}`;
+  }
+}
+
+function bashPayload(command: string, cwd: string): Record<string, unknown> {
+  const input = { command };
+  return {
+    toolName: "bash",
+    tool_name: "bash",
+    input,
+    toolInput: input,
+    tool_input: input,
+    cwd,
+  };
+}
+
 export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, ctx) => {
-    try {
-      const python = findPython();
-      if (!python) {
-        return {
-          block: true,
-          reason:
-            "PI FLEET GUARD: no Python interpreter. The fleet adapter cannot run. A check that did not run is not a pass.",
-        };
-      }
-      const root = repoRoot();
-      if (!root) {
-        return {
-          block: true,
-          reason:
-            "PI FLEET GUARD: agent-ops checkout not found. Set AGENT_OPS_ROOT or run from the checkout. A check that did not run is not a pass.",
-        };
-      }
-      const adapter = adapterPath(root);
-      if (!adapter) {
-        return {
-          block: true,
-          reason:
-            "PI FLEET GUARD: pi-guard-adapter.py is missing. A check that did not run is not a pass.",
-        };
-      }
-
-      const input = asRecord(event.input);
-      const cwd =
-        typeof ctx?.cwd === "string" && ctx.cwd ? ctx.cwd : process.cwd();
-      const payload = {
+    const input = asRecord(event.input);
+    const cwd = resolveCwd(undefined, ctx);
+    const reason = runAdapter(
+      {
         toolName: event.toolName,
         tool_name: event.toolName,
         toolCallId: event.toolCallId,
@@ -164,50 +213,30 @@ export default function (pi: ExtensionAPI) {
         toolInput: input,
         tool_input: input,
         cwd,
-      };
+      },
+      cwd,
+    );
+    if (reason) {
+      return { block: true, reason };
+    }
+  });
 
-      const result = spawnSync(python, [adapter], {
-        input: JSON.stringify(payload),
-        encoding: "utf8",
-        timeout: TIMEOUT_MS,
-        windowsHide: true,
-        env: { ...process.env, AGENT_OPS_ROOT: root },
-        cwd,
-      });
-
-      if (result.error) {
-        const code = (result.error as NodeJS.ErrnoException).code;
-        if (code === "ETIMEDOUT") {
-          return {
-            block: true,
-            reason:
-              "PI FLEET GUARD: the adapter did not finish in time. A check that did not run is not a pass.",
-          };
-        }
-        return {
-          block: true,
-          reason: `PI FLEET GUARD: the adapter did not start. ${result.error.message}`,
-        };
-      }
-      if (result.status === 0) {
-        return;
-      }
-      if (result.status === 2) {
-        const reason =
-          (result.stdout || "").trim() ||
-          (result.stderr || "").trim() ||
-          "PI FLEET GUARD: the adapter denied this call and gave no reason.";
-        return { block: true, reason };
-      }
+  // !command and !!command fire user_bash, not tool_call.
+  pi.on("user_bash", async (event, ctx) => {
+    const command = typeof event.command === "string" ? event.command : "";
+    if (!command.trim()) {
+      return;
+    }
+    const cwd = resolveCwd(event.cwd, ctx);
+    const reason = runAdapter(bashPayload(command, cwd), cwd);
+    if (reason) {
       return {
-        block: true,
-        reason: `PI FLEET GUARD: the adapter exited ${result.status}. A check that did not run is not a pass.`,
-      };
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      return {
-        block: true,
-        reason: `PI FLEET GUARD: internal error. ${detail}`,
+        result: {
+          output: reason,
+          exitCode: 2,
+          cancelled: false,
+          truncated: false,
+        },
       };
     }
   });

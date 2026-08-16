@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for vendors/pi/scripts/check-park.py.
 
-Each case uses a throwaway settings file and a throwaway guard pair.
+Each case uses a throwaway settings file and throwaway copy pairs.
 The tests do not read the live ~/.pi tree. The tests do not use secrets.
 
 The CLI exit code is the interface: 0 when every applicable check passed,
@@ -30,6 +30,8 @@ OK = 0
 FAIL = 1
 
 GUARD_BYTES = b"// fixture fleet-guard\n"
+RESOURCES_BYTES = b"// fixture fleet-resources\n"
+AGENTS_BYTES = b"# fixture AGENTS\n"
 
 
 def write_json(path: Path, document: dict) -> None:
@@ -52,16 +54,37 @@ class PiParkTests(unittest.TestCase):
         )
         self.canonical.parent.mkdir(parents=True)
         self.canonical.write_bytes(GUARD_BYTES)
+        self.canonical_resources = (
+            self.root / "vendors" / "pi" / "extensions" / "fleet-resources.ts"
+        )
+        self.canonical_resources.write_bytes(RESOURCES_BYTES)
+        self.canonical_agents = (
+            self.root / "vendors" / "pi" / "instructions" / "AGENTS.md"
+        )
+        self.canonical_agents.parent.mkdir(parents=True)
+        self.canonical_agents.write_bytes(AGENTS_BYTES)
         self.deployed = self.tmp / "deployed" / "fleet-guard.ts"
         self.deployed.parent.mkdir(parents=True)
         self.deployed.write_bytes(GUARD_BYTES)
+        self.deployed_resources = self.tmp / "deployed" / "fleet-resources.ts"
+        self.deployed_resources.write_bytes(RESOURCES_BYTES)
+        self.deployed_agents = self.tmp / "deployed" / "AGENTS.md"
+        self.deployed_agents.write_bytes(AGENTS_BYTES)
         self.settings = self.tmp / "settings.json"
         write_json(
             self.settings,
             {"defaultProvider": "kimi-coding", "defaultModel": "kimi-k3"},
         )
 
-    def run_check(self, *extra: str, settings=None, deployed=None, env_extra=None):
+    def run_check(
+        self,
+        *extra: str,
+        settings=None,
+        deployed=None,
+        deployed_resources=None,
+        deployed_agents=None,
+        env_extra=None,
+    ):
         env = os.environ.copy()
         env["AGENT_OPS_ROOT"] = str(self.root)
         env.pop("PI_SETTINGS", None)
@@ -74,6 +97,18 @@ class PiParkTests(unittest.TestCase):
         deployed_path = self.deployed if deployed is None else deployed
         if deployed_path is not None:
             cmd.extend(["--deployed", str(deployed_path)])
+        resources_path = (
+            self.deployed_resources
+            if deployed_resources is None
+            else deployed_resources
+        )
+        if resources_path is not None:
+            cmd.extend(["--deployed-resources", str(resources_path)])
+        agents_path = (
+            self.deployed_agents if deployed_agents is None else deployed_agents
+        )
+        if agents_path is not None:
+            cmd.extend(["--deployed-agents", str(agents_path)])
         cmd.extend(extra)
         return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
@@ -145,6 +180,50 @@ class PiParkTests(unittest.TestCase):
         self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
         self.assertIn("GUARD COPY DRIFT: FAIL", proc.stdout)
         self.assertIn("deployed copy is missing", proc.stdout)
+
+    def test_matching_extra_copies_pass(self):
+        write_json(self.settings, {})
+        proc = self.run_check()
+        self.assertEqual(proc.returncode, OK, proc.stdout + proc.stderr)
+        self.assertIn("RESOURCES COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("AGENTS COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("GUARD COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("SHA-256 matches", proc.stdout)
+
+    def test_drifted_resources_fail(self):
+        self.deployed_resources.write_bytes(RESOURCES_BYTES + b"// drifted\n")
+        proc = self.run_check()
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("RESOURCES COPY DRIFT: FAIL", proc.stdout)
+        self.assertIn("differ", proc.stdout)
+        self.assertIn("GUARD COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("AGENTS COPY DRIFT: PASS", proc.stdout)
+
+    def test_drifted_agents_fail(self):
+        self.deployed_agents.write_bytes(AGENTS_BYTES + b"# drifted\n")
+        proc = self.run_check()
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("AGENTS COPY DRIFT: FAIL", proc.stdout)
+        self.assertIn("differ", proc.stdout)
+        self.assertIn("GUARD COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("RESOURCES COPY DRIFT: PASS", proc.stdout)
+
+    def test_missing_extra_deployed_copy_fail(self):
+        missing_resources = self.tmp / "no-such-resources.ts"
+        proc = self.run_check(deployed_resources=missing_resources)
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("RESOURCES COPY DRIFT: FAIL", proc.stdout)
+        self.assertIn("deployed copy is missing", proc.stdout)
+        self.assertIn("GUARD COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("AGENTS COPY DRIFT: PASS", proc.stdout)
+
+        missing_agents = self.tmp / "no-such-agents.md"
+        proc = self.run_check(deployed_agents=missing_agents)
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("AGENTS COPY DRIFT: FAIL", proc.stdout)
+        self.assertIn("deployed copy is missing", proc.stdout)
+        self.assertIn("GUARD COPY DRIFT: PASS", proc.stdout)
+        self.assertIn("RESOURCES COPY DRIFT: PASS", proc.stdout)
 
 
 if __name__ == "__main__":
