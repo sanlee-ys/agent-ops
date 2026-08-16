@@ -1,47 +1,32 @@
 # agent-ops
 
-Field notes on running an agentic coding CLI as a real teammate on a real
-machine, with real credentials sitting nearby — written by one engineer,
-for one machine, published because the failure modes don't stay put.
+Field notes from one machine. An agentic CLI sits next to real credentials.
+The failure modes do not stay put, so this is public.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/operating-layer-hero-dark.svg">
   <img src="images/operating-layer-hero-light.svg"
-       alt="Instrument-panel diagram of the agent-ops operating layer: human-set DCB (Direction, Contracts, Bar); fleet seats Claude (control plane), Codex, Cursor, Antigravity, Pi (OSS overflow, Kimi target), and Grok Build (guard-wired only); a mechanical-guard fence (credential-guard, git-staging-guard, published-history-guard, fanout-guard on PreToolUse; config-change-guard on ConfigChange; redline-guard at pre-commit); supporting rails for incidents, skills, conventions, and decisions. Telltale observes only."
-       title="agent-ops operating layer">
+       alt="Two sibling repos under human-set DCB. agent-ops is the operating layer and wires the mechanical fence. telltale observes the fleet and never routes. Fleet seats: Claude, Codex, Antigravity, Pi, and Grok Build (guard-wired only)."
+       title="agent-ops and telltale around the fleet">
 </picture>
 
 ## Why this exists
 
-Agentic CLIs like Claude Code don't just edit files anymore. They run shell
-commands, read arbitrary config, call MCP servers with live tokens in their
-environment, and fan out into multi-agent workflows that can spend real money
-in minutes. That combination — broad tool access plus standing credentials —
-is a live security surface, and it's under-documented. Most of what's written
-about it is either marketing ("agents are safe by design") or after-the-fact
-incident response at a company that isn't going to publish its postmortems.
+Agentic CLIs run a shell, read config, call MCP servers that hold live
+tokens, and fan out work that spends money. Broad tool access plus standing
+credentials is a live security surface. Most writing about it is marketing
+or a closed-company postmortem.
 
-This repo is neither. It's the operating layer that grew out of actually
-running Claude Code day to day on one machine: a security posture, the
-`PreToolUse` guards that enforce part of it mechanically, five incident
-postmortems written in blameless format with the failures left in — plus
-two write-ups deliberately demoted to debug notes when the log was held to
-an honest severity bar — five reusable skills, and the working agreements
-(how work gets scoped, how parallel sessions stay out of each other's way)
-that the posture and the incidents both assume.
+This repo is the operating layer from daily use of Claude Code on one
+machine. It holds a security posture, the `PreToolUse` guards that enforce
+part of it, five incident postmortems, five reusable skills, and the
+working agreements those pieces assume.
 
-Three of those are credential exposures — one covering two separate leaks
-of the same GitHub PAT — for four exposure events in one week, three of
-them the *same* credential leaking through a *different* tool or command
-shape each time, because the guard that closed the previous gap was scoped
-to the surface someone had thought to enumerate, not to the surface that
-actually existed. That pattern — a mechanical control that's
-only as complete as its author's imagination — is the throughline of this
-repo, and it's also the reason the guard's own source is published here
-rather than kept private. Security through "attacker doesn't know the rules"
-doesn't hold on a machine where the attacker already has local execution;
-the guard's value is defense-in-depth, not secrecy, so publishing it costs
-nothing and might get the next gap found by a reader instead of a leak.
+Three of the five incidents are credential exposures. Four leak events
+landed in one week. Three of those events were the same GitHub PAT, through
+a different tool or command shape each time. Each guard closed only the
+surface its author had named. The guard source is public because a local
+attacker already has execution. The value is defense-in-depth, not secrecy.
 
 ## Map
 
@@ -267,8 +252,8 @@ nothing and might get the next gap found by a reader instead of a leak.
 This is one engineer's machine, not a team or a platform. There's no
 *organization* — no shared incident channel, no on-call rotation — every
 "postmortem" here is a solo session catching its own mistake in the same turn
-it happened. ("Fleet" elsewhere in this repo means the five agent seats on
-that one machine — Claude, Codex, Cursor, Antigravity, Pi, and Grok — not people.)
+it happened. ("Fleet" elsewhere in this repo means the agent seats on
+that one machine — Claude, Codex, Antigravity, Pi, and Grok — not people.)
 It's published anyway because the failure modes (tool-shape gaps in a mechanical
 guard, uncapped multi-agent fan-out cost, a debugging session in production
 credentials by accident) don't depend on team size. They just need an agent

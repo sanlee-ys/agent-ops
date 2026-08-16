@@ -1,201 +1,283 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
-  <title id="title">agent-ops operating layer</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 800" role="img" aria-labelledby="title desc">
+  <title id="title">agent-ops and telltale as sibling repos around the fleet</title>
   <desc id="desc">
-    Instrument-panel diagram of the agent operating layer: human-set DCB
-    (Direction, Contracts, Bar) above a multi-vendor fleet (Claude control plane,
-    Codex second opinion, Cursor IDE lane, Antigravity research/overflow, Pi OSS
-    overflow with Kimi target, Grok guard-wired only), bounded by mechanical
-    PreToolUse and ConfigChange guards, with incidents, skills, conventions, and
-    decisions as supporting rails. Telltale observes but never routes.
+    Two sibling repos sit under human-set DCB. agent-ops is the operating
+    layer: vendor adapters, hooks, security, incidents, conventions, and
+    decisions. It wires the mechanical fence. telltale is the observer:
+    council, HUD, and statusline. It never routes. Fleet seats are Claude
+    (control plane), Codex, Antigravity, and Pi, plus Grok Build as
+    guard-wired only. Cursor is not a seat. A fleet bus joins the repos
+    to the seats. PreToolUse and ConfigChange guards bind every seat.
   </desc>
   <defs>
     <style>
-      .bg { fill: #0b0f12; }
-      .panel { fill: #11171c; stroke: #2a3540; stroke-width: 1; }
-      .inset { fill: #0d1216; stroke: #24303a; stroke-width: 1; }
+      .bg { fill: #070a0d; }
+      .panel { fill: #0e1419; stroke: #2a3540; stroke-width: 1; }
+      .grid-line { stroke: #24303a; stroke-width: 0.6; fill: none; opacity: 0.75; }
+      .hatch-line { stroke: #c9a227; stroke-width: 0.7; opacity: 0.18; }
+      .inset { fill: #0b1014; stroke: #24303a; stroke-width: 1; }
       .rule { stroke: #2a3540; stroke-width: 1; fill: none; }
-      .accent { stroke: #5eb8b0; stroke-width: 1.25; fill: none; }
+      .accent { stroke: #5eb8b0; stroke-width: 1.35; fill: none; }
       .accent-fill { fill: #5eb8b0; }
       .amber { fill: #c9a227; }
-      .amber-stroke { stroke: #c9a227; stroke-width: 1; fill: none; }
+      .observe { stroke: #c9a227; stroke-width: 1.35; fill: none; stroke-dasharray: 3.5 2.5; }
+      .wire { stroke: #5eb8b0; stroke-width: 1.6; fill: none; }
       .seat { fill: #151c22; stroke: #33404c; stroke-width: 1; }
-      .seat-ctrl { fill: #152028; stroke: #5eb8b0; stroke-width: 1.25; }
-      .seat-wire { fill: #151c22; stroke: #5a6570; stroke-width: 1; stroke-dasharray: 3 2; }
-      .fence { fill: #141a1f; stroke: #3a4652; stroke-width: 1; }
-      .guard { fill: #10161b; stroke: #3d4a56; stroke-width: 1; }
-      .rail { fill: #10161b; stroke: #2e3a44; stroke-width: 1; }
-      .t { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #c8d0d8; }
-      .t-dim { fill: #7a8794; }
+      .seat-ctrl { fill: #102028; stroke: #5eb8b0; stroke-width: 1.45; }
+      .seat-wire { fill: #12181d; stroke: #5a6570; stroke-width: 1; stroke-dasharray: 3 2; }
+      .repo { fill: #0c1419; stroke: #5eb8b0; stroke-width: 1.45; }
+      .repo-obs { fill: #16130c; stroke: #c9a227; stroke-width: 1.45; }
+      .tab { fill: #102028; stroke: #5eb8b0; stroke-width: 1.45; }
+      .tab-obs { fill: #1d180a; stroke: #c9a227; stroke-width: 1.45; }
+      .cell { fill: #12191f; stroke: #2e3a44; stroke-width: 1; }
+      .cell-obs { fill: #1b170e; stroke: #5a4a20; stroke-width: 1; }
+      .fence { fill: #11181d; stroke: #3a4652; stroke-width: 1; }
+      .guard { fill: #0c1217; stroke: #3d4a56; stroke-width: 1; }
+      .bus { fill: #1b232a; stroke: #4a5660; stroke-width: 1; }
+      .pin { fill: #4a5660; }
+      .pin-ctrl { fill: #5eb8b0; }
+      .pin-obs { fill: #c9a227; }
+      .screw { fill: #1b232a; stroke: #4a5660; stroke-width: 0.75; }
+      .t { font-family: "JetBrains Mono", "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #d0d7de; }
+      .t-dim { fill: #8b97a3; }
       .t-accent { fill: #5eb8b0; }
       .t-amber { fill: #c9a227; }
-      .t-sm { font-size: 10px; }
-      .t-xs { font-size: 9px; }
-      .t-md { font-size: 11px; }
-      .t-lg { font-size: 13px; letter-spacing: 0.08em; }
-      .t-xl { font-size: 12px; letter-spacing: 0.14em; }
+      .t-sm { font-size: 11px; }
+      .t-xs { font-size: 10px; }
+      .t-xxs { font-size: 9px; }
+      .t-md { font-size: 13px; }
+      .t-lg { font-size: 15px; letter-spacing: 0.06em; }
+      .t-xl { font-size: 13px; letter-spacing: 0.16em; }
       .tick { stroke: #3a4652; stroke-width: 1; }
     </style>
+    <pattern id="grid" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path class="grid-line" d="M16 0 H0 V16"/>
+    </pattern>
+    <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line class="hatch-line" x1="0" y1="0" x2="0" y2="7"/>
+    </pattern>
   </defs>
 
-  <!-- chassis -->
-  <rect class="bg" width="960" height="520" rx="6"/>
-  <rect class="panel" x="16" y="16" width="928" height="488" rx="4"/>
+  <rect class="bg" width="960" height="800" rx="7"/>
+  <rect class="panel" x="16" y="16" width="928" height="768" rx="5"/>
+  <rect x="16" y="16" width="928" height="768" rx="5" fill="url(#grid)" opacity="0.55"/>
 
-  <!-- corner ticks -->
-  <path class="accent" d="M28 36 H44 M28 36 V52"/>
-  <path class="accent" d="M932 36 H916 M932 36 V52"/>
-  <path class="accent" d="M28 484 H44 M28 484 V468"/>
-  <path class="accent" d="M932 484 H916 M932 484 V468"/>
-
-  <!-- header -->
-  <text class="t t-xl t-accent" x="40" y="48">AGENT-OPS</text>
-  <text class="t t-sm t-dim" x="140" y="48">OPERATING LAYER</text>
-  <line class="rule" x1="280" y1="44" x2="700" y2="44"/>
-  <circle class="amber" cx="724" cy="42" r="3.5"/>
-  <text class="t t-xs t-amber" x="736" y="46">TELLTALE · OBSERVES ONLY</text>
-
-  <!-- band 1: DCB -->
-  <rect class="inset" x="36" y="64" width="888" height="56" rx="3"/>
-  <text class="t t-xs t-dim" x="48" y="82">HUMAN SETS</text>
-  <text class="t t-lg t-accent" x="48" y="104">DCB</text>
-  <g transform="translate(120,78)">
-    <rect class="seat" x="0" y="0" width="180" height="28" rx="2"/>
-    <text class="t t-sm" x="12" y="18">DIRECTION</text>
-    <text class="t t-xs t-dim" x="100" y="18">what / done</text>
+  <g class="screw">
+    <circle cx="28" cy="28" r="3.2"/>
+    <circle cx="932" cy="28" r="3.2"/>
+    <circle cx="28" cy="772" r="3.2"/>
+    <circle cx="932" cy="772" r="3.2"/>
   </g>
-  <g transform="translate(312,78)">
-    <rect class="seat" x="0" y="0" width="200" height="28" rx="2"/>
-    <text class="t t-sm" x="12" y="18">CONTRACTS</text>
-    <text class="t t-xs t-dim" x="108" y="18">checkable rules</text>
-  </g>
-  <g transform="translate(524,78)">
-    <rect class="seat" x="0" y="0" width="220" height="28" rx="2"/>
-    <text class="t t-sm" x="12" y="18">BAR</text>
-    <text class="t t-xs t-dim" x="52" y="18">verify against the repo</text>
-  </g>
-  <text class="t t-xs t-dim" x="760" y="96">model does the typing</text>
-
-  <!-- band 2: fleet seats -->
-  <text class="t t-xs t-dim" x="40" y="146">FLEET SEATS</text>
-  <text class="t t-xs t-dim" x="120" y="146">harness · surface · model family are separate axes</text>
-
-  <!-- Claude -->
-  <g transform="translate(36,156)">
-    <rect class="seat-ctrl" width="140" height="88" rx="3"/>
-    <text class="t t-xs t-accent" x="10" y="18">CONTROL</text>
-    <text class="t t-md" x="10" y="40">Claude</text>
-    <text class="t t-xs t-dim" x="10" y="58">implement</text>
-    <text class="t t-xs t-dim" x="10" y="74">primary lane</text>
-  </g>
-  <!-- Codex -->
-  <g transform="translate(184,156)">
-    <rect class="seat" width="140" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
-    <text class="t t-md" x="10" y="40">Codex</text>
-    <text class="t t-xs t-dim" x="10" y="58">challenge · review</text>
-    <text class="t t-xs t-dim" x="10" y="74">GPT family</text>
-  </g>
-  <!-- Cursor -->
-  <g transform="translate(332,156)">
-    <rect class="seat" width="140" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
-    <text class="t t-md" x="10" y="40">Cursor</text>
-    <text class="t t-xs t-dim" x="10" y="58">IDE · edit-test</text>
-    <text class="t t-xs t-dim" x="10" y="74">bounded UI</text>
-  </g>
-  <!-- Antigravity -->
-  <g transform="translate(480,156)">
-    <rect class="seat" width="140" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
-    <text class="t t-md" x="10" y="40">Antigravity</text>
-    <text class="t t-xs t-dim" x="10" y="58">research · audit</text>
-    <text class="t t-xs t-dim" x="10" y="74">Gemini (AGY)</text>
-  </g>
-  <!-- Pi -->
-  <g transform="translate(628,156)">
-    <rect class="seat" width="140" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="10" y="18">SPECIALIST</text>
-    <text class="t t-md" x="10" y="40">Pi</text>
-    <text class="t t-xs t-dim" x="10" y="58">OSS overflow</text>
-    <text class="t t-xs t-dim" x="10" y="74">Kimi target</text>
-  </g>
-  <!-- Grok -->
-  <g transform="translate(776,156)">
-    <rect class="seat-wire" width="148" height="88" rx="3"/>
-    <text class="t t-xs t-dim" x="10" y="18">WIRED · NOT ROUTED</text>
-    <text class="t t-md" x="10" y="40">Grok Build</text>
-    <text class="t t-xs t-dim" x="10" y="58">guard only</text>
-    <text class="t t-xs t-dim" x="10" y="74">not a lane</text>
-  </g>
-
-  <!-- down-flow ticks into fence -->
   <g class="tick">
-    <line x1="106" y1="244" x2="106" y2="262"/>
-    <line x1="254" y1="244" x2="254" y2="262"/>
-    <line x1="402" y1="244" x2="402" y2="262"/>
-    <line x1="550" y1="244" x2="550" y2="262"/>
-    <line x1="698" y1="244" x2="698" y2="262"/>
-    <line x1="850" y1="244" x2="850" y2="262"/>
+    <line x1="25.4" y1="28" x2="30.6" y2="28"/>
+    <line x1="929.4" y1="28" x2="934.6" y2="28"/>
+    <line x1="25.4" y1="772" x2="30.6" y2="772"/>
+    <line x1="929.4" y1="772" x2="934.6" y2="772"/>
   </g>
 
-  <!-- band 3: guard fence -->
-  <rect class="fence" x="36" y="262" width="888" height="118" rx="3"/>
-  <path class="accent" d="M36 274 H924"/>
-  <text class="t t-xs t-accent" x="48" y="288">MECHANICAL GUARDS</text>
-  <text class="t t-xs t-dim" x="180" y="288">fence at tool time · policy is fleet-wide · wiring is per vendor</text>
+  <path class="accent" d="M38 40 H52 M38 40 V54"/>
+  <path class="accent" d="M922 40 H908 M922 40 V54"/>
+  <path class="accent" d="M38 760 H52 M38 760 V746"/>
+  <path class="accent" d="M922 760 H908 M922 760 V746"/>
 
-  <!-- PreToolUse row -->
-  <text class="t t-xs t-amber" x="48" y="312">PreToolUse</text>
-  <g transform="translate(120,298)">
-    <rect class="guard" width="178" height="32" rx="2"/>
-    <text class="t t-xs" x="10" y="20">credential-guard</text>
-  </g>
-  <g transform="translate(306,298)">
-    <rect class="guard" width="178" height="32" rx="2"/>
-    <text class="t t-xs" x="10" y="20">git-staging-guard</text>
-  </g>
-  <g transform="translate(492,298)">
-    <rect class="guard" width="198" height="32" rx="2"/>
-    <text class="t t-xs" x="10" y="20">published-history-guard</text>
-  </g>
-  <g transform="translate(698,298)">
-    <rect class="guard" width="158" height="32" rx="2"/>
-    <text class="t t-xs" x="10" y="20">fanout-guard</text>
-  </g>
+  <text class="t t-xl t-accent" x="40" y="50">OPERATING LAYER</text>
+  <text class="t t-xs t-dim" x="214" y="50">two repos · one fleet · one fence</text>
+  <line class="rule" x1="456" y1="46" x2="924" y2="46"/>
 
-  <!-- ConfigChange row -->
-  <text class="t t-xs t-amber" x="48" y="356">ConfigChange</text>
-  <g transform="translate(120,342)">
-    <rect class="guard" width="200" height="32" rx="2"/>
-    <text class="t t-xs" x="10" y="20">config-change-guard</text>
-  </g>
-  <text class="t t-xs t-dim" x="336" y="362">+ redline-guard at pre-commit (publication boundary)</text>
+  <rect class="inset" x="36" y="64" width="888" height="82" rx="3"/>
+  <text class="t t-xxs t-dim" x="48" y="82">HUMAN SETS</text>
+  <text class="t t-lg t-accent" x="48" y="108">DCB</text>
 
-  <!-- band 4: rails -->
-  <text class="t t-xs t-dim" x="40" y="406">SUPPORTING RAILS</text>
-  <g transform="translate(36,416)">
-    <rect class="rail" width="210" height="52" rx="2"/>
-    <text class="t t-sm" x="12" y="22">incidents/</text>
-    <text class="t t-xs t-dim" x="12" y="40">blameless postmortems</text>
+  <g transform="translate(128,80)">
+    <rect class="seat" width="248" height="50" rx="2"/>
+    <text class="t t-sm" x="12" y="20">DIRECTION</text>
+    <text class="t t-xs t-dim" x="12" y="38">what / done</text>
   </g>
-  <g transform="translate(258,416)">
-    <rect class="rail" width="210" height="52" rx="2"/>
-    <text class="t t-sm" x="12" y="22">skills</text>
-    <text class="t t-xs t-dim" x="12" y="40">dcb · park · handoff · …</text>
+  <g transform="translate(388,80)">
+    <rect class="seat" width="248" height="50" rx="2"/>
+    <text class="t t-sm" x="12" y="20">CONTRACTS</text>
+    <text class="t t-xs t-dim" x="12" y="38">checkable rules</text>
   </g>
-  <g transform="translate(480,416)">
-    <rect class="rail" width="210" height="52" rx="2"/>
-    <text class="t t-sm" x="12" y="22">conventions/</text>
-    <text class="t t-xs t-dim" x="12" y="40">working agreements</text>
-  </g>
-  <g transform="translate(702,416)">
-    <rect class="rail" width="222" height="52" rx="2"/>
-    <text class="t t-sm" x="12" y="22">decisions/</text>
-    <text class="t t-xs t-dim" x="12" y="40">ADRs · fleet routing</text>
+  <g transform="translate(648,80)">
+    <rect class="seat" width="256" height="50" rx="2"/>
+    <text class="t t-sm" x="12" y="20">BAR</text>
+    <text class="t t-xs t-dim" x="12" y="38">verify against the repo</text>
   </g>
 
-  <!-- footer strip -->
-  <line class="rule" x1="36" y1="484" x2="924" y2="484"/>
-  <text class="t t-xs t-dim" x="40" y="498">every vendor reads and writes · guard wiring is the bound · not lane shape</text>
-  <text class="t t-xs t-dim" x="700" y="498">vendors/ · hooks/ · security/</text>
+  <g transform="translate(36,162)">
+    <path class="tab" d="M0 16 V6 Q0 0 6 0 H98 Q104 0 104 6 V16 Z"/>
+    <circle class="accent-fill" cx="16" cy="8" r="2.4"/>
+    <text class="t t-xxs t-accent" x="26" y="12">REPO</text>
+    <rect class="repo" x="0" y="16" width="552" height="214" rx="3"/>
+    <text class="t t-lg t-accent" x="14" y="44">agent-ops</text>
+    <text class="t t-xxs t-dim" x="132" y="44">sanlee-ys/agent-ops</text>
+    <text class="t t-xs t-dim" x="14" y="62">operating layer · records DCB · system of record</text>
+
+    <g transform="translate(14,76)">
+      <rect class="cell" width="168" height="52" rx="2"/>
+      <text class="t t-sm" x="10" y="21">vendors/</text>
+      <text class="t t-xxs t-dim" x="10" y="39">adapters · skills</text>
+    </g>
+    <g transform="translate(192,76)">
+      <rect class="cell" width="168" height="52" rx="2"/>
+      <text class="t t-sm" x="10" y="21">hooks/</text>
+      <text class="t t-xxs t-dim" x="10" y="39">PreToolUse fence</text>
+    </g>
+    <g transform="translate(370,76)">
+      <rect class="cell" width="168" height="52" rx="2"/>
+      <text class="t t-sm" x="10" y="21">security/</text>
+      <text class="t t-xxs t-dim" x="10" y="39">credential-guard</text>
+    </g>
+    <g transform="translate(14,136)">
+      <rect class="cell" width="168" height="52" rx="2"/>
+      <text class="t t-sm" x="10" y="21">incidents/</text>
+      <text class="t t-xxs t-dim" x="10" y="39">blameless postmortems</text>
+    </g>
+    <g transform="translate(192,136)">
+      <rect class="cell" width="168" height="52" rx="2"/>
+      <text class="t t-sm" x="10" y="21">conventions/</text>
+      <text class="t t-xxs t-dim" x="10" y="39">working agreements</text>
+    </g>
+    <g transform="translate(370,136)">
+      <rect class="cell" width="168" height="52" rx="2"/>
+      <text class="t t-sm" x="10" y="21">decisions/</text>
+      <text class="t t-xxs t-dim" x="10" y="39">ADRs · fleet routing</text>
+    </g>
+    <text class="t t-xxs t-accent" x="14" y="214">WIRES THE FENCE</text>
+  </g>
+
+  <g transform="translate(604,162)">
+    <path class="tab-obs" d="M0 16 V6 Q0 0 6 0 H98 Q104 0 104 6 V16 Z"/>
+    <circle class="amber" cx="16" cy="8" r="2.4"/>
+    <text class="t t-xxs t-amber" x="26" y="12">REPO</text>
+    <rect class="repo-obs" x="0" y="16" width="320" height="214" rx="3"/>
+    <rect x="0" y="16" width="320" height="214" rx="3" fill="url(#hatch)"/>
+    <text class="t t-lg t-amber" x="14" y="44">telltale</text>
+    <text class="t t-xxs t-dim" x="122" y="44">sanlee-ys/telltale</text>
+    <text class="t t-xs t-amber" x="14" y="62">observes only · never routes</text>
+
+    <g transform="translate(14,76)">
+      <rect class="cell-obs" width="292" height="38" rx="2"/>
+      <text class="t t-sm" x="10" y="17">council</text>
+      <text class="t t-xxs t-dim" x="100" y="17">dispatch room</text>
+    </g>
+    <g transform="translate(14,122)">
+      <rect class="cell-obs" width="292" height="38" rx="2"/>
+      <text class="t t-sm" x="10" y="17">hud</text>
+      <text class="t t-xxs t-dim" x="100" y="17">cross-vendor gauges</text>
+    </g>
+    <g transform="translate(14,168)">
+      <rect class="cell-obs" width="292" height="38" rx="2"/>
+      <text class="t t-sm" x="10" y="17">statusline</text>
+      <text class="t t-xxs t-dim" x="100" y="17">measured numbers only</text>
+    </g>
+    <text class="t t-xxs t-amber" x="14" y="220">DOES NOT DISPATCH</text>
+  </g>
+
+  <path class="wire" d="M210 392 V408"/>
+  <path class="observe" d="M764 392 V408"/>
+
+  <rect class="bus" x="36" y="408" width="888" height="12" rx="1"/>
+  <text class="t t-xxs t-dim" x="44" y="418">FLEET BUS</text>
+  <text class="t t-xxs t-amber" x="820" y="418">OBSERVES</text>
+
+  <rect class="pin-ctrl" x="204" y="408" width="12" height="12"/>
+  <rect class="pin-obs" x="758" y="408" width="12" height="12"/>
+  <rect class="pin-ctrl" x="114" y="420" width="12" height="10"/>
+  <rect class="pin" x="294" y="420" width="12" height="10"/>
+  <rect class="pin" x="474" y="420" width="12" height="10"/>
+  <rect class="pin" x="654" y="420" width="12" height="10"/>
+  <rect class="pin" x="834" y="420" width="12" height="10"/>
+
+  <text class="t t-xxs t-dim" x="40" y="440">FLEET SEATS</text>
+  <text class="t t-xxs t-dim" x="128" y="440">harness · surface · model family are separate axes</text>
+
+  <g transform="translate(36,450)">
+    <rect class="seat-ctrl" width="168" height="118" rx="3"/>
+    <text class="t t-xxs t-accent" x="12" y="20">CONTROL</text>
+    <text class="t t-md" x="12" y="46">Claude</text>
+    <text class="t t-xs t-dim" x="12" y="70">implement · integrate</text>
+    <text class="t t-xs t-dim" x="12" y="88">primary lane</text>
+    <text class="t t-xxs t-dim" x="12" y="106">control plane</text>
+  </g>
+  <g transform="translate(216,450)">
+    <rect class="seat" width="168" height="118" rx="3"/>
+    <text class="t t-xxs t-dim" x="12" y="20">SPECIALIST</text>
+    <text class="t t-md" x="12" y="46">Codex</text>
+    <text class="t t-xs t-dim" x="12" y="70">challenge · review</text>
+    <text class="t t-xs t-dim" x="12" y="88">GPT family</text>
+    <text class="t t-xxs t-dim" x="12" y="106">independent pass</text>
+  </g>
+  <g transform="translate(396,450)">
+    <rect class="seat" width="168" height="118" rx="3"/>
+    <text class="t t-xxs t-dim" x="12" y="20">SPECIALIST</text>
+    <text class="t t-md" x="12" y="46">Antigravity</text>
+    <text class="t t-xs t-dim" x="12" y="70">research · audit</text>
+    <text class="t t-xs t-dim" x="12" y="88">Gemini (AGY)</text>
+    <text class="t t-xxs t-dim" x="12" y="106">third opinion</text>
+  </g>
+  <g transform="translate(576,450)">
+    <rect class="seat" width="168" height="118" rx="3"/>
+    <text class="t t-xxs t-dim" x="12" y="20">SPECIALIST</text>
+    <text class="t t-md" x="12" y="46">Pi</text>
+    <text class="t t-xs t-dim" x="12" y="70">OSS overflow</text>
+    <text class="t t-xs t-dim" x="12" y="88">Kimi target</text>
+    <text class="t t-xxs t-dim" x="12" y="106">extension-first</text>
+  </g>
+  <g transform="translate(756,450)">
+    <rect class="seat-wire" width="168" height="118" rx="3"/>
+    <text class="t t-xxs t-dim" x="12" y="20">WIRED · NOT ROUTED</text>
+    <text class="t t-md" x="12" y="46">Grok Build</text>
+    <text class="t t-xs t-dim" x="12" y="70">guard only</text>
+    <text class="t t-xs t-dim" x="12" y="88">not a lane</text>
+    <text class="t t-xxs t-dim" x="12" y="106">xAI surface</text>
+  </g>
+
+  <g class="tick">
+    <line x1="120" y1="568" x2="120" y2="584"/>
+    <line x1="300" y1="568" x2="300" y2="584"/>
+    <line x1="480" y1="568" x2="480" y2="584"/>
+    <line x1="660" y1="568" x2="660" y2="584"/>
+    <line x1="840" y1="568" x2="840" y2="584"/>
+  </g>
+
+  <rect class="fence" x="36" y="584" width="888" height="152" rx="3"/>
+  <path class="accent" d="M36 596 H924"/>
+  <text class="t t-xs t-accent" x="48" y="612">MECHANICAL GUARDS</text>
+  <text class="t t-xxs t-dim" x="188" y="612">fence at tool time · policy is fleet-wide · wiring is per vendor</text>
+
+  <text class="t t-xxs t-amber" x="48" y="640">PreToolUse</text>
+  <g transform="translate(128,622)">
+    <rect class="guard" width="178" height="34" rx="2"/>
+    <text class="t t-xs" x="10" y="21">credential-guard</text>
+  </g>
+  <g transform="translate(316,622)">
+    <rect class="guard" width="178" height="34" rx="2"/>
+    <text class="t t-xs" x="10" y="21">git-staging-guard</text>
+  </g>
+  <g transform="translate(504,622)">
+    <rect class="guard" width="206" height="34" rx="2"/>
+    <text class="t t-xs" x="10" y="21">published-history-guard</text>
+  </g>
+  <g transform="translate(720,622)">
+    <rect class="guard" width="184" height="34" rx="2"/>
+    <text class="t t-xs" x="10" y="21">fanout-guard</text>
+  </g>
+
+  <text class="t t-xxs t-amber" x="48" y="690">ConfigChange</text>
+  <g transform="translate(128,672)">
+    <rect class="guard" width="220" height="34" rx="2"/>
+    <text class="t t-xs" x="10" y="21">config-change-guard</text>
+  </g>
+  <g transform="translate(360,672)">
+    <rect class="guard" width="272" height="34" rx="2"/>
+    <text class="t t-xs" x="10" y="21">redline-guard</text>
+    <text class="t t-xxs t-dim" x="118" y="21">pre-commit</text>
+  </g>
+  <text class="t t-xxs t-dim" x="648" y="694">publication boundary</text>
+  <text class="t t-xxs t-dim" x="48" y="724">sourced from agent-ops · every vendor reads and writes · the bound is wiring, not lane shape</text>
+
+  <line class="rule" x1="36" y1="752" x2="924" y2="752"/>
+  <text class="t t-xxs t-dim" x="40" y="770">telltale observes the bus · it never routes</text>
+  <text class="t t-xxs t-dim" x="668" y="770">vendors/ · hooks/ · security/</text>
 </svg>
