@@ -75,6 +75,10 @@ A pass returns nothing. A deny returns `{ block: true, reason }`. Missing
 Python, a missing checkout, a missing adapter, a crash, or a timeout is
 a deny. A check that did not run is not a pass.
 
+`!command` and `!!command` fire Pi's `user_bash` event, not `tool_call`.
+The same wrapper sends those as a bash call. A deny returns a finished
+command result with exit 2 and does not run the shell line.
+
 Set `AGENT_OPS_ROOT` to the agent-ops checkout. A Windows copy of the
 extension cannot walk up into the repo.
 
@@ -89,8 +93,9 @@ extension cannot walk up into the repo.
 ## Park check
 
 [`scripts/check-park.py`](scripts/check-park.py) fails if settings leave
-park (xAI, Claude, or GPT) or if the deployed `fleet-guard.ts` bytes
-differ from the canonical file.
+park (xAI, Claude, or GPT) or if any deployed copy differs from its
+canonical file: `fleet-guard.ts`, `fleet-resources.ts`, and
+`instructions/AGENTS.md`.
 
 ```text
 python vendors/pi/scripts/check-park.py
