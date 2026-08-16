@@ -75,6 +75,8 @@ Its **target** model family is Kimi (K3 when access lands). An interim xAI
 `grok-4.5` backend may keep the seat warm but does not satisfy decision 5's
 independence test against Grok, and does not admit Grok Build as a routing
 lane. Anthropic pools stay on Claude Code, not behind Pi.
+**Amendment, 2026-08-16:** San declined the interim xAI ride. Pi is parked
+until Kimi access lands. Do not restore Grok, Claude, or GPT on that seat.
 
 ## Guard posture at this decision
 

@@ -142,7 +142,7 @@ attacker already has execution. The value is defense-in-depth, not secrecy.
   `vendors/pi/` documents Pi, the open-source overflow harness — target model
   family Kimi (K3 when access lands) per
   [`decisions/ADR-014`](decisions/ADR-014-pi-harness-kimi-model-target.md),
-  interim xAI only for capacity;
+  parked until Kimi (interim xAI declined 2026-08-16);
   `vendors/grok/` documents Grok Build (xAI) — guard wiring only, not a
   routing lane, but installed and capable, so ADR-012 owes it a guard.
   Every vendor reads and writes; guard wiring rather than lane shape is what

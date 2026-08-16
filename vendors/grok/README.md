@@ -9,8 +9,9 @@ the fleet as a routing lane, and nothing here assigns it work.
 [`ADR-010`](../../decisions/ADR-010-claude-led-four-vendor-orchestration.md)
 describes the control-plane fleet;
 [`ADR-014`](../../decisions/ADR-014-pi-harness-kimi-model-target.md) adds Pi
-as a separate harness whose *target* family is Kimi — interim Grok-on-Pi is
-capacity only and is not this adapter becoming a routing lane.
+as a separate harness whose *target* family is Kimi. San declined the
+interim Grok-on-Pi ride on 2026-08-16. That is not this adapter becoming a
+routing lane.
 [`ADR-012`](../../decisions/ADR-012-capability-parity-and-the-guard-obligation.md)
 is what makes this file necessary anyway: an installed, capable agent with no
 tool-time control is an **open obligation**, and the obligation closes by

@@ -9,7 +9,7 @@ open-source overflow harness. Admitted 2026-08-11. Routing contract:
 | Harness | Pi (thin core, extension-first) |
 | Role | Overflow capacity; custom tools/UI via extensions |
 | **Target model family** | **Kimi (Moonshot / Kimi For Coding), default Kimi K3 when access lands** |
-| Interim backend | xAI subscription `grok-4.5` — capacity only, **not** independence from Grok |
+| Interim backend | **None.** San declined the xAI ride on 2026-08-16. Seat is parked until Kimi. |
 | Not for | Control-plane work, GPT-family review, IDE edit-test, Claude pool rides |
 
 ## Why this harness
@@ -27,15 +27,14 @@ open-source overflow harness. Admitted 2026-08-11. Routing contract:
 coding default). That is what makes the Pi seat a real additional model
 family, not a second chrome on Grok or Claude.
 
-**Interim (now):** xAI subscription — `/login xai` → "Use a subscription",
-model `grok-4.5`. Keeps the seat usable while Kimi K3 access is waitlisted.
-While interim Grok is configured:
+**Interim (now):** none. San declined the xAI `grok-4.5` ride on
+2026-08-16. Do not `/login xai` on this seat to keep it warm. Do not put
+Claude or GPT behind Pi. The harness and the fleet-guard stay installed.
+Route no work here until Kimi cutover.
 
-- Do **not** bill work here as "non-Grok second opinion."
-- Do **not** treat this as admitting Grok Build as a routing lane
-  ([`vendors/grok/`](../grok/) stays guard-only).
-- Prefer other lanes when model-family independence is the reason for the
-  handoff (Codex for GPT, Antigravity for Gemini, Claude for Anthropic).
+Grok Build stays guard-only ([`vendors/grok/`](../grok/)). Prefer other
+lanes when a model is required (Codex for GPT, Antigravity for Gemini,
+Claude for Anthropic).
 
 **Never:** Anthropic Pro/Max (or any Claude pool) behind Pi. Unsupported as a
 third-party client ride, and it would duplicate Claude Code with a worse tool
@@ -130,6 +129,6 @@ when access lands.
   value that contains a colon and a space. Use a `>-` block scalar in every
   SKILL.md description. The canonical skills in `vendors/claude/skills/`
   follow this form.
-- Interim Grok rides a third-party subscription path. If xAI withdraws it
-  before Kimi cutover, park the seat rather than silently moving Pi onto
-  Claude or onto Grok Build.
+- The xAI subscription path is not in use. If a later session finds
+  `defaultProvider: xai` again, that is a contract break, not a restore
+  path. Park the seat rather than moving Pi onto Claude or Grok Build.
