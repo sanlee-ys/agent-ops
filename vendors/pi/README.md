@@ -47,45 +47,77 @@ surface. The Cline evaluation was that failure shape.
 2. Set defaults in ~/.pi/agent/settings.json:
      defaultProvider: kimi-coding   # or the provider id Pi shows at login
      defaultModel:    <kimi-k3 id Pi lists>
-3. Re-copy fleet-guard if needed; confirm it loads on startup
-4. Verify:
+3. Set AGENT_OPS_ROOT to the agent-ops checkout
+4. Re-copy fleet-guard.ts, fleet-resources.ts, and instructions/AGENTS.md
+5. Run: python vendors/pi/scripts/check-park.py
+6. Verify:
      pi -p --no-session "Reply with exactly: PI_PROBE_OK"
      pi -p --no-session "Run exactly: git branch -D no-such-branch-guard-test"
-5. Update the verification record below; interim Grok language drops out
+7. Update the verification record below
 ```
 
 ## Guard wiring (ADR-012)
 
 Pi has no built-in permission system. The core runs with full user
-permissions. The guard for this lane is
-[`extensions/fleet-guard.ts`](extensions/fleet-guard.ts), a Pi extension on
-the `tool_call` hook. The hook fires before tool execution and returns
-`{ block: true }` on a redline match.
+permissions.
 
-The extension blocks the three fleet redlines:
+[`extensions/fleet-guard.ts`](extensions/fleet-guard.ts) is a thin
+`tool_call` wrapper. It holds no redline patterns. It runs
+[`hooks/pi-guard-adapter.py`](hooks/pi-guard-adapter.py). That adapter
+translates the Pi event into the Claude Code payload and runs the
+canonical guards unmodified:
 
-1. Credential and secret-store paths (`.ssh`, `.aws/credentials`, `.gnupg`,
-   `.netrc`, and similar).
-2. Published-history destruction (`git reset` in every form, force-push,
-   force branch delete (`-D` / `--delete --force`), `git clean -f`,
-   `filter-branch`/`filter-repo`). Plain merged-only `git branch -d` is allowed.
-3. Broad destructive mutations (`rm -rf`, `Remove-Item -Recurse -Force`,
-   `rmdir /s`, `format`).
+- `security/credential-guard.py`
+- `hooks/git-staging-guard.py`
+- `hooks/published-history-guard.py`
+
+A pass returns nothing. A deny returns `{ block: true, reason }`. Missing
+Python, a missing checkout, a missing adapter, a crash, or a timeout is
+a deny. A check that did not run is not a pass.
+
+Set `AGENT_OPS_ROOT` to the agent-ops checkout. A Windows copy of the
+extension cannot walk up into the repo.
+
+## Instructions and skills
+
+- Standing instructions: [`instructions/AGENTS.md`](instructions/AGENTS.md)
+  copies to `~/.pi/agent/AGENTS.md`.
+- [`extensions/fleet-resources.ts`](extensions/fleet-resources.ts) returns
+  `skillPaths` for `vendors/claude/skills`. Do not copy skill bodies.
+- Deploy notes: [`skills/README.md`](skills/README.md).
+
+## Park check
+
+[`scripts/check-park.py`](scripts/check-park.py) fails if settings leave
+park (xAI, Claude, or GPT) or if the deployed `fleet-guard.ts` bytes
+differ from the canonical file.
+
+```text
+python vendors/pi/scripts/check-park.py
+```
+
+Then inspect the PASS or FAIL lines.
 
 ## Deploy
 
-Copy the extension to Pi's global extensions directory:
+Windows uses a file copy, not a symlink. Re-run the copy after each
+edit. Then run the park check.
 
-```bash
+```text
+$env:AGENT_OPS_ROOT = "<path to the agent-ops clone>"
 cp vendors/pi/extensions/fleet-guard.ts ~/.pi/agent/extensions/fleet-guard.ts
+cp vendors/pi/extensions/fleet-resources.ts ~/.pi/agent/extensions/fleet-resources.ts
+cp vendors/pi/instructions/AGENTS.md ~/.pi/agent/AGENTS.md
+python vendors/pi/scripts/check-park.py
 ```
 
-Windows uses a file copy, not a symlink, per the same convention as the Claude
-guards. A copy can go stale against this canonical file. Re-run the copy after
-each edit here, and check the deployed copy before you trust it.
+The Pi start screen lists loaded extensions. Confirm `fleet-guard.ts`
+and `fleet-resources.ts` appear under `[Extensions]` before you route
+work to the lane.
 
-The Pi startup screen lists loaded extensions. Confirm `fleet-guard.ts`
-appears under `[Extensions]` before you route work to the lane.
+```text
+pi
+```
 
 ## Channel
 
@@ -117,14 +149,19 @@ Measured 2026-08-11 on the Windows PC, Pi v0.84.1 (interim xAI backend):
   tools pass through unless their input matches the path patterns. Treat the
   guard as a floor, not a policy engine.
 
-Kimi-backend verification: **not yet** (waitlist). Run the cutover checklist
-when access lands.
+Adapter unit tests (2026-08-16): `tests/test_pi_guard_adapter.py` and
+`tests/test_pi_park.py` pass under `python -m unittest`. No live `pi -p`
+run. Kimi-backend verification is still **not yet** (waitlist). Run the
+cutover checklist when access lands.
 
 ## Known limits
 
-- The guard is regex-based. It does not resolve indirection (a script that
-  contains a redline command passes the hook and fails only if the inner
-  command is itself spawned through a guarded tool).
+- The adapter inherits the canonical guards' documented out-of-scope
+  classes. A script that wraps a redline command still passes unless
+  the inner command is itself spawned through a guarded tool.
+- A deployed copy of the TypeScript wrapper can go stale. Run
+  `check-park.py` after each edit. Set `AGENT_OPS_ROOT` or the wrapper
+  cannot find the checkout and will deny every tool call.
 - Skill frontmatter: Pi's YAML parser rejects an unquoted `description:`
   value that contains a colon and a space. Use a `>-` block scalar in every
   SKILL.md description. The canonical skills in `vendors/claude/skills/`

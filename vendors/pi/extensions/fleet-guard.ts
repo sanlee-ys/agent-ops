@@ -1,82 +1,214 @@
 /**
- * fleet-guard.ts — fleet redline guard for the Pi lane (v0).
+ * fleet-guard.ts. Thin Pi tool_call wrapper for the fleet guards.
  *
- * Pi has no built-in permission system. This extension is the ADR-012 guard
- * wiring for this vendor. It blocks the three fleet redlines at tool-call time:
- *   1. Reads of credential and secret stores.
- *   2. Destructive operations on published git history.
- *   3. Broad destructive filesystem mutations.
+ * This file holds no redline patterns. On tool_call it writes the event
+ * as JSON and it runs vendors/pi/hooks/pi-guard-adapter.py. A pass
+ * returns nothing. A deny returns { block: true, reason }.
  *
- * This is a deny floor, not a policy engine. It must stay in sync with the
- * guard posture in agent-ops/vendors/. Version this file there; the copy here
- * is the live install.
+ * How this file finds Python. Fail closed if no interpreter is found.
+ * 1. Use process.execPath only when its file name is a Python interpreter.
+ * 2. Search PATH for py, then python3, then python.
+ * 3. Try %LOCALAPPDATA%\Python\bin\python3.exe.
+ * For each candidate, run `import sys; print(sys.executable)` and use
+ * that path. This selects the real interpreter, not a WindowsApps alias.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// Redline 1: credential and secret stores. Match reads AND writes.
-const SECRET_PATHS = [
-  /\.ssh[\\\/]/i,
-  /\.aws[\\\/]credentials/i,
-  /\.gnupg[\\\/]/i,
-  /\.netrc/i,
-  /credentials\.json/i,
-  /\.pypirc/i,
-];
+const MARKER = join("security", "credential-guard.py");
+const ADAPTER_REL = join("vendors", "pi", "hooks", "pi-guard-adapter.py");
+const TIMEOUT_MS = 135_000;
+const PYTHON_PROBE = "import sys; print(sys.executable)";
 
-// Redline 2: published-history destruction. The lesson from the 2026-07-26
-// incident: a soft reset erased a pushed commit, so reset is blocked in every
-// form, not only --hard.
-//
-// `git branch -D` is force-delete and blocked. Plain `git branch -d` (merged
-// only) must pass. Do not put the /i flag on the -D pattern — it made -d match
-// -D and blocked ordinary local cleanup (observed 2026-08-11).
-const GIT_DESTRUCTIVE = [
-  /git\b.*\bpush\b.*(--force|-f\b|--force-with-lease)/i,
-  /git\b.*\breset\b/i,
-  /git\b.*\bbranch\b.*(?:\s-D\b|\s--delete\s+--force\b|\s--force\s+--delete\b|\s-d\s+--force\b|\s--force\s+-d\b)/,
-  /git\b.*\bclean\b.*-[a-z]*f/i,
-  /git\b.*\bfilter-(branch|repo)\b/i,
-];
+function thisDir(): string {
+  try {
+    return dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return process.cwd();
+  }
+}
 
-// Redline 3: broad destructive mutations.
-const FS_DESTRUCTIVE = [
-  /rm\s+(-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r)\b/i,
-  /Remove-Item\b.*-Recurse\b.*-Force\b/i,
-  /rmdir\s+\/s\b/i,
-  /format\s+[a-z]:/i,
-];
+function walkForMarker(start: string): string | undefined {
+  let here = start;
+  while (true) {
+    if (existsSync(join(here, MARKER))) {
+      return here;
+    }
+    const parent = dirname(here);
+    if (parent === here) {
+      return undefined;
+    }
+    here = parent;
+  }
+}
 
-function matchAny(patterns: RegExp[], text: string): RegExp | undefined {
-  return patterns.find((p) => p.test(text));
+function repoRoot(): string | undefined {
+  const env = process.env.AGENT_OPS_ROOT;
+  if (env && existsSync(join(env, MARKER))) {
+    return env;
+  }
+  return walkForMarker(thisDir()) ?? walkForMarker(process.cwd());
+}
+
+function adapterPath(root: string): string | undefined {
+  const nextToExt = join(thisDir(), "..", "hooks", "pi-guard-adapter.py");
+  if (existsSync(nextToExt)) {
+    return nextToExt;
+  }
+  const inRepo = join(root, ADAPTER_REL);
+  if (existsSync(inRepo)) {
+    return inRepo;
+  }
+  return undefined;
+}
+
+function looksLikePython(execPath: string): boolean {
+  const base = execPath.replace(/\\/g, "/").split("/").pop() ?? "";
+  return /^(python(\d+(\.\d+)*)?|py)(\.exe)?$/i.test(base);
+}
+
+function probePython(cmd: string): string | undefined {
+  const result = spawnSync(cmd, ["-c", PYTHON_PROBE], {
+    encoding: "utf8",
+    timeout: 15_000,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    return undefined;
+  }
+  const line =
+    (result.stdout ?? "").trim().split(/\r?\n/).filter(Boolean).pop() ?? "";
+  if (!line || /WindowsApps/i.test(line) || !existsSync(line)) {
+    return undefined;
+  }
+  return line;
+}
+
+let cachedPython: string | "missing" | undefined;
+
+function findPython(): string | undefined {
+  if (cachedPython === "missing") {
+    return undefined;
+  }
+  if (cachedPython) {
+    return cachedPython;
+  }
+  const names: string[] = [];
+  if (looksLikePython(process.execPath)) {
+    names.push(process.execPath);
+  }
+  names.push("py", "python3", "python");
+  const local = process.env.LOCALAPPDATA
+    ? join(process.env.LOCALAPPDATA, "Python", "bin", "python3.exe")
+    : "";
+  if (local && existsSync(local)) {
+    names.push(local);
+  }
+  for (const name of names) {
+    const resolved = probePython(name);
+    if (resolved) {
+      cachedPython = resolved;
+      return resolved;
+    }
+  }
+  cachedPython = "missing";
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
 }
 
 export default function (pi: ExtensionAPI) {
-  pi.on("tool_call", async (event) => {
-    const input = event.input ?? {};
-    const command: string = String(input.command ?? "");
-    const path: string = String(input.path ?? input.file_path ?? "");
-
-    if (command) {
-      const hit =
-        matchAny(GIT_DESTRUCTIVE, command) ??
-        matchAny(FS_DESTRUCTIVE, command) ??
-        matchAny(SECRET_PATHS, command);
-      if (hit) {
+  pi.on("tool_call", async (event, ctx) => {
+    try {
+      const python = findPython();
+      if (!python) {
         return {
           block: true,
-          reason: `FLEET GUARD: the command matches a redline pattern (${hit}). Credentials, published history, and broad destructive mutations are blocked in the Pi lane. Ask San to run this himself if it is intended.`,
+          reason:
+            "PI FLEET GUARD: no Python interpreter. The fleet adapter cannot run. A check that did not run is not a pass.",
         };
       }
-    }
-
-    if (path) {
-      const hit = matchAny(SECRET_PATHS, path);
-      if (hit) {
+      const root = repoRoot();
+      if (!root) {
         return {
           block: true,
-          reason: `FLEET GUARD: the path matches a secret-store pattern (${hit}). Credential stores are off limits in the Pi lane.`,
+          reason:
+            "PI FLEET GUARD: agent-ops checkout not found. Set AGENT_OPS_ROOT or run from the checkout. A check that did not run is not a pass.",
         };
       }
+      const adapter = adapterPath(root);
+      if (!adapter) {
+        return {
+          block: true,
+          reason:
+            "PI FLEET GUARD: pi-guard-adapter.py is missing. A check that did not run is not a pass.",
+        };
+      }
+
+      const input = asRecord(event.input);
+      const cwd =
+        typeof ctx?.cwd === "string" && ctx.cwd ? ctx.cwd : process.cwd();
+      const payload = {
+        toolName: event.toolName,
+        tool_name: event.toolName,
+        toolCallId: event.toolCallId,
+        input,
+        toolInput: input,
+        tool_input: input,
+        cwd,
+      };
+
+      const result = spawnSync(python, [adapter], {
+        input: JSON.stringify(payload),
+        encoding: "utf8",
+        timeout: TIMEOUT_MS,
+        windowsHide: true,
+        env: { ...process.env, AGENT_OPS_ROOT: root },
+        cwd,
+      });
+
+      if (result.error) {
+        const code = (result.error as NodeJS.ErrnoException).code;
+        if (code === "ETIMEDOUT") {
+          return {
+            block: true,
+            reason:
+              "PI FLEET GUARD: the adapter did not finish in time. A check that did not run is not a pass.",
+          };
+        }
+        return {
+          block: true,
+          reason: `PI FLEET GUARD: the adapter did not start. ${result.error.message}`,
+        };
+      }
+      if (result.status === 0) {
+        return;
+      }
+      if (result.status === 2) {
+        const reason =
+          (result.stdout || "").trim() ||
+          (result.stderr || "").trim() ||
+          "PI FLEET GUARD: the adapter denied this call and gave no reason.";
+        return { block: true, reason };
+      }
+      return {
+        block: true,
+        reason: `PI FLEET GUARD: the adapter exited ${result.status}. A check that did not run is not a pass.`,
+      };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      return {
+        block: true,
+        reason: `PI FLEET GUARD: internal error. ${detail}`,
+      };
     }
   });
 }
