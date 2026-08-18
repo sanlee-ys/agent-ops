@@ -6,7 +6,7 @@ The failure modes do not stay put, so this is public.
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/operating-layer-hero-dark.svg">
   <img src="images/operating-layer-hero-light.svg"
-       alt="Two sibling repos under human-set DCB. agent-ops is the operating layer and wires the mechanical fence. telltale observes the fleet and never routes. Fleet seats: Claude, Codex, Antigravity, Pi, and Grok Build (guard-wired only)."
+       alt="Two sibling repos under human-set DCB. agent-ops is the operating layer and wires the mechanical fence. telltale observes the fleet and never routes. Fleet seats: Claude, Codex, Cursor, Antigravity, Pi, and Grok Build (guard-wired only)."
        title="agent-ops and telltale around the fleet">
 </picture>
 
@@ -149,7 +149,7 @@ This is one engineer's machine, not a team or a platform. There is no
 shared incident channel and no on-call rotation. Each postmortem is a
 solo session that caught its own mistake in the same turn. "Fleet" in
 this repo means the agent seats on that one machine: Claude, Codex,
-Antigravity, Pi, and Grok. It does not mean people.
+Cursor, Antigravity, Pi, and Grok. It does not mean people.
 
 It is public because the failure modes do not need a team. They need an
 agent with shell access, and a person who trusts it a little too soon.
