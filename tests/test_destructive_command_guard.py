@@ -48,9 +48,10 @@ def verdict(proc) -> str:
     decision = out.get("hookSpecificOutput", {}).get("permissionDecision")
     if decision == "ask":
         return "confirm"
-    if decision == "allow":
-        return "warn" if "GUARD" in str(out) else "allow"
-    return decision or "allow"
+    if decision is None:
+        # A warn is a systemMessage note with no permission decision.
+        return "warn" if "GUARD" in out.get("systemMessage", "") else "allow"
+    return decision
 
 
 class TestScoringMatrix(unittest.TestCase):
@@ -149,6 +150,14 @@ class TestGitRules(unittest.TestCase):
     def test_no_verify_warns(self) -> None:
         self.assertEqual(verdict(run("git commit --no-verify -m x")), "warn")
 
+    def test_commit_short_n_warns(self) -> None:
+        # -n is the short form of --no-verify for commit only.
+        self.assertEqual(verdict(run("git commit -n -m x")), "warn")
+
+    def test_push_short_n_allows(self) -> None:
+        # For push, -n is --dry-run, not --no-verify.
+        self.assertEqual(verdict(run("git push -n")), "allow")
+
     def test_dash_c_form_still_matched(self) -> None:
         self.assertEqual(
             verdict(run("git -C C:\\repo reset --hard HEAD~2")), "confirm"
@@ -176,6 +185,16 @@ class TestRmRules(unittest.TestCase):
     def test_rm_rf_relative_warns(self) -> None:
         self.assertEqual(verdict(run("rm -rf node_modules")), "warn")
 
+    def test_rm_Rf_uppercase_relative_warns(self) -> None:
+        # BSD/macOS spelling: -R in a combined short flag is recursive too.
+        self.assertEqual(verdict(run("rm -Rf build")), "warn")
+
+    def test_rm_Rf_home_blocks(self) -> None:
+        self.assertEqual(verdict(run("rm -Rf ~/")), "block")
+
+    def test_rm_fR_root_blocks(self) -> None:
+        self.assertEqual(verdict(run("rm -fR /")), "block")
+
     def test_rm_single_file_allows(self) -> None:
         self.assertEqual(verdict(run("rm build/output.log")), "allow")
 
@@ -200,6 +219,16 @@ class TestBackstopAndOverride(unittest.TestCase):
         self.assertEqual(
             out["hookSpecificOutput"]["permissionDecision"], "deny"
         )
+
+    def test_warn_emits_no_permission_decision(self) -> None:
+        # A warn must not auto-approve the command: no permissionDecision,
+        # only a systemMessage note and a stderr line, exit 0.
+        proc = run("git branch -D old-branch")
+        self.assertEqual(proc.returncode, 0)
+        out = json.loads(proc.stdout)
+        self.assertNotIn("hookSpecificOutput", out)
+        self.assertIn("GUARD", out.get("systemMessage", ""))
+        self.assertIn("warn", proc.stderr)
 
     def test_override_token_allows(self) -> None:
         self.assertEqual(verdict(run("RISK-OK rm -rf ~")), "allow")

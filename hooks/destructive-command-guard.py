@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 1.0 (2026-08-11)
+# hook-version: 1.1 (2026-08-19)
 """Destructive-command guard (global PreToolUse hook) — blast × reversibility scoring.
 
 WHY. The auto-mode classifier judges a command by its verb, so it gives
@@ -38,7 +38,8 @@ made explicit and testable per rule id.
 
 BUCKETS, AS THE HARNESS SEES THEM.
   * allow   — exit 0.
-  * warn    — exit 0, allow verdict with a reason on stdout, a note on stderr.
+  * warn    — exit 0, a `systemMessage` note on stdout, a note on stderr.
+    No permission decision: the normal permission flow still applies.
   * confirm — a `permissionDecision: ask` JSON verdict. NOTE: in
     `bypassPermissions` mode the harness ignores `ask`, so a confirm degrades
     to allow there. Recorded, not hidden.
@@ -241,8 +242,12 @@ def _classify_rm(tokens: list[str]) -> str | None:
         return None
     if lead in {"rm", "rm.exe"}:
         flags = [t for t in tokens[1:] if t.startswith("-")]
+        # The combined-short-flag scan is case-insensitive on the letter: rm
+        # spells recursive as -r or -R (the BSD/macOS habit), so -Rf and -fR
+        # must classify the same as -rf.
         recursive = any(
-            t in {"--recursive", "-R"} or (t[:1] == "-" and t[:2] != "--" and "r" in t)
+            t in {"--recursive", "-R"}
+            or (t[:1] == "-" and t[:2] != "--" and set("rR") & set(t))
             for t in flags
         )
         if not recursive:
@@ -267,10 +272,12 @@ def _classify_git(rest: list[str]) -> str | None:
         return None
     sub, args = rest[0], rest[1:]
 
-    if sub in {"commit", "push", "merge"} and any(
-        a in {"--no-verify", "-n"} and a == "--no-verify" for a in args
-    ):
-        return "git.no_verify"
+    if sub in {"commit", "push", "merge"}:
+        # `-n` means --no-verify only for commit. For push it is --dry-run
+        # and for merge it is --no-stat, so those match the long form only.
+        no_verify = {"--no-verify", "-n"} if sub == "commit" else {"--no-verify"}
+        if any(a in no_verify for a in args):
+            return "git.no_verify"
 
     if sub == "reset":
         if "--" in args:
@@ -349,14 +356,11 @@ def _reason(rule_id: str, blast: int, rev: int, action: str, segment: str) -> st
 
 def _emit(action: str, reason: str, event: str, payload: dict) -> None:
     if action == "warn":
+        # No permissionDecision: a warn is a note, not a verdict. Emitting
+        # `allow` here would auto-approve the command past the permission
+        # system, which is one bucket more power than warn is scored for.
         sys.stderr.write(f"[destructive-command-guard] warn: {reason}\n")
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": event,
-                "permissionDecision": "allow",
-                "permissionDecisionReason": reason,
-            }
-        }))
+        print(json.dumps({"systemMessage": reason}))
         sys.exit(0)
     if action == "confirm":
         print(json.dumps({
