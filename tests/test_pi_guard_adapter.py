@@ -165,8 +165,23 @@ class TestTranslate(unittest.TestCase):
     def test_missing_tool_name_is_nothing_to_judge(self):
         self.assertIsNone(ADAPTER_MOD._translate({"cwd": "C:/repo"}))
 
-    def test_bash_without_command_is_nothing_to_judge(self):
+    def test_bash_with_empty_args_is_nothing_to_judge(self):
         self.assertIsNone(ADAPTER_MOD._translate(tool_call("bash", {})))
+
+    def test_bash_with_args_but_no_string_command_is_unparseable(self):
+        """Non-empty shell args with no command string must not pass.
+
+        A pass here would be a fail-open hedge. A check that could not
+        run is not a pass.
+        """
+        for args in (
+            {"command": 123},
+            {"command": ["git", "status"]},
+            {"cmd": None, "timeout": 30},
+            {"description": "run the tests"},
+        ):
+            with self.assertRaises(ADAPTER_MOD.UnparseableShellCall):
+                ADAPTER_MOD._translate(tool_call("bash", args))
 
     def test_ts_envelope_is_understood(self):
         claude, is_shell = ADAPTER_MOD._translate(
@@ -334,6 +349,18 @@ class TestPayloadHandling(AdapterTestCase):
 
     def test_empty_tool_input_passes(self):
         self.assertPassed(tool_call("list_permissions", {}))
+
+    def test_bash_with_empty_args_passes(self):
+        self.assertPassed(tool_call("bash", {}))
+
+    def test_bash_with_non_string_command_is_denied(self):
+        out = self.assertDenied(tool_call("bash", {"command": 123}))
+        self.assertIn("PI GUARD ADAPTER", out)
+        self.assertIn("no command string", out)
+
+    def test_shell_with_args_but_no_command_key_is_denied(self):
+        out = self.assertDenied(tool_call("shell", {"script_args": ["-v"]}))
+        self.assertIn("no command string", out)
 
     def test_unparseable_stdin_passes(self):
         proc = subprocess.run([sys.executable, str(ADAPTER)], input="not json{",

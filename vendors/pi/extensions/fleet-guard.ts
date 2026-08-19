@@ -54,11 +54,11 @@ function repoRoot(): string | undefined {
   return walkForMarker(thisDir()) ?? walkForMarker(process.cwd());
 }
 
+// Run only the canonical adapter in the checkout. The deploy runbook does
+// not copy the adapter, and check-park.py does not drift-check it. A copy
+// next to a deployed extension would shadow the canonical file and run
+// stale forever, so this lookup does not exist.
 function adapterPath(root: string): string | undefined {
-  const nextToExt = join(thisDir(), "..", "hooks", "pi-guard-adapter.py");
-  if (existsSync(nextToExt)) {
-    return nextToExt;
-  }
   const inRepo = join(root, ADAPTER_REL);
   if (existsSync(inRepo)) {
     return inRepo;

@@ -60,8 +60,14 @@ _FORBIDDEN_MODEL_NEEDLES = (
     ("o4", "OpenAI o4 model behind Pi is forbidden"),
 )
 
-_ALLOWED_PROVIDER = "kimi-coding"
-_ALLOWED_MODEL = "kimi-k3"
+# Family match, not an exact-string allowlist. The README cutover says
+# "kimi-coding or the provider id Pi shows at login" and "the kimi-k3 id
+# Pi lists", so the exact ids are not known before cutover. An exact
+# match would call the runbook's own end state a FAIL and train the
+# operator to ignore a red park check. The forbidden needles above stay
+# the hard fail.
+_ALLOWED_PROVIDER_PREFIX = "kimi"
+_ALLOWED_MODEL_NEEDLE = "kimi"
 
 _SETTINGS_NAME = "SETTINGS PARK"
 _GUARD_NAME = "GUARD COPY DRIFT"
@@ -121,7 +127,7 @@ def _provider_reason(provider: str) -> str | None:
             return (
                 f"defaultProvider {provider!r} is a forbidden backend ({why})"
             )
-    if folded != _ALLOWED_PROVIDER:
+    if not folded.startswith(_ALLOWED_PROVIDER_PREFIX):
         return f"defaultProvider {provider!r} is not a parked backend"
     return None
 
@@ -134,7 +140,7 @@ def _model_reason(model: str) -> str | None:
                 f"defaultModel {model!r} contains forbidden token "
                 f"{needle!r} ({why})"
             )
-    if folded != _ALLOWED_MODEL:
+    if _ALLOWED_MODEL_NEEDLE not in folded:
         return f"defaultModel {model!r} is not a parked model"
     return None
 

@@ -35,6 +35,8 @@ This adapter does the opposite for its own failures:
   - missing guard: deny
   - guard crash or timeout: deny
   - internal error: deny
+  - a shell call with arguments but no command string: deny. The guards
+    judge the command line, and there is none to judge.
   - stdin that is not a tool call: pass. That payload has nothing to judge.
 
 On Windows, spawn each guard with CREATE_NO_WINDOW. Use sys.executable
@@ -128,11 +130,26 @@ def _first(payload: dict, *keys):
     return None
 
 
+class UnparseableShellCall(Exception):
+    """A shell tool call carried arguments but no command string.
+
+    The guards judge the command line. When a shell call has arguments
+    and this file cannot find the command in them, nothing can check the
+    call. That is a failed check, not a pass.
+    """
+
+    def __init__(self, tool_name: str) -> None:
+        super().__init__(tool_name)
+        self.tool_name = tool_name
+
+
 def _translate(payload: dict) -> tuple[dict, bool] | None:
     """Return (claude_payload, is_shell) for a Pi tool_call payload.
 
     Return None when there is nothing to judge. No tool name, or a shell
-    call with no command, is a pass-through, not a failure.
+    call with an empty argument dict, is a pass-through, not a failure.
+    Raise UnparseableShellCall for a shell call whose arguments are
+    non-empty but hold no command string.
     """
     name = _first(payload, "toolName", "tool_name")
     if not isinstance(name, str) or not name:
@@ -146,6 +163,8 @@ def _translate(payload: dict) -> tuple[dict, bool] | None:
     if name.lower() in _SHELL_TOOLS:
         command = _pick(args, _COMMAND_KEYS)
         if command is None:
+            if args:
+                raise UnparseableShellCall(name)
             return None
         # The guard treats Bash and PowerShell the same. It applies both
         # dialects. That is the conservative direction. This adapter does
@@ -188,6 +207,13 @@ _MSG_GUARD_BROKE = (
     "{detail} "
     "The guard neither allowed nor blocked this call, so nothing checked "
     "it. A check that could not run is not a pass."
+)
+
+_MSG_UNPARSEABLE_SHELL = (
+    "PI GUARD ADAPTER: blocked because a {tool} call carried arguments "
+    "but no command string. The guards judge the command line, and this "
+    "adapter found none, so nothing checked this call. A check that "
+    "could not run is not a pass."
 )
 
 _MSG_INTERNAL = (
@@ -259,7 +285,10 @@ def main() -> None:
         allow()
 
     try:
-        translated = _translate(payload)
+        try:
+            translated = _translate(payload)
+        except UnparseableShellCall as exc:
+            deny(_MSG_UNPARSEABLE_SHELL.format(tool=exc.tool_name))
         if translated is None:
             allow()
         claude_payload, is_shell = translated

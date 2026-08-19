@@ -119,6 +119,58 @@ class PiParkTests(unittest.TestCase):
         self.assertIn("kimi-coding", proc.stdout)
         self.assertIn("kimi-k3", proc.stdout)
 
+    def test_readme_cutover_end_state_passes(self):
+        """The README cutover names the ids loosely: "kimi-coding or the
+        provider id Pi shows at login" and "the kimi-k3 id Pi lists".
+        The park check must pass the whole Kimi family, or the runbook's
+        own end state trains the operator to ignore a red check."""
+        for provider, model in (
+            ("kimi-coding", "kimi-k3"),
+            ("kimi-coding", "kimi-k3-0905"),
+            ("kimi", "kimi-k3-turbo-preview"),
+            ("kimi-for-coding", "kimi-latest"),
+        ):
+            write_json(
+                self.settings,
+                {"defaultProvider": provider, "defaultModel": model},
+            )
+            proc = self.run_check()
+            self.assertEqual(
+                proc.returncode, OK, proc.stdout + proc.stderr
+            )
+            self.assertIn("SETTINGS PARK: PASS", proc.stdout)
+
+    def test_non_kimi_provider_fail(self):
+        write_json(
+            self.settings,
+            {"defaultProvider": "mistral", "defaultModel": "kimi-k3"},
+        )
+        proc = self.run_check()
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("SETTINGS PARK: FAIL", proc.stdout)
+        self.assertIn("not a parked backend", proc.stdout)
+
+    def test_non_kimi_model_fail(self):
+        write_json(
+            self.settings,
+            {"defaultProvider": "kimi-coding", "defaultModel": "qwen3-coder"},
+        )
+        proc = self.run_check()
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("SETTINGS PARK: FAIL", proc.stdout)
+        self.assertIn("not a parked model", proc.stdout)
+
+    def test_forbidden_needle_beats_family_match(self):
+        """A forbidden token stays a hard fail even inside a kimi id."""
+        write_json(
+            self.settings,
+            {"defaultProvider": "kimi-coding", "defaultModel": "kimi-grok-mix"},
+        )
+        proc = self.run_check()
+        self.assertEqual(proc.returncode, FAIL, proc.stdout + proc.stderr)
+        self.assertIn("SETTINGS PARK: FAIL", proc.stdout)
+        self.assertIn("forbidden token", proc.stdout)
+
     def test_xai_settings_fail(self):
         write_json(
             self.settings,
