@@ -55,7 +55,7 @@ sides: the new bypasses block, and `git add -N`, `git add -nv`, `git add -ip`,
 extended too — the guard must still be able to quote its own bypasses in a
 commit message, which is what this section does.
 
-## `config-change-guard.py` v1.1: the gap between the name and the check
+## `config-change-guard.py` v1.2: the gap between the name and the check
 
 v1.0 checked two things — `disableAllHooks`, and whether four guard *names*
 appeared as substrings of the serialized `hooks` blob. An audit found that both
@@ -88,6 +88,20 @@ maintenance and is never flagged, an `env` block per se is normal, `plan` /
 in the suite alongside the escalations, so a future tightening has to break a
 test on purpose.
 
+**v1.2 enumerates six guards, not four.** `REQUIRED_GUARDS` is a literal list of
+the repo's redline controls (ADR-013), and the list had fallen two entries behind
+that ADR. v1.0 and v1.1 both named four guards — `credential-guard`,
+`published-history-guard`, `git-staging-guard` and `fanout-guard` — so a settings
+edit that unwired `destructive-command-guard` or `secret-redaction-guard` passed
+the tamper check clean. v1.2 adds both, mapped to `PreToolUse`. This is the same
+failure the v1.1 table records, one level up: **a list covers the controls its
+author enumerated, not the controls that exist.** The structural check of v1.1 is
+unchanged; it now runs over six names.
+
+The widening has a deploy consequence, and it is the check working as specified:
+a settings file that wires only the original four now fails. Wire the two ADR-015
+guards in `~/.claude/settings.json` if they are not wired there already.
+
 Still out of scope, stated rather than claimed closed: `~/.claude.json` is not a
 settings scope and never reaches this hook (its protection is credential-guard's
 path block — which is why that write block has to stay); a command keeping the
@@ -97,8 +111,9 @@ made outside a Claude session.
 ## `config-change-guard.py`: what is measured, and what is not
 
 **Not yet measured, as of 2026-08-09 — do not credit this guard as enforcing
-anything. v1.1 hardens the logic and changes nothing about this.** Two facts have
-to hold for it to do its job, and neither has been observed on a live harness:
+anything. v1.1 and v1.2 harden the logic and change nothing about this.** Two
+facts have to hold for it to do its job, and neither has been observed on a live
+harness:
 
 1. **Does `ConfigChange` fire?** The event is documented (Claude Code hooks
    reference: *"When a configuration file changes during a session"*, matched on
@@ -142,7 +157,7 @@ above is built to refuse.
 
 **This is the honest state, not a placeholder for a guess.** Per
 [`security/posture.md`](../security/posture.md) limit 7, an unmeasured claim does
-not count — so the guard's logic being green in CI (36 cases as of v1.1) means
+not count — so the guard's logic being green in CI (37 cases as of v1.2) means
 "it would refuse the right things if it ran", and nothing more.
 
 ### One limit already visible from the documentation
