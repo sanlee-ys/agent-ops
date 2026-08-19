@@ -99,6 +99,8 @@ record is in [`incidents/`](incidents/).
   - [`grok/`](vendors/grok/): Grok Build. Guard wiring only. Not a
     routing lane.
     [`ADR-012`](decisions/ADR-012-capability-parity-and-the-guard-obligation.md).
+  - [`packet/`](vendors/packet/): cross-vendor transfer packet. Schema,
+    compiler, refusals. Not a vendor.
 - [`decisions/`](decisions/): the repo contract, versioned.
   - [`ADR-001-public-claude-ops-repo.md`](decisions/ADR-001-public-claude-ops-repo.md):
     scope contract

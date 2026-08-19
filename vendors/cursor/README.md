@@ -108,12 +108,36 @@ Per [`../README.md`](../README.md) and
 | `redline-guard.py` (pre-commit) | Applies at commit | Applies at commit |
 
 **How the wiring works (measured on Windows, cursor-agent 2026.07.23-e383d2b).**
-cursor-agent reads hook configs from its own locations *and* from Claude
-Code's `~/.claude/settings.json` / project `.claude/settings*.json` — the
-fleet guards are imported automatically, with matchers translated
-(`Bash` → `Shell`; `*` unchanged). No `~/.cursor/hooks.json` is needed, and
-none exists on the provisioned machines. Deny is Claude's own protocol:
-exit 2 + stderr becomes a block with the message shown to the agent.
+Two registration mechanisms exist, and both run the same canonical guards:
+
+1. **The settings.json auto-import** — the measured mechanism behind the
+   **Wired** rows above. cursor-agent reads hook configs from its own
+   locations *and* from Claude Code's `~/.claude/settings.json` / project
+   `.claude/settings*.json` — the fleet guards are imported automatically,
+   with matchers translated (`Bash` → `Shell`; `*` unchanged). Deny is
+   Claude's own protocol: exit 2 + stderr becomes a block with the message
+   shown to the agent.
+2. **A native `~/.cursor/hooks.json` registration** — the repo ships
+   [`hooks/cursor-guard-adapter.py`](hooks/cursor-guard-adapter.py) plus a
+   reference [`hooks/hooks.json`](hooks/hooks.json) (landed 2026-08-11, PR
+   #96, `tests/test_cursor_guard_adapter.py`). The adapter is a pure
+   translator: it rewrites Cursor payload dialects (snake_case/camelCase,
+   `Shell`/`ReadFile`/`WriteFile`/`EditFile`, BOM-prefixed stdin) into the
+   Claude Code payload, runs the canonical guards unmodified, and — unlike
+   the canonical guards — **fails closed** on its own failures (guards
+   missing, crashed, or timed out). PR #96 recorded its motive: it "likely
+   closes" the "edits ungated" gap recorded when the telltale cursor seat
+   was re-founded on ACP (telltale #138). No live cursor-agent run has
+   verified this registration path yet; the tests drive the adapter
+   directly.
+
+If both are wired on one machine, each tool call is checked twice. The
+guards are side-effect-free checks, so a double fire costs latency, not
+correctness — but which registration is the canonical one is **not yet
+ruled**; no ADR or test asserts a precedence. One cross-vendor caveat is
+measured: Grok Build scans `~/.cursor/hooks.json` too (`[compat.cursor]`
+is on by default — see [`../grok/README.md`](../grok/README.md)), so a
+deployed Cursor hook file is also imported into Grok sessions.
 
 That import was **broken-by-default on Windows in both launch directions**
 until the guards' 2026-08-04 compatibility pass

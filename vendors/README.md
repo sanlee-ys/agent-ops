@@ -4,7 +4,9 @@ The root of this repo is vendor-neutral canon: incidents, decisions,
 conventions, the security posture and its guards, the operating model. None
 of that cares which agent harness is running. What *does* care lives here —
 one directory per vendor, holding only the material that exists in that
-harness's own format or dialect.
+harness's own format or dialect, plus one cross-vendor directory
+([`packet/`](packet/)) for the typed transfer packet that crosses harness
+boundaries.
 
 ## What belongs in a vendor directory
 
@@ -50,6 +52,10 @@ harness's own format or dialect.
   [`ADR-014`](../decisions/ADR-014-pi-harness-kimi-model-target.md). The
   interim xAI ride was declined on 2026-08-16. The seat is parked until
   Kimi. That does **not** make Grok Build a routing lane.
+- [`packet/`](packet/) — not a vendor: the cross-vendor transfer packet.
+  A typed, validated envelope (schema, compiler, refusal codes) for the
+  state that crosses a harness boundary under ADR-010 decision 7. Contract
+  and phase-1 boundary documented in its README.
 
 The fleet routes on two axes: the **harness** selects tools and working
 surface; the **model family** determines whether a second opinion is
@@ -100,9 +106,9 @@ Current implementation truth: Claude, Codex, Antigravity, Cursor, Grok
 Build, and Pi all have the fleet suite wired (Pi via its `tool_call`
 extension; the others via their native hook adapters). The open rows are no longer *whether* a
 harness is wired but *how far each wiring has been observed working* — Cursor's
-was verified live on 2026-08-04, Grok's on 2026-08-09, both on the Windows
-workstation. Cursor is the row that still leaves a machine open: the macOS
-build's hook execution has never been measured, and the Windows
+was verified live on 2026-08-04 on the Windows workstation and on 2026-08-10
+on macOS, Grok's on 2026-08-09 on the Windows workstation. Cursor is the row
+that still leaves a machine open: Linux remains unmeasured, and the Windows
 launch-shell bug recorded in [`cursor/README.md`](cursor/README.md) is
 exactly why "imported" cannot be read as "working" until someone measures it.
 

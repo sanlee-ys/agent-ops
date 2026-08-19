@@ -215,15 +215,18 @@ The `deny` path had never been exercised anywhere before this change.
   Antigravity fails open. Nothing running inside the hook can catch that.
   Recorded rather than papered over; it is the one case the fail-closed rule
   cannot reach.
-- **Parity includes inherited gaps.** The adapter delivers commands faithfully,
-  so this lane gets the canonical guard's *documented* out-of-scope classes
-  too. Measured: asked to print a dotenv file, the agent reached for
+- **Parity includes inherited gaps — and inherited fixes.** The adapter
+  delivers commands faithfully, so this lane gets the canonical guard's
+  *documented* out-of-scope classes too. The worked example dated itself:
+  measured 2026-08-04, asked to print a dotenv file, the agent reached for
   `Get-ChildItem <dir> | ForEach-Object { Get-Content $_.FullName }`, which
-  names no sensitive path and is the runtime-assembled-path class
-  `credential-guard.py` bounds out of scope. It was allowed — and the same
-  command is allowed for Claude Code, which is parity working as specified,
-  not an adapter defect. Whether that class should be narrowed is a question
-  about the canonical guard, not about this lane.
+  names no sensitive path, and it was allowed — for this lane and for Claude
+  Code alike. `credential-guard.py` v2.7 (2026-08-04) closed that exact
+  enumerate-then-read shape, and because the rules live only in the
+  canonical guard, the fix reached this lane with no adapter change. The
+  classes still out of scope per the guard's current header are script
+  indirection (`bash leak.sh`), wildcard path names, and MASK-OK forgery —
+  and those are inherited here the same way.
 - **`hooks.json` and `settings.json` remain machine state.** The versioned
   [`hooks.json`](hooks.json) here is a reference, not an enforcement: nothing
   in this repo can prove a given machine deployed it. `settings.json`
