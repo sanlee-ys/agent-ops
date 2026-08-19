@@ -169,8 +169,11 @@ cutover checklist when access lands.
   cannot find the checkout and will deny every tool call.
 - Skill frontmatter: Pi's YAML parser rejects an unquoted `description:`
   value that contains a colon and a space. Use a `>-` block scalar in every
-  SKILL.md description. The canonical skills in `vendors/claude/skills/`
-  follow this form.
+  SKILL.md description. Of the five canonical skills in
+  `vendors/claude/skills/`, two follow this form (`handoff`, `proglog`);
+  the other three (`dcb`, `descope-sweep`, `park`) use plain scalars whose
+  text contains no colon-and-space today, so they parse — but they are one
+  edit away from the failure.
 - The xAI subscription path is not in use. If a later session finds
   `defaultProvider: xai` again, that is a contract break, not a restore
   path. Park the seat rather than moving Pi onto Claude or Grok Build.
