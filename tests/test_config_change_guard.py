@@ -46,11 +46,16 @@ from pathlib import Path
 
 GUARD = Path(__file__).resolve().parent.parent / "hooks" / "config-change-guard.py"
 
+# The full redline enumeration. ADR-013 says REQUIRED_GUARDS is a literal
+# enumeration of the repo's redline controls; this tuple pins it at six, so a
+# guard added to the repo without a REQUIRED_GUARDS entry turns a test red.
 ALL_GUARDS = (
     "credential-guard",
     "published-history-guard",
     "git-staging-guard",
     "fanout-guard",
+    "destructive-command-guard",
+    "secret-redaction-guard",
 )
 
 
@@ -122,6 +127,16 @@ class TestBlockedShapes(GuardTestCase):
         # Mirrored to stderr so it surfaces even where the JSON path is ignored.
         self.assertIn("credential-guard", err)
 
+    def test_each_guard_removed_individually(self):
+        """Every entry in the six-guard enumeration is load-bearing on its own."""
+        for g in ALL_GUARDS:
+            with self.subTest(guard=g):
+                rest = tuple(x for x in ALL_GUARDS if x != g)
+                path = self.write_settings(settings_with(*rest))
+                out, _ = self.check(path)
+                self.assertTrue(blocked(out), "removing %s must block" % g)
+                self.assertIn(g, out)
+
     def test_every_guard_removed(self):
         path = self.write_settings({"hooks": {}})
         out, _ = self.check(path)
@@ -187,6 +202,10 @@ class TestAllowedShapes(GuardTestCase):
                             {"type": "command", "command": "python /y/published-history-guard.py"},
                             {"type": "command", "command": "python3 ~/git-staging-guard.py"},
                             {"type": "command", "command": "py fanout-guard.py"},
+                            {"type": "command",
+                             "command": "uv run python ./hooks/destructive-command-guard.py"},
+                            {"type": "command",
+                             "command": '"C:\\Python311\\python.exe" secret-redaction-guard.py'},
                         ],
                     }
                 ]
@@ -288,7 +307,11 @@ def realistic_wiring(**extra):
                 {"matcher": "Bash|PowerShell", "hooks": [
                     {"type": "command", "command": 'python3 "%s/git-staging-guard.py"' % h},
                     {"type": "command",
-                     "command": 'python3 "%s/published-history-guard.py"' % h}]},
+                     "command": 'python3 "%s/published-history-guard.py"' % h},
+                    {"type": "command",
+                     "command": 'python3 "%s/destructive-command-guard.py"' % h},
+                    {"type": "command",
+                     "command": 'python3 "%s/secret-redaction-guard.py"' % h}]},
                 {"matcher": "*", "hooks": [
                     {"type": "command", "command": 'python3 "%s/credential-guard.py"' % h}]},
             ],

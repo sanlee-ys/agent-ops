@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 1.1 (2026-08-09)
+# hook-version: 1.2 (2026-08-19)
 """Config tamper guard (global ConfigChange hook) — keeps the guard chain wired.
 
 The fleet's safety posture (agent-ops ADR-012) rests on a single mechanism:
@@ -97,12 +97,16 @@ import json
 # Guard scripts whose presence in the hooks config is the safety posture, mapped
 # to the hook event each one must be registered under. v1.0 matched these as
 # substrings anywhere in the serialized hooks block; v1.1 checks the structure,
-# so a guard relocated to a non-blocking event no longer passes.
+# so a guard relocated to a non-blocking event no longer passes. v1.2 adds the
+# two ADR-015 guards — per ADR-013 this list is a literal enumeration of the
+# repo's redline controls, and it had fallen behind that ADR by two entries.
 REQUIRED_GUARDS = {
     "credential-guard": "PreToolUse",
     "published-history-guard": "PreToolUse",
     "git-staging-guard": "PreToolUse",
     "fanout-guard": "PreToolUse",
+    "destructive-command-guard": "PreToolUse",
+    "secret-redaction-guard": "PreToolUse",
 }
 
 # Only the scopes that can carry the global guard chain.
