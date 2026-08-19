@@ -1411,6 +1411,8 @@ class TestCopyLaunderBlocked(GuardTestCase):
                     "ln /home/user/.env /tmp/x",
                     "ln -s /home/user/.env /tmp/x",
                     "cp -t /tmp /home/user/.env",
+                    "cp --target-directory=/tmp ~/.env",
+                    "mv --target-directory=/tmp ~/.ssh/id_ed25519",
                     "copy .env x.txt", "move .env x.txt", "ren .env x.txt",
                     "cpi .env x.txt",
                     "robocopy . C:\\tmp .env",
@@ -1486,6 +1488,7 @@ class TestCopyLaunderBlocked(GuardTestCase):
                     "cat ~/.claude/hooks.json.bak-20260806",
                     "cp notes.md /tmp/notes.md",
                     "mv build/out.js dist/out.js",
+                    "cp --target-directory=/tmp README.md",
                     "tar czf backup.tgz src/",
                     "cat notes.md.bak"]:
             self.assertAllowed(*self.bash(cmd), msg=cmd)

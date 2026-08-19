@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.12 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.13 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -78,6 +78,10 @@
 # quotes substitute first, so that stays blocked (measured, all four nestings).
 # The same literalness test now gates PROSE_FLAG_CRED_VAR, since `--body
 # '$ANTHROPIC_API_KEY'` publishes the literal name, not the key.
+# 2.13 (2026-08-19): an `=`-attached dest/src flag value (`cp
+# --target-directory=/tmp ~/.env`) no longer consumes the NEXT token — the
+# copy-launder parser read the credential source as the flag's value and never
+# judged it; the attached text after the first `=` is now the value.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -1540,14 +1544,27 @@ def _copy_operands(seg):
     while i < len(toks):
         tok = toks[i]
         low = tok.lower().split("=")[0]
-        if low in _DEST_FLAGS and i + 1 < len(toks):
-            dest = toks[i + 1]
-            i += 2
-            continue
-        if low in _SRC_FLAGS and i + 1 < len(toks):
-            positional.append(toks[i + 1])
-            i += 2
-            continue
+        if low in _DEST_FLAGS:
+            # `--target-directory=/tmp` carries its value in the same token.
+            # Consuming the NEXT token instead ate the credential source, so
+            # `cp --target-directory=/tmp ~/.env` was judged sourceless (v2.13).
+            if "=" in tok:
+                dest = tok.split("=", 1)[1]
+                i += 1
+                continue
+            if i + 1 < len(toks):
+                dest = toks[i + 1]
+                i += 2
+                continue
+        if low in _SRC_FLAGS:
+            if "=" in tok:
+                positional.append(tok.split("=", 1)[1])
+                i += 1
+                continue
+            if i + 1 < len(toks):
+                positional.append(toks[i + 1])
+                i += 2
+                continue
         if tok.startswith("-") or (cmd_style and tok.startswith("/")):
             i += 1                                     # a switch
             continue

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 2.11 (canonical: THIS file, per decisions/ADR-002 — the live
+# hook-version: 2.13 (canonical: THIS file, per decisions/ADR-002 — the live
 # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
 # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
 # stale. Minor bump = same v2 architecture, corrected behaviour.
@@ -57,6 +57,16 @@
 # the block instead of the string. There is now a second message, _MSG_PATH_WRITE,
 # selected per call; both keep the "ask the operator" tail. Anything the
 # selector cannot classify gets the READ message, i.e. the previous behaviour.
+# 2.12 (2026-08-11): a REMOTE resource is not a local credential store. Two
+# false-positive shapes, both observed the same day in three sessions: (a)
+# `gh api repos/<owner>/<repo>/contents/.claude/settings.json` fetches PUBLIC
+# repo content, but `gh` is an unknown command, so the path substring hit the
+# default-deny; (b) a WebFetch of the same public GitHub URL blocked because
+# the `url` field name matches _PATH_FIELD_NAME. Fix: a `gh api` segment now
+# strips its remote-shaped endpoint argument before the path check (a LOCAL
+# path anywhere else in the segment — `--input ~/.env` — still denies), and a
+# path-named tool field whose value is an http(s) URL is skipped (`file://`
+# still blocks; it names the local filesystem). Local reads are unchanged.
 # 2.11 (2026-08-09): SINGLE-QUOTED prose is literal. The 2.1 prose exemption
 # voids itself on any `$` or backtick, which is right for a double-quoted value
 # and wrong for a single-quoted one — neither expands, in POSIX shells or in
@@ -68,6 +78,10 @@
 # quotes substitute first, so that stays blocked (measured, all four nestings).
 # The same literalness test now gates PROSE_FLAG_CRED_VAR, since `--body
 # '$ANTHROPIC_API_KEY'` publishes the literal name, not the key.
+# 2.13 (2026-08-19): an `=`-attached dest/src flag value (`cp
+# --target-directory=/tmp ~/.env`) no longer consumes the NEXT token — the
+# copy-launder parser read the credential source as the flag's value and never
+# judged it; the attached text after the first `=` is now the value.
 """Credential exposure guard (global PreToolUse hook) — path-based default-deny.
 
 v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
@@ -1282,6 +1296,52 @@ _TAR_TO_STDOUT = re.compile(
 )
 
 
+# --- Remote resources (v2.12) -----------------------------------------------
+# The guard protects LOCAL credential stores. A path that names a file inside a
+# REMOTE resource — a GitHub API endpoint, an http(s) URL — is a substring of
+# someone else's public tree, not a read of this machine's secrets. Three
+# sessions on 2026-08-11 hit this on `gh api repos/<owner>/<repo>/contents/
+# .claude/settings.json` (public repo content; `gh` is an unknown command, so
+# the segment fell to default-deny).
+#
+# The rule stays narrow by direction: the stripper only ever REMOVES a token
+# that is remote-shaped (a gh REST route or an http(s) URL). It can never
+# remove a local path, so a `gh api` call that also reads a local file
+# (`--input ~/.env`, `-F body=@~/.env`) keeps its sensitive token and still
+# denies. `gh` subcommands other than `api` are untouched.
+_REMOTE_URL = re.compile(r"^https?://", re.IGNORECASE)
+_GH_API_ENDPOINT = re.compile(
+    r"^(?:https?://[\w.-]+)?/?"
+    r"(?:repos|orgs|users|user|gists|search|graphql|rate_limit|meta)(?:/|$)",
+    re.IGNORECASE,
+)
+
+
+def _strip_gh_api_endpoint(seg):
+    """`seg` with a `gh api` call's remote endpoint argument removed.
+
+    Returns `seg` unchanged unless the segment is a `gh api` invocation. Only
+    the FIRST remote-shaped positional token after `api` is removed — the
+    endpoint. Every flag, flag value, and local-looking token stays, so the
+    caller's path check still sees a local read carried by the same command."""
+    toks = _tokens(seg)
+    gh_at = None
+    for i, t in enumerate(toks):
+        if t.split("/")[-1].split("\\")[-1].lower() == "gh":
+            gh_at = i
+            break
+    if gh_at is None or gh_at + 1 >= len(toks) or toks[gh_at + 1].lower() != "api":
+        return seg
+    out, stripped = [], False
+    for i, t in enumerate(toks):
+        if (not stripped and i > gh_at + 1 and not t.startswith("-")
+                and _GH_API_ENDPOINT.match(t)):
+            stripped = True
+            continue
+        out.append(t)
+    return " ".join(out)
+
+
 def _reads_sensitive_path(seg, _depth=0):
     """True if the segment reads a sensitive target's content (default-deny).
 
@@ -1370,6 +1430,10 @@ def _reads_sensitive_path(seg, _depth=0):
         if sub in _GIT_READ_SUB:
             return True
         return sub not in _GIT_SAFE_SUB                # unknown subcommand → deny
+    if lead == "gh":
+        # `gh api <remote endpoint>` reads REMOTE content; judge the segment
+        # with the endpoint removed so a local path still denies (v2.12).
+        return _has_sensitive_path(_strip_gh_api_endpoint(outer))
     if lead in SAFE_COMMANDS:
         if lead == "find" and re.search(r"-exec(dir)?\b", outer):
             return True                                # find -exec <reader>
@@ -1480,14 +1544,27 @@ def _copy_operands(seg):
     while i < len(toks):
         tok = toks[i]
         low = tok.lower().split("=")[0]
-        if low in _DEST_FLAGS and i + 1 < len(toks):
-            dest = toks[i + 1]
-            i += 2
-            continue
-        if low in _SRC_FLAGS and i + 1 < len(toks):
-            positional.append(toks[i + 1])
-            i += 2
-            continue
+        if low in _DEST_FLAGS:
+            # `--target-directory=/tmp` carries its value in the same token.
+            # Consuming the NEXT token instead ate the credential source, so
+            # `cp --target-directory=/tmp ~/.env` was judged sourceless (v2.13).
+            if "=" in tok:
+                dest = tok.split("=", 1)[1]
+                i += 1
+                continue
+            if i + 1 < len(toks):
+                dest = toks[i + 1]
+                i += 2
+                continue
+        if low in _SRC_FLAGS:
+            if "=" in tok:
+                positional.append(tok.split("=", 1)[1])
+                i += 1
+                continue
+            if i + 1 < len(toks):
+                positional.append(toks[i + 1])
+                i += 2
+                continue
         if tok.startswith("-") or (cmd_style and tok.startswith("/")):
             i += 1                                     # a switch
             continue
@@ -1806,6 +1883,12 @@ def _field_targets_sensitive(obj, key_is_pathy=False):
     name is a bounded heuristic — a reader tool using an unforeseen field name
     is a known residual gap (posture threat model), not a claimed-closed case."""
     if isinstance(obj, str):
+        # An http(s) URL is a remote resource, not a local path — a public
+        # file that happens to be NAMED `.claude/settings.json` is not this
+        # machine's secret (v2.12). `file://` does not match and still blocks:
+        # it names the local filesystem.
+        if _REMOTE_URL.match(obj.strip()):
+            return False
         return key_is_pathy and _looks_like_path(obj) and _has_sensitive_path(obj)
     if isinstance(obj, list):
         return any(_field_targets_sensitive(x, key_is_pathy) for x in obj)
