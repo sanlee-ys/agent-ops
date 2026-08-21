@@ -205,6 +205,7 @@ class TestShellAllowed(AdapterTestCase):
         # command string, which is the point.
         self.assertPassed(self.cmd("cat ~/.env  # MASK-OK"))
         self.assertPassed(self.cmd("STAGE-ALL-OK git add -A"))
+        self.assertPassed(self.cmd("RISK-OK git reset --hard HEAD~1"))
 
     def test_file_deletion_is_not_a_read(self):
         self.assertPassed(self.cmd("rm ~/.env.bak"))
@@ -216,6 +217,60 @@ class TestShellAllowed(AdapterTestCase):
         control rather than permission modes."""
         self.assertDenied(self.cmd("cat ~/.env", permissionMode="bypassPermissions"))
         self.assertPassed(self.cmd("npm test", permissionMode="bypassPermissions"))
+
+
+class TestAdr015Verdicts(AdapterTestCase):
+    """ADR-015's two guards speak Claude's extra verdicts. Grok's PreToolUse
+    contract is allow / deny / rewrite. The adapter translates; it does not
+    reimplement the scores or the patterns."""
+
+    def assertRewritten(self, payload, marker, msg=""):
+        code, out = run_adapter(payload)
+        self.assertEqual(code, 0, msg or payload)
+        self.assertTrue(out.strip(), "a rewrite must emit updatedInput")
+        body = json.loads(out)
+        self.assertIsNone(body.get("decision"),
+                          "a rewrite omits decision; an explicit allow is "
+                          "an approval")
+        updated = body["hookSpecificOutput"]["updatedInput"]
+        blob = json.dumps(updated)
+        self.assertIn(marker, blob, msg or payload)
+        return body, updated
+
+    def test_hard_reset_confirm_becomes_deny(self):
+        """git reset --hard scores confirm (ask). Grok has no ask channel, so
+        the adapter denies and the reason still names RISK-OK."""
+        body = self.assertDenied(self.cmd("git reset --hard HEAD~1"))
+        self.assertIn("DESTRUCTIVE-COMMAND GUARD", body["reason"])
+        self.assertIn("RISK-OK", body["reason"])
+        self.assertIn("git.reset_hard", body["reason"])
+
+    def test_soft_reset_still_passes(self):
+        self.assertPassed(self.cmd("git reset --soft HEAD~1"))
+
+    def test_literal_aws_key_is_rewritten_not_denied(self):
+        # Assemble at runtime so a live redaction hook cannot rewrite this
+        # file's source the way it rewrote a bench script on 2026-08-21.
+        sample = "AKIA" + "IOSFODNN7EXAMPLE"
+        body, updated = self.assertRewritten(
+            self.cmd("echo " + sample),
+            "[REDACTED:aws_access_key]",
+        )
+        self.assertNotIn(sample, json.dumps(updated))
+        self.assertEqual(body["hookSpecificOutput"]["hookEventName"],
+                         "PreToolUse")
+
+    def test_redaction_on_a_non_shell_write(self):
+        """secret-redaction walks every tool_input, not only shell commands."""
+        sample = "AKIA" + "IOSFODNN7EXAMPLE"
+        _, updated = self.assertRewritten(
+            tool_call("search_replace", {
+                "path": "C:/repo/README.md",
+                "new_string": "token=" + sample,
+            }),
+            "[REDACTED:aws_access_key]",
+        )
+        self.assertEqual(updated["path"], "C:/repo/README.md")
 
 
 class TestFileFieldTools(AdapterTestCase):
@@ -324,7 +379,7 @@ class TestFailsClosed(AdapterTestCase):
             self.assertEqual(code, 2)
             body = json.loads(out)
             self.assertEqual(body["decision"], "deny")
-            self.assertIn("git-staging-guard", body["reason"])
+            self.assertIn("secret-redaction-guard", body["reason"])
 
     def test_agent_ops_root_env_override_is_honoured(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -366,10 +421,10 @@ class TestReferenceConfigs(unittest.TestCase):
     def test_timeout_clears_the_adapter_worst_case(self):
         """Grok's default hook timeout is 5 SECONDS and a timed-out hook fails
         OPEN, so an unset timeout is not a slow guard — it is no guard. The
-        adapter's budget is three guards at 45s."""
+        adapter's budget is five guards at 45s."""
         for path in (self.POSIX, self.WINDOWS):
             with self.subTest(config=path.name):
-                self.assertGreaterEqual(self._entry(path)["hooks"][0]["timeout"], 135)
+                self.assertGreaterEqual(self._entry(path)["hooks"][0]["timeout"], 225)
 
     def test_windows_config_names_an_absolute_interpreter(self):
         """Bare `python3` on a provisioned Windows box resolves to the

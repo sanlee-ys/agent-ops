@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "python3 $HOME/code/agent-ops/vendors/grok/hooks/grok-guard-adapter.py",
-            "timeout": 180
+            "timeout": 270
           }
         ]
       }

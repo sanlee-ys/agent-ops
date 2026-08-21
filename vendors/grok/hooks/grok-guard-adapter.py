@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-# adapter-version: 1.0 (2026-08-08) — wires the fleet guards into Grok Build
-# under decisions/ADR-012's guard obligation.
+# adapter-version: 1.1 (2026-08-21) — wires the fleet PreToolUse guards into
+# Grok Build under decisions/ADR-012's guard obligation. 1.1 adds the two
+# ADR-015 guards (secret-redaction, destructive-command) and translates their
+# rewrite / confirm verdicts onto Grok's contract.
 """Grok Build PreToolUse adapter for the fleet guards.
 
 WHAT THIS IS NOT. It is not a second implementation of the redlines. The rules
-live in exactly one place each — `security/credential-guard.py`,
-`hooks/git-staging-guard.py`, `hooks/published-history-guard.py` — and this
-file never inspects a command, never matches a path, and holds no pattern of
-its own. `security/posture.md` limit #6 records what the other choice costs: a
+live in the canonical PreToolUse guards — `security/credential-guard.py`,
+`security/secret-redaction-guard.py`, `hooks/git-staging-guard.py`,
+`hooks/published-history-guard.py`, `hooks/destructive-command-guard.py` —
+and this file never inspects a command, never matches a path, and holds no
+pattern of its own. `security/posture.md` limit #6 records what the other choice costs: a
 duplicated copy of guard logic drifted out of sync and shipped a gap that had
 already been fixed in the original. So the adapter is a pure TRANSLATOR. It
 rewrites Grok's tool call into the Claude Code PreToolUse payload the canonical
@@ -19,7 +22,7 @@ WHY AN ADAPTER AT ALL — THE SILENT NO-OP.
 
 Grok ships `[compat.claude] hooks = true` by default, which scans
 `~/.claude/settings.json` and loads the fleet guards. `grok inspect --json`
-duly lists all three as `pre_tool_use` hooks, so the wiring LOOKS present. It
+duly lists the fleet guards as `pre_tool_use` hooks, so the wiring LOOKS present. It
 is not. Grok's stdin envelope is **camelCase**:
 
     {"hookEventName": "pre_tool_use", "toolName": "run_terminal_command",
@@ -124,18 +127,27 @@ def _repo_root() -> str | None:
 
 # Guards run in order; the first block wins. credential-guard is first because
 # it is the redline with an incident history behind every clause.
+# secret-redaction rewrites values rather than blocking; a rewrite is fed to
+# every later guard so they judge the redacted command, not the original.
+# destructive-command is last among the shell guards: it scores local
+# destruction, which is a different object from the two git invariants.
 _GUARDS = (
     ("credential-guard", os.path.join("security", "credential-guard.py"), False),
+    ("secret-redaction-guard",
+     os.path.join("security", "secret-redaction-guard.py"), False),
     ("git-staging-guard", os.path.join("hooks", "git-staging-guard.py"), True),
     ("published-history-guard",
      os.path.join("hooks", "published-history-guard.py"), True),
+    ("destructive-command-guard",
+     os.path.join("hooks", "destructive-command-guard.py"), True),
 )
 
 # published-history-guard reaches the network (`git ls-remote`, 12s ceiling) and
 # may fetch, so the per-guard budget has to clear that with room to spare. The
 # `timeout` on the hook entry must in turn clear the sum of these — Grok's
 # default is 5 SECONDS and a timed-out hook fails open, so an unset timeout is
-# not a slow guard, it is no guard.
+# not a slow guard, it is no guard. Five guards at 45s is 225s; the reference
+# configs set 270.
 _TIMEOUT = 45
 
 # Windows: keep the guard subprocesses from allocating a console window.
@@ -294,9 +306,50 @@ def allow() -> None:
     sys.exit(0)
 
 
-def _run_guard(script: str, claude_payload: dict) -> tuple[bool, str]:
-    """(blocked, reason) from one canonical guard, driven exactly as the Claude
-    Code harness drives it: JSON on stdin, exit 0 allow / exit 2 block."""
+def rewrite(tool_input: dict) -> None:
+    """Allow the call with Grok's rewritten tool input.
+
+    Grok documents this shape (user-guide/10-hooks.md): omit `decision`,
+    return `hookSpecificOutput.updatedInput`. The rewrite is an object and
+    it is what the tool, the plan-mode gate, and the permission prompt all
+    see. Exit 0 — this is not a deny.
+    """
+    json.dump(
+        {"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": tool_input,
+        }},
+        sys.stdout,
+    )
+    sys.stdout.flush()
+    sys.exit(0)
+
+
+def _stdout_json(stdout: str) -> dict | None:
+    text = (stdout or "").strip()
+    if not text:
+        return None
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _run_guard(script: str, claude_payload: dict) -> tuple[bool, str, dict | None]:
+    """(blocked, reason, updated_input) from one canonical guard.
+
+    Driven exactly as the Claude Code harness drives it: JSON on stdin,
+    exit 0 allow / exit 2 block. ADR-015 adds two extra Claude-contract
+    verdicts on exit 0 that Grok does not share one-for-one:
+
+      * `updatedInput` — Grok honours this. Forward the rewritten
+        `tool_input` and feed it to later guards.
+      * `permissionDecision: ask` — Grok's PreToolUse contract has no ask
+        channel (allow, deny, or rewrite only). Confirm therefore becomes
+        deny, with the guard's RISK-OK instruction intact. Same translation
+        Codex already uses for a contract that cannot ask.
+    """
     proc = subprocess.run(
         [sys.executable, script],
         input=json.dumps(claude_payload),
@@ -306,13 +359,36 @@ def _run_guard(script: str, claude_payload: dict) -> tuple[bool, str]:
         creationflags=_NO_WINDOW,
     )
     if proc.returncode == 2:
-        return True, (proc.stderr.strip() or "(the guard gave no reason)")
-    if proc.returncode == 0:
-        return False, ""
-    # Any other code is the guard failing, not deciding.
-    raise RuntimeError(
-        f"exit status {proc.returncode}; stderr: {proc.stderr.strip()[:400]}"
+        return True, (proc.stderr.strip() or "(the guard gave no reason)"), None
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"exit status {proc.returncode}; stderr: {proc.stderr.strip()[:400]}"
+        )
+
+    body = _stdout_json(proc.stdout)
+    if body is None:
+        return False, "", None
+
+    hso = body.get("hookSpecificOutput")
+    if not isinstance(hso, dict):
+        # warn: a systemMessage note, no permission decision. Grok has no
+        # PreToolUse slot for that note; stderr already carries it. Pass.
+        return False, "", None
+
+    decision = hso.get("permissionDecision")
+    reason = (
+        hso.get("permissionDecisionReason")
+        or proc.stderr.strip()
+        or "(the guard gave no reason)"
     )
+    if decision in {"deny", "ask"}:
+        # ask -> deny: Grok cannot prompt. The reason already names RISK-OK.
+        return True, reason, None
+
+    updated = hso.get("updatedInput")
+    if isinstance(updated, dict):
+        return False, "", updated
+    return False, "", None
 
 
 def main() -> None:
@@ -341,18 +417,20 @@ def main() -> None:
         if root is None:
             deny(_MSG_NO_REPO.format(origin=os.path.realpath(__file__)))
 
+        pending_rewrite: dict | None = None
         for name, relative, shell_only in _GUARDS:
-            # git-staging-guard and published-history-guard exit 0 immediately
-            # for any tool that is not Bash/PowerShell, so skipping them for a
-            # non-shell call is provably behaviour-preserving - it drops a
-            # process spawn, never a check.
+            # The git-invariant guards and the destructive-command guard exit 0
+            # immediately for any tool that is not Bash/PowerShell, so skipping
+            # them for a non-shell call is provably behaviour-preserving - it
+            # drops a process spawn, never a check. secret-redaction walks
+            # tool_input on every tool, so it is not skipped.
             if shell_only and not is_shell:
                 continue
             script = os.path.join(root, relative)
             if not os.path.isfile(script):
                 deny(_MSG_GUARD_MISSING.format(guard=name, root=root, path=relative))
             try:
-                blocked, reason = _run_guard(script, claude_payload)
+                blocked, reason, updated = _run_guard(script, claude_payload)
             except subprocess.TimeoutExpired:
                 deny(_MSG_GUARD_BROKE.format(
                     guard=name, detail=f"It did not finish within {_TIMEOUT}s."))
@@ -360,11 +438,16 @@ def main() -> None:
                 deny(_MSG_GUARD_BROKE.format(guard=name, detail=str(exc)))
             if blocked:
                 deny(reason)
+            if updated is not None:
+                claude_payload["tool_input"] = updated
+                pending_rewrite = updated
     except SystemExit:
         raise
     except Exception as exc:
         deny(_MSG_INTERNAL.format(detail=f"{type(exc).__name__}: {exc}"))
 
+    if pending_rewrite is not None:
+        rewrite(pending_rewrite)
     allow()
 
 
