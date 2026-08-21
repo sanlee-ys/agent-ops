@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "${LOCALAPPDATA}/Python/bin/python3.exe ${USERPROFILE}/code/agent-ops/vendors/grok/hooks/grok-guard-adapter.py",
-            "timeout": 180
+            "timeout": 270
           }
         ]
       }

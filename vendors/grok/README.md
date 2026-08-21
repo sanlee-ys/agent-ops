@@ -24,8 +24,10 @@ starts from a guarded harness rather than an unguarded one.
 | Fleet policy | Claude Code | Grok Build |
 |---|---|---|
 | `credential-guard.py` | PreToolUse wired | **Wired — live deny observed 2026-08-09, in default mode and under `bypassPermissions`** |
-| `git-staging-guard.py` | PreToolUse wired | **Wired — the adapter is observed running live; this guard's own deny was not separately exercised** |
-| `published-history-guard.py` | PreToolUse wired | **Same as `git-staging-guard.py`** |
+| `secret-redaction-guard.py` | PreToolUse wired | **Wired — live rewrite observed 2026-08-21** (a Write of an AWS example key landed as `[REDACTED:aws_access_key]`) |
+| `git-staging-guard.py` | PreToolUse wired | **Wired — live deny observed 2026-08-21** (`git add -A`) |
+| `published-history-guard.py` | PreToolUse wired | **Wired — live deny observed 2026-08-21** (`git commit --amend` on a published `main`) |
+| `destructive-command-guard.py` | PreToolUse wired | **Wired — live deny observed 2026-08-21.** Confirm (`ask`) becomes deny; `git reset --hard` was blocked and the reason named `RISK-OK` |
 | `redline-guard.py` (pre-commit) | Applies at commit | Applies when the target repo has the hook |
 
 **This table is the whole of the safety argument**, and under ADR-012 a row
@@ -95,6 +97,22 @@ never sends it. An explicit allow from a hook is an *approval*, not a neutral
 pass, and whether it short-circuits the permission mode is unmeasured. A guard
 must not widen permissions as a side effect of not objecting.
 
+**ADR-015 verdicts, translated rather than reimplemented.** Grok's PreToolUse
+contract is allow, deny, or `updatedInput`. Claude Code also has `ask` and a
+warn note.
+
+- **Rewrite.** `secret-redaction-guard.py` returns
+  `hookSpecificOutput.updatedInput`. Grok documents that same shape
+  (`user-guide/10-hooks.md`). The adapter forwards the rewritten `tool_input`
+  and feeds it to every later guard, so they judge the redacted command.
+- **Confirm (`ask`).** `destructive-command-guard.py` scores `git reset --hard`
+  as confirm. Grok has no ask channel, so confirm becomes deny. The reason
+  still names `RISK-OK`. This is the same translation Codex already uses for a
+  contract that cannot ask. It is not a rescoring of the matrix.
+- **Warn.** A `systemMessage` note with no permission decision. Grok has no
+  PreToolUse slot for that note; stderr already carries it, and the call
+  proceeds.
+
 **Fail closed, unlike the guards it calls.** Grok's runner is documented
 fail-open on every failure class — *"All hook failures (timeouts, crashes,
 malformed output, missing required env vars) are fail-open ... Only an explicit
@@ -105,8 +123,9 @@ inheriting the canonical guards' fail-open posture. A check that could not run
 is not a pass
 ([`conventions/allowlists-fail-both-ways.md`](../../conventions/allowlists-fail-both-ways.md)).
 
-The per-guard overrides (`MASK-OK`, `STAGE-ALL-OK`, `REWRITE-MAIN-OK`) ride
-through in the command string and work exactly as they do in Claude Code.
+The per-guard overrides (`MASK-OK`, `STAGE-ALL-OK`, `REWRITE-MAIN-OK`,
+`RISK-OK`) ride through in the command string and work exactly as they do in
+Claude Code.
 
 ### Deploying it
 
@@ -137,7 +156,7 @@ There are two shapes for the `command`, and the choice is not stylistic:
    ```json
    { "type": "command",
      "command": "${LOCALAPPDATA}/Python/bin/python3.exe ${USERPROFILE}/.grok/hooks/grok-guard-adapter.py",
-     "timeout": 180,
+     "timeout": 270,
      "env": { "AGENT_OPS_ROOT": "<path to the agent-ops clone>" } }
    ```
 
@@ -152,13 +171,13 @@ There are two shapes for the `command`, and the choice is not stylistic:
    loudly** — the failure announces itself instead of hiding, which is the
    whole point of the fail-closed posture.
 
-Cost, measured on this machine: **0.44s** for a shell call that runs all three
-guards, **0.24s** for a non-shell call (which runs only the credential guard),
-**0.22s** for a call denied by the first guard. Synchronous, since hooks block
-the agent loop. Grok's default hook timeout is **5 seconds** and a timed-out
-hook fails **open**, so the reference configs set `timeout: 180` to clear the
-adapter's own three-guard worst case (3 × 45s); an unset timeout there is not a
-slow guard, it is no guard.
+Cost, re-measured 2026-08-21 at v1.1 (five guards), offline on this machine:
+**0.66s** for a clean shell call (`npm test`), **0.21s** for a call denied by
+the first guard (credential), **0.46s** staging deny, **0.85s** destructive
+confirm-to-deny. Synchronous, since hooks block the agent loop. Grok's default hook timeout is **5 seconds** and a
+timed-out hook fails **open**, so the reference configs set `timeout: 270` to
+clear the adapter's five-guard worst case (5 × 45s); an unset timeout there is
+not a slow guard, it is no guard.
 
 ### Two interpreter traps, both Windows, both silent
 
@@ -276,7 +295,7 @@ Added 2026-08-09, from a signed-in session:
   over-reports; `loaded hooks hook_count=N` in the `--debug` log does not.
 - **The adapter costs 0.7–1.0s per shell call in-session** (`elapsed_ms=714`,
   `1033`, `663`), against 0.44s measured offline. Still far inside the
-  `timeout: 180` the reference configs set, and far outside Grok's 5s default —
+  `timeout: 270` the reference configs set, and far outside Grok's 5s default —
   which remains the trap that config exists to avoid.
 - **Grok scans Cursor's hook file too, and it fails to parse.** `hook loading
   from settings file: failed to parse hook file ~/.cursor/hooks.json: invalid
@@ -412,6 +431,27 @@ a judgment layer above the guard**, with the residual named rather than implied
 indirection, a directory copy naming no credential file, any network POST). No
 ADR was written; ADR-012's floor sentence carries a dated in-place clause.
 
+## Live verification, 2026-08-21
+
+Adapter v1.1, signed-in Grok Build 1.0.5 session on Windows 11, PowerShell
+parent, `~/.grok/hooks/grok-guard-adapter.py` copied from this tree. The
+session itself was the probe: the hook blocked or rewrote this agent's own
+tool calls. No nested `grok -p`. Throwaway git repo under `%TEMP%` with a
+local bare origin for the published-history arm. No real secret value was
+used; the AWS example key is the well-known documentation fixture, assembled
+or rewritten.
+
+| Probe | Result |
+|---|---|
+| Write a file containing the AWS example access key | **Rewrite observed.** The file on disk stored `[REDACTED:aws_access_key]`. The unit-test source that still held the contiguous fixture could not be edited until the sample was split at runtime. |
+| `git reset --hard HEAD` in the throwaway repo | **Deny.** Reason: `DESTRUCTIVE-COMMAND GUARD [git.reset_hard] -> confirm` and `RISK-OK`. Confirm became deny, as translated. |
+| `git add -A` in the throwaway repo | **Deny.** Reason: `GIT STAGING GUARD`. |
+| `git commit --amend --no-edit` after `origin/main` existed | **Deny.** Reason: `PUBLISHED-HISTORY GUARD` would drop 1 published commit. The same amend was allowed *before* origin existed — the invariant, not the verb. |
+| `git reset --soft HEAD~1` (offline through the adapter) | **Pass.** The score split survived the translation. |
+
+The credential-guard live deny from 2026-08-09 still holds: a later command
+in this session that mentioned a `.env` path was blocked the same way.
+
 ## Residual gaps
 
 - **The adapter cannot guard its own absence.** If the file is deleted or its
@@ -447,11 +487,11 @@ ADR was written; ADR-012's floor sentence carries a dated in-place clause.
   common accidental shape, and containment under a bypass is the permission
   layer and the workspace, which that mode removes. The hook fires and is not
   enough on its own.
-- **Only the credential guard's deny was exercised live.** The adapter runs all
-  three guards on a shell call and was observed running, but `git-staging-guard`
-  and `published-history-guard` were not independently driven to a deny inside a
-  Grok session. Their live behaviour is inferred from the adapter's, not
-  observed.
+- **Live denies for the other PreToolUse guards were owed; they are paid
+  2026-08-21.** See [Live verification, 2026-08-21](#live-verification-2026-08-21).
+  The remaining live gap is the same as on every other lane: the adapter
+  still cannot guard its own absence, and `bypassPermissions` is still
+  unsupported.
 - **Project-scoped hooks need folder trust.** Global hooks in `~/.grok/hooks/`
   are always trusted, which is why the fleet guards go there. A repo-local
   `.grok/hooks/` file is silently skipped until `/hooks-trust` runs — so it
