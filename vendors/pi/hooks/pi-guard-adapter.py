@@ -82,6 +82,9 @@ _GUARDS = (
     ("git-staging-guard", os.path.join("hooks", "git-staging-guard.py"), True),
     ("published-history-guard",
      os.path.join("hooks", "published-history-guard.py"), True),
+    # hook-tamper is NOT shell-only: it judges Write/Edit payloads as well as
+    # shell commands, because both routes reach a deployed guard file.
+    ("hook-tamper-guard", os.path.join("hooks", "hook-tamper-guard.py"), False),
 )
 
 # published-history-guard reaches the network (`git ls-remote`, 12s ceiling)
