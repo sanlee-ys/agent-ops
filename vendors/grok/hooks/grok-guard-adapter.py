@@ -140,6 +140,9 @@ _GUARDS = (
      os.path.join("hooks", "published-history-guard.py"), True),
     ("destructive-command-guard",
      os.path.join("hooks", "destructive-command-guard.py"), True),
+    # hook-tamper is last and is NOT shell-only: it judges Write/Edit payloads
+    # as well as shell commands, because both routes reach a deployed guard.
+    ("hook-tamper-guard", os.path.join("hooks", "hook-tamper-guard.py"), False),
 )
 
 # published-history-guard reaches the network (`git ls-remote`, 12s ceiling) and

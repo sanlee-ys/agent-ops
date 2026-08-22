@@ -29,6 +29,7 @@ jobs:
           python -m py_compile hooks/published-history-guard.py
           python -m py_compile hooks/config-change-guard.py
           python -m py_compile hooks/destructive-command-guard.py
+          python -m py_compile hooks/hook-tamper-guard.py
           python -m py_compile security/secret-redaction-guard.py
           python -m py_compile scripts/redline-guard.py
           python -m py_compile scripts/sync-shared-blocks.py

@@ -11,9 +11,10 @@ put it alongside its README and `posture.md`.
 | [`git-staging-guard.py`](git-staging-guard.py) | `PreToolUse` / shells | whole-tree staging (`git add\|stage -A\|-u\|.`, any combined short flag carrying `A` or `u`, `git commit -a`), which sweeps a parallel session's uncommitted work into this session's commit. Override: `STAGE-ALL-OK` per command |
 | [`published-history-guard.py`](published-history-guard.py) | `PreToolUse` / shells | any command that would move `main` backwards over a commit the remote already has — force-push, reset, `commit --amend`, `rebase`, `branch -f`/`-M`, `checkout -B`/`switch -C`, `update-ref`, `filter-branch`/`filter-repo`, or deleting the remote branch |
 | [`config-change-guard.py`](config-change-guard.py) | `ConfigChange` | a settings change that leaves the file disarmed: a guard hook not wired where it can fire, `disableAllHooks`, `permissions.defaultMode: bypassPermissions`, an unrestricted-shell allow rule, or an `env` key that redirects model traffic |
+| [`hook-tamper-guard.py`](hook-tamper-guard.py) | `PreToolUse` / all tools | a MUTATION of a **deployed** guard-chain file — a hook script under `~/.claude/hooks/`, `~/.grok/hooks/`, `~/.pi/agent/extensions/`, or the wiring in `~/.claude/settings.json`, `~/.cursor/hooks.json`, `~/.grok/config.toml`, `~/.gemini/config/hooks.json`, `~/.pi/agent/settings.json`. Reads stay allowed; the CANONICAL sources in this clone stay editable. Override: `DEPLOY-OK` per command |
 | [`destructive-command-guard.py`](destructive-command-guard.py) | `PreToolUse` / shells | locally destructive commands, judged by a blast × reversibility score per rule id (`git reset --hard`, `git clean -f`, recursive deletes, …) — `git reset --soft` scores as safe and passes. Buckets: allow / warn / confirm / block; block = exit 2, which holds in every permission mode. Overrides: `RISK-OK` per command; `guard-scoring.json` per rule/cell; `AGENT_OPS_GUARD_SHADOW` logs without enforcement. See [ADR-015](../decisions/ADR-015-blast-reversibility-scoring-and-redaction.md) |
 
-A fourth `PreToolUse` guard lives in [`security/`](../security/):
+One more `PreToolUse` guard lives in [`security/`](../security/):
 [`secret-redaction-guard.py`](../security/secret-redaction-guard.py) rewrites
 instead of refusing — a literal secret value in `tool_input` is replaced with
 `[REDACTED:<rule_id>]` and the call proceeds via
@@ -25,6 +26,58 @@ symlink them (macOS/Linux) or copy them (Windows) into `~/.claude/hooks/`, so
 this clone is load-bearing. Re-run the deploy after editing one, and check the
 deployed copy before trusting it — a copy goes stale without dangling anything
 (limit 6 in [`security/posture.md`](../security/posture.md)).
+
+## `hook-tamper-guard.py` v1.0: the deployed copy, not the settings file
+
+[`config-change-guard.py`](config-change-guard.py) and
+[`hook-tamper-guard.py`](hook-tamper-guard.py) sound alike and protect different
+things. Keep them apart by the event:
+
+| | `config-change-guard.py` | `hook-tamper-guard.py` |
+| --- | --- | --- |
+| Event | `ConfigChange` | `PreToolUse` |
+| Subject | the settings file's CONTENT after a change | the TOOL CALL that writes a deployed file |
+| Asks | "is the guard chain still wired?" | "is this call rewriting a live guard?" |
+| Sees | a `/config` edit no tool call produced | a `Write`, an `Out-File`, a `cp` |
+| Timing | after the bytes land (documented limit) | before the bytes land |
+
+Neither replaces the other, and the second closes a route the first cannot
+reach: the deployed guard SCRIPTS. `config-change-guard.py` checks that
+`credential-guard.py` is still registered under `PreToolUse` with a live
+matcher. It cannot check what is inside that file. An `Edit` that replaces the
+body of `~/.claude/hooks/credential-guard.py` with `sys.exit(0)` leaves every
+registration intact and disarms the guard completely.
+
+**Three rules keep it usable, and all three are pinned by
+[`tests/test_hook_tamper_guard.py`](../tests/test_hook_tamper_guard.py):**
+
+1. **Canonical stays editable.** Only DEPLOYED copies are protected. Every
+   protected path is anchored to a home dot-config directory, so a path inside
+   an agent-ops clone carries no such directory and never matches. Editing a
+   guard here, and shipping it through a pull request, is the intended route and
+   the guard must never stand in it.
+2. **Reads stay allowed.** Reading a hook to learn what it refuses is ordinary
+   work. Only a mutation blocks, and the copy family is judged by DESTINATION —
+   a copy OUT of the deployed tree is a backup, a copy IN is a deploy.
+3. **A mention is not a mutation.** Heredoc bodies are stripped, the quoted
+   value of a prose-bearing flag is blanked, and a path alone never blocks: the
+   segment must also carry a mutator with that path as an argument. This guard
+   is more exposed to the false positive than any other here, because the
+   documents explaining it quote its protected paths on every line.
+
+**The override is `DEPLOY-OK`,** placed anywhere in a Bash/PowerShell command.
+It exists for exactly one job: a deliberate canonical-to-deploy sync. The block
+message does not name it, which is the standing decision taken after a guard
+advertised its own bypass and the model read it back out and used it.
+
+**Deploying it is a separate human decision.** The guard is canonical here and
+is wired into all four vendor adapters, so any lane that runs an adapter picks
+it up from this clone. The Claude Code lane runs deployed copies instead, so it
+gains nothing until the file is copied to `~/.claude/hooks/` and added to the
+`PreToolUse` array. Until that happens, do NOT add `hook-tamper-guard` to
+`config-change-guard.py`'s `REQUIRED_GUARDS`: that list is a wiring assertion,
+and asserting a guard that is not deployed would block every settings change
+until it is.
 
 ## `git-staging-guard.py` v1.2: two synonyms the v1.0 matcher never named
 
