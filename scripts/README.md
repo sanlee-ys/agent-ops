@@ -290,6 +290,39 @@ Two design points worth keeping:
 Test suite: `tests/test_reconcile.py`. It covers the parsers and the formatter
 with recorded `gh` and `git` output, so it needs no network and no repo.
 
+## dead_rules_audit.py — is anyone following the rules?
+
+A rule nobody follows looks exactly like a rule everybody follows, because
+nothing tests prose. The decision and its limits are in
+[`conventions/dead-rules-audit.md`](../conventions/dead-rules-audit.md); this
+entry is how to run it.
+
+```
+uv run python scripts/dead_rules_audit.py --days 7
+```
+
+`--json` emits the same data as JSON. `--root DIR` points it at another
+transcript store. Exit codes are the interface: 0 audit complete, 2 usage error.
+
+It reads only. It writes nothing and it sends nothing anywhere.
+
+Two design points worth keeping:
+
+- **The number is a floor on violations, never a compliance score.** There is no
+  denominator: the script cannot count the occasions on which a rule *could*
+  have been broken. Absence of hits is not proof of compliance — a rule with
+  zero hits may be observed, may have no detector, or may have a detector
+  narrower than the rule, and all three look identical.
+- **A transcript holds the whole session, so the audit never becomes a second
+  copy of it.** Examples are COMMAND strings only, truncated, capped at three
+  per rule; the prose detector reports counts with no examples at all, because
+  its evidence is prose. `TestNothingLeaks` pins each of those from the failing
+  side.
+
+Test suite: `tests/test_dead_rules_audit.py`. Fixtures are synthetic
+transcripts in a temporary directory, so the suite never reads the real session
+store.
+
 ## redline-guard.py — the publication boundary, enforced
 
 This repo is public **and canonical** ([ADR-002](../decisions/ADR-002-public-first-canonicality.md)):
