@@ -166,6 +166,124 @@ class TestDeployedGuardMutationsBlocked(unittest.TestCase):
                          BLOCK)
 
 
+class TestReviewFindingsClosed(unittest.TestCase):
+    """Bypass routes and false positives found by a read-only cross-model review
+    of the first draft (2026-08-22). Each case below was measured at the WRONG
+    verdict before the fix, so this class is the record of what the review
+    bought — and the thing that fails if a later edit reopens one.
+    """
+
+    def test_directory_level_removal(self) -> None:
+        """A guard DIRECTORY is a target. The first draft required a child
+        filename, so removing the whole directory named nothing protected."""
+        self.assertEqual(run("rm -rf ~/.claude/hooks"), BLOCK)
+        self.assertEqual(run("rm ~/.claude/hooks/*"), BLOCK)
+        self.assertEqual(run("rm -rf ~/.pi/agent/extensions"), BLOCK)
+        self.assertEqual(run("Remove-Item -Recurse -Force ~/.grok/hooks"), BLOCK)
+
+    def test_move_out_of_the_deployed_tree(self) -> None:
+        """A move is not a copy: it REMOVES the live guard. The first draft
+        judged the move family by destination only, so this passed."""
+        self.assertEqual(run("mv ~/.claude/hooks/credential-guard.py /tmp/g.py"),
+                         BLOCK)
+        self.assertEqual(run("Move-Item ~/.claude/hooks/credential-guard.py /tmp/g.py"),
+                         BLOCK)
+
+    def test_shell_wrapper_carrying_a_mutation(self) -> None:
+        """`bash -c` hands over a whole command. The first draft pattern-matched
+        the body for write constructs, and `rm` is not one of them."""
+        self.assertEqual(run("""bash -c "rm ~/.claude/hooks/credential-guard.py" """),
+                         BLOCK)
+        self.assertEqual(run("cmd /c del %USERPROFILE%\\.claude\\hooks\\x.py"), BLOCK)
+        self.assertEqual(
+            run("""pwsh -Command "Set-Content ~/.claude/settings.json '{}'" """),
+            BLOCK,
+        )
+
+    def test_wrapper_flags_do_not_hide_the_command(self) -> None:
+        """`sudo -u root rm ...` resolved to a leading command of `-u`."""
+        self.assertEqual(run("sudo -u root rm ~/.claude/hooks/credential-guard.py"),
+                         BLOCK)
+        self.assertEqual(run("env rm ~/.claude/hooks/credential-guard.py"), BLOCK)
+
+    def test_a_flag_does_not_consume_the_destination(self) -> None:
+        """`cp source -f <dest>` skipped the destination as `-f`'s value."""
+        self.assertEqual(run("cp " + CANONICAL + " -f ~/.claude/hooks/x.py"), BLOCK)
+
+    def test_bulk_mirrors_block_on_any_protected_argument(self) -> None:
+        """robocopy puts the destination second, not last. Rather than model
+        three grammars, any protected argument blocks."""
+        self.assertEqual(run("robocopy C:\\src %USERPROFILE%\\.claude\\hooks"), BLOCK)
+
+    def test_interpreter_heredoc_is_code_not_prose(self) -> None:
+        """A heredoc fed to python carries a program. The first draft dropped
+        every heredoc body, which hid the mutator and its target together."""
+        command = (
+            "python - <<'PY'\n"
+            "from pathlib import Path\n"
+            "Path('~/.claude/hooks/credential-guard.py').unlink()\n"
+            "PY"
+        )
+        self.assertEqual(run(command), BLOCK)
+
+    def test_shell_heredoc_is_code_too(self) -> None:
+        command = (
+            "bash <<'SH'\n"
+            "rm ~/.claude/hooks/credential-guard.py\n"
+            "SH"
+        )
+        self.assertEqual(run(command), BLOCK)
+
+    def test_patch_payload_naming_a_protected_target(self) -> None:
+        """A tool taking a whole diff carries the path nowhere a path-FIELD scan
+        can see it."""
+        patch = (
+            "--- a/.claude/hooks/credential-guard.py\n"
+            "+++ b/.claude/hooks/credential-guard.py\n"
+            "@@ -1 +1 @@\n"
+            "-block()\n"
+            "+pass\n"
+        )
+        self.assertEqual(run_tool("ApplyPatch", {"patch": patch}), BLOCK)
+
+    def test_a_content_field_is_not_a_path_field(self) -> None:
+        """`new_source` and `file_text` matched the pathy-NAME regex by
+        substring, so a cell merely documenting a protected path was blocked."""
+        self.assertEqual(
+            run_tool("NotebookEdit",
+                     {"notebook_path": "/home/dev/code/notes/audit.ipynb",
+                      "new_source": "# see ~/.claude/hooks/credential-guard.py"}),
+            ALLOW,
+        )
+        self.assertEqual(
+            run_tool("Write",
+                     {"file_path": "/home/dev/code/notes/audit.md",
+                      "file_text": "Edit ~/.claude/hooks/credential-guard.py by hand."}),
+            ALLOW,
+        )
+
+    def test_a_patch_body_may_discuss_a_protected_path(self) -> None:
+        """Header lines name targets; a changed LINE is content."""
+        patch = (
+            "--- a/hooks/README.md\n"
+            "+++ b/hooks/README.md\n"
+            "@@ -1 +1 @@\n"
+            "+Deployed to ~/.claude/hooks/credential-guard.py by the setup script.\n"
+        )
+        self.assertEqual(run_tool("ApplyPatch", {"patch": patch}), ALLOW)
+
+    def test_a_redirect_inside_quoted_prose(self) -> None:
+        """`>` inside a quoted literal redirects nothing."""
+        self.assertEqual(
+            run("echo 'example: rm > ~/.claude/hooks/credential-guard.py'"), ALLOW
+        )
+
+    def test_an_unquoted_redirect_still_blocks(self) -> None:
+        """The masking must not swallow a real redirect next to a quoted value."""
+        self.assertEqual(run("echo 'new body' > ~/.claude/hooks/credential-guard.py"),
+                         BLOCK)
+
+
 class TestCanonicalSourcesStayEditable(unittest.TestCase):
     """A guard evolves through a pull request. If this group ever goes red, the
     guard has locked the only route by which it can be fixed."""

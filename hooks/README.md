@@ -58,12 +58,22 @@ registration intact and disarms the guard completely.
    the guard must never stand in it.
 2. **Reads stay allowed.** Reading a hook to learn what it refuses is ordinary
    work. Only a mutation blocks, and the copy family is judged by DESTINATION —
-   a copy OUT of the deployed tree is a backup, a copy IN is a deploy.
+   a copy OUT of the deployed tree is a backup, a copy IN is a deploy. `mv` does
+   NOT get that exemption: a move out removes the live guard, which is a delete
+   wearing a different verb.
 3. **A mention is not a mutation.** Heredoc bodies are stripped, the quoted
    value of a prose-bearing flag is blanked, and a path alone never blocks: the
    segment must also carry a mutator with that path as an argument. This guard
    is more exposed to the false positive than any other here, because the
    documents explaining it quote its protected paths on every line.
+
+**A shell wrapper is re-checked, not pattern-matched.** `bash -c "<command>"`,
+`pwsh -Command '<command>'` and `cmd /c <command>` carry a whole command, so the
+body is split and judged by every rule above. The same goes for a heredoc whose
+introducing line leads with an interpreter or a shell: `python - <<'PY'` carries
+a program, not a message, and dropping it as prose would hide the mutator and
+its target in one step. `bash deploy.sh` stays out of scope — that is a file the
+guard cannot see into.
 
 **The override is `DEPLOY-OK`,** placed anywhere in a Bash/PowerShell command.
 It exists for exactly one job: a deliberate canonical-to-deploy sync. The block
