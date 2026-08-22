@@ -67,7 +67,10 @@ with Pi's harness/model split in
   One from the claim-checking work:
   [`reconcile-claims.md`](conventions/reconcile-claims.md) — an agent's
   self-report is a claim, not a record; reconcile it against `gh` and `git`
-  with [`scripts/reconcile.py`](scripts/reconcile.py) before reporting. And from a rename that
+  with [`scripts/reconcile.py`](scripts/reconcile.py) before reporting; and
+  [`dead-rules-audit.md`](conventions/dead-rules-audit.md) — rule adherence is
+  measured, not assumed, and the measurement states what it cannot see
+  ([`scripts/dead_rules_audit.py`](scripts/dead_rules_audit.py)). And from a rename that
   wedged the session that ran it:
   [`hooks-gate-their-own-repair.md`](conventions/hooks-gate-their-own-repair.md)
   — **this repo hosts live hooks.** `~/.claude/hooks/credential-guard.py`,

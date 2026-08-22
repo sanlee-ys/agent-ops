@@ -36,6 +36,7 @@ jobs:
           python -m py_compile scripts/check-generated-drift.py
           python -m py_compile scripts/settings-toggle.py
           python -m py_compile scripts/reconcile.py
+          python -m py_compile scripts/dead_rules_audit.py
 
       - name: Run the adversarial guard test suite
         run: python -m unittest discover -s tests -p "test_*.py" -v
