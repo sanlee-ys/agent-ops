@@ -64,7 +64,10 @@ with Pi's harness/model split in
   inherit the standing merge authorization; it re-earns the right to merge
   through seven script-level rails plus a verifier-and-blast-radius gate
   ([`decisions/ADR-016`](decisions/ADR-016-loops-do-not-inherit-merge-authorization.md)).
-  And from a rename that
+  One from the claim-checking work:
+  [`reconcile-claims.md`](conventions/reconcile-claims.md) — an agent's
+  self-report is a claim, not a record; reconcile it against `gh` and `git`
+  with [`scripts/reconcile.py`](scripts/reconcile.py) before reporting. And from a rename that
   wedged the session that ran it:
   [`hooks-gate-their-own-repair.md`](conventions/hooks-gate-their-own-repair.md)
   — **this repo hosts live hooks.** `~/.claude/hooks/credential-guard.py`,

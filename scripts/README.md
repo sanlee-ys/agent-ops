@@ -249,6 +249,47 @@ parses, the diff looks right, the exit code is 0, and the setting does nothing.
 Neither a test asserting the file was written nor a reviewer reading the diff
 would catch it — only checking where the *consumer* reads from does.
 
+## reconcile.py — the claims, against the system of record
+
+An agent's self-report is a claim, not a record. "Opened PR #51" is the same
+sentence whether the `gh` call worked, failed unread, or never ran. The decision
+and its reasoning are in
+[`conventions/reconcile-claims.md`](../conventions/reconcile-claims.md); this
+entry is how to run it.
+
+```
+uv run python scripts/reconcile.py --repo . --since 6h
+```
+
+Repeat `--repo` for more than one clone. `--since` takes a duration (`6h`,
+`90m`, `2d`, `3w`) or an ISO datetime. JSON goes to **stdout** for a comparison
+to consume, a compact table to **stderr** for a person to read — so redirect
+one and keep the other:
+
+```
+uv run python scripts/reconcile.py --repo . --since 6h > snapshot.json
+```
+
+Exit codes are the interface: 0 snapshot complete, 1 one or more repos failed
+(the JSON still carries the ones that worked, each failure named in its entry),
+2 usage error.
+
+It reads only. It runs no command that writes, and it sends nothing anywhere.
+
+Two design points worth keeping:
+
+- **Branches come from `git ls-remote`, never `git branch -r`.** The second is a
+  local cache of remote-tracking refs and will list a branch the remote deleted
+  an hour ago. A snapshot built to catch a false claim must not be built from a
+  cache that can carry one.
+- **An unread repo is an ERROR, not an empty one.** A repo whose `gh` or `git`
+  call failed reports the failure in its entry rather than returning no records.
+  An empty result and an unread result must not look alike — that is the shape
+  that would let a false claim through the very check meant to catch it.
+
+Test suite: `tests/test_reconcile.py`. It covers the parsers and the formatter
+with recorded `gh` and `git` output, so it needs no network and no repo.
+
 ## redline-guard.py — the publication boundary, enforced
 
 This repo is public **and canonical** ([ADR-002](../decisions/ADR-002-public-first-canonicality.md)):
