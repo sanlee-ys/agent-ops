@@ -84,10 +84,15 @@ advertised its own bypass and the model read it back out and used it.
 is wired into all four vendor adapters, so any lane that runs an adapter picks
 it up from this clone. The Claude Code lane runs deployed copies instead, so it
 gains nothing until the file is copied to `~/.claude/hooks/` and added to the
-`PreToolUse` array. Until that happens, do NOT add `hook-tamper-guard` to
-`config-change-guard.py`'s `REQUIRED_GUARDS`: that list is a wiring assertion,
-and asserting a guard that is not deployed would block every settings change
-until it is.
+`PreToolUse` array. San authorized that deployment on 2026-08-22, and the
+harness permission layer requires him to run the deploy step himself. The
+deploy script wires the guard, copies this file, and syncs the updated
+`config-change-guard.py` in one pass. On that authorization,
+`config-change-guard.py` v1.3 now lists `hook-tamper-guard` in
+`REQUIRED_GUARDS`. The assertion only becomes live when the deployed copy of
+`config-change-guard.py` is synced, and the deploy script performs that sync in
+the same pass that wires the guard, so the assertion cannot fire on an unwired
+settings file.
 
 ## `git-staging-guard.py` v1.2: two synonyms the v1.0 matcher never named
 

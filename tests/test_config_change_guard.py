@@ -47,7 +47,7 @@ from pathlib import Path
 GUARD = Path(__file__).resolve().parent.parent / "hooks" / "config-change-guard.py"
 
 # The full redline enumeration. ADR-013 says REQUIRED_GUARDS is a literal
-# enumeration of the repo's redline controls; this tuple pins it at six, so a
+# enumeration of the repo's redline controls; this tuple pins it at seven, so a
 # guard added to the repo without a REQUIRED_GUARDS entry turns a test red.
 ALL_GUARDS = (
     "credential-guard",
@@ -56,6 +56,7 @@ ALL_GUARDS = (
     "fanout-guard",
     "destructive-command-guard",
     "secret-redaction-guard",
+    "hook-tamper-guard",
 )
 
 
@@ -206,6 +207,8 @@ class TestAllowedShapes(GuardTestCase):
                              "command": "uv run python ./hooks/destructive-command-guard.py"},
                             {"type": "command",
                              "command": '"C:\\Python311\\python.exe" secret-redaction-guard.py'},
+                            {"type": "command",
+                             "command": "python.exe .claude/hooks/hook-tamper-guard.py"},
                         ],
                     }
                 ]
@@ -313,7 +316,9 @@ def realistic_wiring(**extra):
                     {"type": "command",
                      "command": 'python3 "%s/secret-redaction-guard.py"' % h}]},
                 {"matcher": "*", "hooks": [
-                    {"type": "command", "command": 'python3 "%s/credential-guard.py"' % h}]},
+                    {"type": "command", "command": 'python3 "%s/credential-guard.py"' % h},
+                    {"type": "command",
+                     "command": 'python3 "%s/hook-tamper-guard.py"' % h}]},
             ],
             "ConfigChange": [
                 {"hooks": [{"type": "command",
