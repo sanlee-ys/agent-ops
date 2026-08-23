@@ -24,6 +24,12 @@ Contents:
 | `hooks/fanout-guard.py` | the machine-config repo's `claude/hooks/fanout-guard.py` | `PreToolUse` / `Workflow` |
 | `hooks/config-change-guard.py` | `hooks/config-change-guard.py` (this repo) | `ConfigChange` |
 
+**The table is behind the chain.** The guard chain gained three guards after
+this draft was cut: `destructive-command-guard`, `secret-redaction-guard`, and
+`hook-tamper-guard`. This tree does not contain their scripts, and
+`hooks/hooks.json` does not register them. The cutover must add all three, or
+the plugin covers less than the `settings.json` registration it replaces.
+
 ## `hooks/hooks.json` is RECONSTRUCTED, not extracted
 
 The live `~/.claude/settings.json` was **deliberately not read** — it is guarded,
@@ -61,8 +67,9 @@ Installing this plugin while the same guards are registered in `settings.json`
 1. Diff `hooks/hooks.json` against the live user-scope `settings.json`. Reconcile
    matchers, timeouts and ordering; the live file wins on every disagreement.
 2. **Resolve the bootstrap problem first.** `config-change-guard.py` blocks a
-   settings change that leaves the file without `credential-guard`,
-   `published-history-guard`, `git-staging-guard` and `fanout-guard` by name.
+   settings change that leaves the file without every guard in its
+   `REQUIRED_GUARDS` enumeration (read the enumeration in the script — it
+   grows with the chain).
    Moving those registrations *out* of `settings.json` and into a plugin is
    precisely the edit it is built to block — so the guard must learn about the
    plugin scope **before** step 4, or the cutover cannot be performed from inside
