@@ -94,6 +94,19 @@ deploy script wires the guard, copies this file, and syncs the updated
 the same pass that wires the guard, so the assertion cannot fire on an unwired
 settings file.
 
+**MEASURED LIVE 2026-08-22 on the Windows deploy, both tool shapes.** San ran
+the deploy, and two probe sessions (fresh `claude -p`, default permission
+mode) then attempted a mutation of a DECOY path inside the protected
+directory. A `Write` of `~/.claude/hooks/DECOY-tamper-probe.py` and an
+`Add-Content` to the same path were both refused. The harness attributed each
+block to `PreToolUse ... hook-tamper-guard.py` by name, the model received the
+block reason verbatim, the reason did not name the override, and the decoy
+file was never created. Scope of the claim: one `Write` deny and one
+`PowerShell` deny, measured live; every other blocked shape (copy-in, delete,
+`Edit`, shell wrappers) is covered by the offline suite only. The permission
+mode was `auto`, so a second layer existed behind the hook; attribution rests
+on the harness naming the hook, not on layer isolation.
+
 ## `git-staging-guard.py` v1.2: two synonyms the v1.0 matcher never named
 
 v1.0 matched the subcommand `add` and the exact flag tokens `-A`, `--all`,
