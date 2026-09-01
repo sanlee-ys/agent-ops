@@ -26,16 +26,6 @@
             "timeout": 60
           }
         ]
-      },
-      {
-        "matcher": "Workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/fanout-guard.py\"",
-            "timeout": 60
-          }
-        ]
       }
     ],
     "ConfigChange": [

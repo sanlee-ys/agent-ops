@@ -183,6 +183,16 @@ The widening has a deploy consequence, and it is the check working as specified:
 a settings file that wires only the original four now fails. Wire the two ADR-015
 guards in `~/.claude/settings.json` if they are not wired there already.
 
+**v1.4 removes `fanout-guard` (2026-09-01).** San retired the fan-out cost guard
+on 2026-08-30, and he unwired it from the live `settings.json` himself. The dated
+ruling is in the machine-config repo, `claude/rules/budget-grants.md`. A required
+guard that no settings file wires makes this hook veto every later legitimate
+settings edit, so the entry left with the guard. `REQUIRED_GUARDS` now holds six
+names: `credential-guard`, `published-history-guard`, `git-staging-guard`,
+`destructive-command-guard`, `secret-redaction-guard`, and `hook-tamper-guard`
+(added in v1.3). The deployed copy on each machine must sync to v1.4 before the
+next settings edit on that machine.
+
 Still out of scope, stated rather than claimed closed: `~/.claude.json` is not a
 settings scope and never reaches this hook (its protection is credential-guard's
 path block — which is why that write block has to stay); a command keeping the

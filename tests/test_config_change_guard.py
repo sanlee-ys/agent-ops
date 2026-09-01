@@ -47,13 +47,14 @@ from pathlib import Path
 GUARD = Path(__file__).resolve().parent.parent / "hooks" / "config-change-guard.py"
 
 # The full redline enumeration. ADR-013 says REQUIRED_GUARDS is a literal
-# enumeration of the repo's redline controls; this tuple pins it at seven, so a
+# enumeration of the repo's redline controls; this tuple pins it at six, so a
 # guard added to the repo without a REQUIRED_GUARDS entry turns a test red.
+# fanout-guard left the enumeration in v1.4: San retired the fan-out cost guard
+# on 2026-08-30 and unwired it from the live settings.json.
 ALL_GUARDS = (
     "credential-guard",
     "published-history-guard",
     "git-staging-guard",
-    "fanout-guard",
     "destructive-command-guard",
     "secret-redaction-guard",
     "hook-tamper-guard",
@@ -191,7 +192,7 @@ class TestAllowedShapes(GuardTestCase):
         serialized hooks blob" to "a command under the expected event references
         the exact `<guard>.py` filename". How the script is *invoked* is still
         nobody's business — `uv run`, `python3`, a bare `py`, an absolute path, a
-        `~`-relative one — so all four spellings below must stay allowed.
+        `~`-relative one — so every spelling below must stay allowed.
         """
         body = {
             "hooks": {
@@ -201,8 +202,7 @@ class TestAllowedShapes(GuardTestCase):
                         "hooks": [
                             {"type": "command", "command": "uv run C:/x/credential-guard.py"},
                             {"type": "command", "command": "python /y/published-history-guard.py"},
-                            {"type": "command", "command": "python3 ~/git-staging-guard.py"},
-                            {"type": "command", "command": "py fanout-guard.py"},
+                            {"type": "command", "command": "py ~/git-staging-guard.py"},
                             {"type": "command",
                              "command": "uv run python ./hooks/destructive-command-guard.py"},
                             {"type": "command",
@@ -296,8 +296,8 @@ def realistic_wiring(**extra):
 
     `settings_with()` gives every guard its own `*`-matched entry, which is a
     fine baseline but not what a real settings.json looks like. The false-block
-    regression that matters is against the real shape — guards grouped under
-    narrow matchers (`Workflow`, `Bash|PowerShell`) alongside a `*` one, plus a
+    regression that matters is against the real shape — guards grouped under a
+    narrow matcher (`Bash|PowerShell`) alongside a `*` one, plus a
     matcher-less `ConfigChange` entry. Kept structural, with no machine-specific
     paths, so it stays valid in a public repo.
     """
@@ -305,8 +305,6 @@ def realistic_wiring(**extra):
     body = {
         "hooks": {
             "PreToolUse": [
-                {"matcher": "Workflow", "hooks": [
-                    {"type": "command", "command": 'python3 "%s/fanout-guard.py"' % h}]},
                 {"matcher": "Bash|PowerShell", "hooks": [
                     {"type": "command", "command": 'python3 "%s/git-staging-guard.py"' % h},
                     {"type": "command",
