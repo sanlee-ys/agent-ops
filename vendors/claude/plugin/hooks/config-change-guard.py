@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# hook-version: 1.3 (2026-08-22)
+# hook-version: 1.4 (2026-09-01)
 """Config tamper guard (global ConfigChange hook) — keeps the guard chain wired.
 
 The fleet's safety posture (agent-ops ADR-012) rests on a single mechanism:
@@ -103,11 +103,15 @@ import json
 # v1.3 adds hook-tamper-guard, added to the enumeration when San authorized its
 # deployment (2026-08-22). The deploy script syncs this file and wires the new
 # guard in one pass, so the assertion never fires on an unwired settings file.
+# v1.4 removes fanout-guard: San retired the fan-out cost guard on 2026-08-30
+# (the dated ruling is in the machine-config repo, claude/rules/budget-grants.md)
+# and unwired it from the live settings.json himself. The entry had to leave with
+# it — a required guard that no settings file wires makes this hook veto every
+# later legitimate settings edit.
 REQUIRED_GUARDS = {
     "credential-guard": "PreToolUse",
     "published-history-guard": "PreToolUse",
     "git-staging-guard": "PreToolUse",
-    "fanout-guard": "PreToolUse",
     "destructive-command-guard": "PreToolUse",
     "secret-redaction-guard": "PreToolUse",
     "hook-tamper-guard": "PreToolUse",

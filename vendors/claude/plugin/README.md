@@ -21,8 +21,11 @@ Contents:
 | `hooks/credential-guard.py` | `security/credential-guard.py` (this repo) | `PreToolUse` / `Bash\|PowerShell\|Shell\|Grep` |
 | `hooks/published-history-guard.py` | `hooks/published-history-guard.py` (this repo) | `PreToolUse` / `Bash\|PowerShell\|Shell` |
 | `hooks/git-staging-guard.py` | `hooks/git-staging-guard.py` (this repo) | `PreToolUse` / `Bash\|PowerShell\|Shell` |
-| `hooks/fanout-guard.py` | the machine-config repo's `claude/hooks/fanout-guard.py` | `PreToolUse` / `Workflow` |
 | `hooks/config-change-guard.py` | `hooks/config-change-guard.py` (this repo) | `ConfigChange` |
+
+`hooks/fanout-guard.py` left this table on 2026-09-01. San retired the fan-out
+cost guard on 2026-08-30 (the dated ruling is in the machine-config repo,
+`claude/rules/budget-grants.md`), and its canonical copy is deleted.
 
 **The table is behind the chain.** The guard chain gained three guards after
 this draft was cut: `destructive-command-guard`, `secret-redaction-guard`, and
@@ -46,7 +49,7 @@ confirm at cutover.
 
 ## Drift hazard
 
-All five scripts here are **derived copies**. Editing them instead of
+All four scripts here are **derived copies**. Editing them instead of
 canon reintroduces exactly the drift class recorded as limit 6 in
 [`security/posture.md`](../../../security/posture.md) — a copy that goes stale
 without dangling anything. Until cutover: **edit canon, then re-copy.** The
@@ -57,7 +60,7 @@ which already exists for exactly this shape of committed-derived-output.
 `config-change-guard.py` used to be the exception — this was its only versioned
 copy. Promoted 2026-08-09 to [`hooks/config-change-guard.py`](../../../hooks/config-change-guard.py)
 under [ADR-013](../../../decisions/ADR-013-guard-canonicality-line.md), so the
-copy here is now derived like the other four.
+copy here is now derived like the other three.
 
 ## Cutover (a future session's job — do NOT do it as a side effect)
 
@@ -75,7 +78,7 @@ Installing this plugin while the same guards are registered in `settings.json`
    plugin scope **before** step 4, or the cutover cannot be performed from inside
    a Claude session at all.
 3. Install and enable the plugin.
-4. Remove the four `PreToolUse` entries and the `ConfigChange` entry from
+4. Remove the three `PreToolUse` entries and the `ConfigChange` entry from
    `settings.json`.
 5. **Verify no double-fire**, then verify the guards still block: run one known
    tripwire per guard and confirm exactly one block message each.
