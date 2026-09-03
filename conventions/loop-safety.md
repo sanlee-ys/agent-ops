@@ -71,6 +71,13 @@ correct choice whenever the work has no mechanical verifier.
 Either condition alone is not enough. A verifier proves the change works. The
 blast radius proves the change is the change that was asked for.
 
+## A measured metric needs a confidence gate too
+
+A loop that keeps or reverts a change based on a measured benchmark number
+must call [`scripts/confidence_gate.py`](../scripts/confidence_gate.py) before
+its verifier gate, and must not keep a change on a `noise` or `inconclusive`
+verdict. A single benchmark sample cannot separate signal from noise.
+
 ## Why the blast radius is a hard gate and not a warning
 
 The verifier answers "does the repository still work?". It never answers "is

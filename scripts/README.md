@@ -365,3 +365,43 @@ ADR-002):
 - **Override:** `REDLINE_OK=1` for one commit, consciously, with the reason
   in the commit message. **Local extensions:** an untracked `.redlines.local`
   (one term per line) adds terms without publishing them.
+
+## confidence_gate.py — is a benchmark change real, or noise?
+
+A loop that keeps or reverts a change based on one benchmark run cannot tell a
+real gain from ordinary run-to-run variance. One sample has no spread to
+compare against. This is the mechanical rail
+[`conventions/loop-safety.md`](../conventions/loop-safety.md) names for that
+gap, adapted from davebcn87/pi-autoresearch (MIT License, Copyright (c) 2026
+Tobi Lutke, David Cortes): a candidate metric is confident against a set of
+prior runs when it clears their median absolute deviation (MAD) by 2.0x or
+more; below 1.0x it is within the noise floor.
+
+```
+uv run python scripts/confidence_gate.py --direction lower-is-better <<'JSON'
+{"prior_runs": [12.1, 12.4, 11.9], "candidate": 10.5}
+JSON
+```
+
+`--input FILE` reads the JSON object from a file instead of stdin; `--input -`
+is stdin explicitly. `--direction` is `lower-is-better` or `higher-is-better`
+and is required. The JSON object on stdout carries `confidence`, `verdict`
+(`keep`, `noise`, `inconclusive`, or `insufficient_runs`), `runs`, `mad`, and
+`best_improvement`, with a `reason` key on the non-obvious verdicts.
+
+Exit codes are the interface: 0 `keep` (a loop may act on the change), 1 any
+other verdict (a loop must not), 2 usage error (bad JSON, missing keys, an
+unrecognized `--direction`).
+
+Two design points worth keeping:
+
+- **It refuses to divide by zero.** Identical prior runs give a MAD of zero,
+  which the module reports as `inconclusive` with a reason rather than a crash
+  or a manufactured infinite confidence.
+- **A confident move in the wrong direction is not "noise".** A candidate that
+  is confidently worse than the baseline is a real effect, just not one to
+  keep — the module reports `inconclusive` with a reason rather than
+  overloading `noise` (which means "statistically indistinguishable from the
+  baseline") for a case that is the opposite of that.
+
+Test suite: `tests/test_confidence_gate.py`.
