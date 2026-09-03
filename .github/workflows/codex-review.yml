@@ -59,7 +59,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           # PR title/body are attacker-controllable on a fork PR. Route them
-          # through env vars and files, never through direct ${{ }} string
+          # through env vars and files, never through direct template
           # interpolation into a shell command — that is the script-injection
           # shape this avoids.
           printf '%s' "$PR_TITLE" > pr_title.txt
