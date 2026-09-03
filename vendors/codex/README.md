@@ -18,12 +18,48 @@ attempts, or visible looping**. First friction is not an escalation.
 ## Instruction-file wiring
 
 Codex reads global standing instructions from `AGENTS.md` in its home
-config directory. On this fleet that file is maintained as a mirror of the
-Claude global instruction file plus a shared division-of-labor section.
-Hand-mirroring drifts: a 2026-08-02 audit found instructions written for
-Claude Code's permission engine sitting in the Codex file, where they were
-at best noise and at worst wrong. Treat the mirror like a shared block —
-check it deliberately, don't trust it silently.
+config directory. A 2026-08-02 audit found that file hand-mirrored from
+Claude's own instruction file, carrying text written for Claude Code's
+permission engine — at best noise here, at worst wrong.
+
+The fix is single-sourcing, not tighter hand-mirroring. The deployed file is
+now assembled, never hand-edited: a short Codex-specific header
+([`instructions/AGENTS.header.md`](instructions/AGENTS.header.md)) followed
+by the canonical, vendor-neutral block
+([`vendors/shared/AGENTS.md`](../shared/AGENTS.md)) that every vendor
+shares. The division-of-labor section, the redlines, the cross-agent
+channel, and the escalation packet all live in the canonical block now, so
+a change to any of them reaches every vendor from one edit. Deploy commands:
+[`vendors/README.md`](../README.md) under "Deploy".
+
+## Plan-stage gate (design-mode work)
+
+Before the first `Edit` on a real fork — a decision that is hard to
+reverse, or that picks between designs with a real tradeoff — Claude writes
+the plan to a file under the session's `outputs/` directory and runs it
+through the existing `codex exec` channel with the fixed prompt below.
+Reuse the escalation-packet format for any context the plan itself does not
+carry; do not invent a new transfer shape for this gate. This adds no new
+channel and no MCP server — it is the same `codex exec "<prompt>"` call
+already documented above, pointed at a plan file instead of a diagnosis.
+
+Fixed review prompt:
+
+```text
+Review the plan at <path>. Answer these four questions:
+1. Gaps: what does the plan not cover that it needs to?
+2. What could go wrong: name the specific failure modes.
+3. A better approach: is there one, and why is it better?
+4. Missed cases: what input, state, or edge case does the plan not handle?
+
+Start your reply with exactly one verdict line: APPROVED or NEEDS_REVISION.
+Then answer the four questions.
+```
+
+Cap this exchange at three rounds. If round three still returns
+`NEEDS_REVISION`, stop and escalate to San rather than sending a fourth
+round — a plan three rounds of review cannot approve is a design question,
+not a Codex-shaped one.
 
 ## Channel
 

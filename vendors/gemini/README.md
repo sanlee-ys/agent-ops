@@ -44,9 +44,15 @@ which as of 2026-08-04 is built and measured rather than owed.
 - **Project instructions:** workspace-root `AGENTS.md` and `CLAUDE.md`.
 - **Skills:** built-ins plus project `.agents/skills/`.
 
-The global file is hand-mirrored across harnesses. Treat it like a shared
-block: verify the compact fleet pointer and worktree instructions rather than
-assuming another product's syntax applies here.
+The global file is assembled, not hand-mirrored: a short Antigravity header
+plus the canonical, vendor-neutral block at
+[`vendors/shared/AGENTS.md`](../shared/AGENTS.md) — division of labor,
+redlines, the cross-agent channel, the escalation packet, and the command
+shapes every vendor follows. Deploy command:
+[`vendors/README.md`](../README.md) under "Deploy". A 2026-08-02 audit found
+a hand-mirrored copy elsewhere in the fleet carrying another harness's
+permission-engine text; single-sourcing the shared block is how that stops
+recurring here too.
 
 ## Harness and channel
 
