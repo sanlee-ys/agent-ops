@@ -161,4 +161,74 @@ measured to hold even under `--dangerously-skip-permissions`. ADR-010's
 build is done; see [`gemini/README.md`](gemini/README.md) for the measured
 hook semantics and the residual gaps that remain.
 
+## Deploy
+
+Vendor instruction files are assembled, never hand-edited. The canonical,
+vendor-neutral text is [`shared/AGENTS.md`](shared/AGENTS.md) — division of
+labor, redlines, the cross-agent channel, the escalation packet, the
+command-shape summary, and the `## Code Review Rules` section an automated
+GitHub review reads. A vendor adds its own short header; the deploy step
+concatenates header plus canonical block into the file the harness actually
+reads, so a change to the shared text reaches every vendor from one edit
+instead of a hand-mirrored copy that drifts (the incident that started this:
+[`codex/README.md`](codex/README.md), "Instruction-file wiring"). Windows
+uses a file copy, not a symlink — the same convention this repo already uses
+for the guard hooks (see the repo's `CLAUDE.md`, "this repo hosts live
+hooks").
+
+Re-run the relevant command below after editing a header or the canonical
+block, on every machine that runs that vendor.
+
+### Codex
+
+```powershell
+Get-Content vendors\codex\instructions\AGENTS.header.md, vendors\shared\AGENTS.md |
+  Set-Content "$env:USERPROFILE\.codex\AGENTS.md"
+```
+
+### Antigravity (Gemini family)
+
+Antigravity's global standing-instructions file lives at the profile root
+(`~/AGENTS.md`), not under a vendor-named folder — see
+[`gemini/README.md`](gemini/README.md), "Instruction-file wiring". Its
+header is short enough to carry directly in the deploy command rather than
+as a separate tracked file:
+
+```powershell
+$header = @'
+# Antigravity -- standing instructions
+
+You are Antigravity (agy), the fleet's measured Gemini-family lane:
+research, broad audits, browser and Google-stack work, capacity overflow,
+and a third opinion when Claude and Codex disagree. You are not the
+control plane and you do not drive default implementation.
+
+The fleet-wide contract below is canonical. Read it before your first task
+in a session.
+
+---
+
+'@
+$canonical = Get-Content -Raw vendors\shared\AGENTS.md
+($header + $canonical) | Set-Content "$env:USERPROFILE\AGENTS.md"
+```
+
+### Pi
+
+Pi's instruction file stays a single, self-contained file — see
+[`pi/README.md`](pi/README.md), "Deploy". `vendors/pi/scripts/check-park.py`
+compares the deployed copy byte-for-byte against the canonical
+`vendors/pi/instructions/AGENTS.md`, and a test outside this file's own
+scope covers that comparison (`tests/test_pi_park.py`). Splitting Pi into a
+header plus the canonical block would need a matching change to that
+comparison script. Until that lands, Pi's file states the fleet-wide
+contract by reference — a pointer to `vendors/shared/AGENTS.md` — rather
+than by copy, so there is nothing there to drift.
+
+### Follow-up: fold into the machine's own deploy step
+
+The commands above are documented here, not wired into the private
+per-machine deploy step that already carries the guard-hook copies. Folding
+them in on each provisioned machine is a follow-up for San to do by hand.
+
 Rationale for this layout: [`decisions/ADR-008`](../decisions/ADR-008-agent-ops-rename-and-vendor-layer.md).
