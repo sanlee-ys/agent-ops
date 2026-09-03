@@ -112,5 +112,26 @@ The full four-vendor division-of-labor contract (allocation table,
 subscription measurement gate) is kept privately, with compact pointer
 sections in the harnesses' global instruction files.
 
+### Deploy the hook copies
+
+No script copies the hook files into `~/.codex/hooks/`. Copy them by hand
+after you edit a canonical hook, on each machine that runs Codex. Three
+guards are canonical in this repo. The three session hooks
+(`format-on-edit.py`, `memory-sync.py`, `unpushed-work-warning.py`) are
+canonical in the owner's private config repo, in its `claude/hooks/`
+directory. Run this from the root of this repo, on Windows:
+
+```powershell
+Copy-Item security\credential-guard.py, hooks\git-staging-guard.py, hooks\published-history-guard.py "$env:USERPROFILE\.codex\hooks\"
+Copy-Item ..\<private-config-repo>\claude\hooks\format-on-edit.py, ..\<private-config-repo>\claude\hooks\memory-sync.py, ..\<private-config-repo>\claude\hooks\unpushed-work-warning.py "$env:USERPROFILE\.codex\hooks\"
+```
+
+Verify with the deployed-manifest check in that private config repo
+(`scripts/check-deployed-manifest.py`). Its `-- codex --` section must show
+no `MISMATCHED` line and no `STALE` line. A copy that drifts from the
+canonical file is the drift class in
+[`security/posture.md`](../../security/posture.md), limit 6; the manifest
+check is the only thing that detects it.
+
 Rationale:
 [`ADR-010`](../../decisions/ADR-010-claude-led-four-vendor-orchestration.md).
