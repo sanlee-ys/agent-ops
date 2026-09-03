@@ -171,7 +171,7 @@ cutover checklist when access lands.
   value that contains a colon and a space. Use a `>-` block scalar in every
   SKILL.md description. Of the five canonical skills in
   `vendors/claude/skills/`, two follow this form (`handoff`, `proglog`);
-  the other three (`dcb`, `descope-sweep`, `park`) use plain scalars whose
+  the other three (`work`, `descope-sweep`, `park`) use plain scalars whose
   text contains no colon-and-space today, so they parse — but they are one
   edit away from the failure.
 - The xAI subscription path is not in use. If a later session finds

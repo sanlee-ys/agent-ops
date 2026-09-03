@@ -85,7 +85,7 @@ record is in [`incidents/`](incidents/).
   does not have yet. Not rules.
 - [`vendors/`](vendors/): per-vendor adapters. Root stays vendor-neutral.
   Contract: [`vendors/README.md`](vendors/README.md).
-  - [`claude/`](vendors/claude/): control plane. Skills: `dcb`,
+  - [`claude/`](vendors/claude/): control plane. Skills: `work`,
     `descope-sweep`, `park`, `proglog`, `handoff`.
   - [`codex/`](vendors/codex/): second-opinion wiring and the escalation
     packet.

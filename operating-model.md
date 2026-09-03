@@ -16,7 +16,10 @@ output against the real repos before anything ships.** Direction — what the
 work is for and what "done" means (not delegable). Contracts — the specific,
 checkable rules the tool is bound to, named up front. Bar — what has to be
 true before output counts as shipped, checked against the actual repo state,
-never against confident prose. Invoked as the [`dcb` skill](vendors/claude/skills/dcb/SKILL.md).
+never against confident prose. The three are no longer a separate pre-flight step.
+Each one holds a fixed slot inside every playbook of the
+[`work` skill](vendors/claude/skills/work/SKILL.md), which replaced the `dcb` skill on
+2026-09-03.
 
 ## Fleet routing
 
