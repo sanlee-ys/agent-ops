@@ -35,7 +35,7 @@ pass.
 | Session handoff across harnesses | Inspectable state | Branch, PR, diff, optional `/handoff` brief — never a prose retelling. |
 | Hooks-enforced git/credential discipline | Claude Code, Codex, or Cursor | All three run the fleet suite; Cursor imports it from Claude's settings — see Guard wiring below for the launch-shell caveat. |
 | Headless / CI / `codex exec` automation | Claude or Codex | Cursor is not the right host. |
-| DCB pre-flight on ambiguous or consequential work | Whichever harness opens the session | DCB is vendor-neutral; invoke via `~/.claude/skills/dcb/`. |
+| Direction / Contracts / Bar on ambiguous or consequential work | Whichever harness opens the session | The three are vendor-neutral. They hold fixed slots in each playbook of `~/.claude/skills/work/`. |
 
 Prefer Cursor's first-party Composer/Grok pool for this lane. Selecting Claude
 or GPT here spends the constrained third-party pool and does not turn a
@@ -63,7 +63,7 @@ Treat the mirror like a shared block: check deliberately, do not trust silently.
 |---|---|
 | **Cursor user rules** | Global standing rules (git safety, commit discipline, PR workflow). |
 | **Project `CLAUDE.md` / `AGENTS.md`** | Repo context when the workspace root is the repo. |
-| **`~/.claude/skills/*`** | Fleet skills (`dcb`, `handoff`, `status-map`, etc.) — loaded in Cursor when relevant. |
+| **`~/.claude/skills/*`** | Fleet skills (`work`, `handoff`, `status-map`, etc.) — loaded in Cursor when relevant. |
 | **`~/.cursor/skills-cursor/*`** | Cursor-native skills (review, split-to-prs, etc.). |
 | **Workspace root** | Call `move_agent_to_root` before substantive repo work when the session opened from home or an empty window — same spirit as claiming the concern in the repo ([`ADR-006`](../../decisions/ADR-006-claim-the-concern-before-working-it.md)). |
 
