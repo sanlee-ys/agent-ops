@@ -330,6 +330,9 @@ def resolve_codex_model() -> str:
     return "unresolved: no top-level model key in the Codex config"
 
 
+_CMD_METACHARACTERS = set(' &|<>^"%()')
+
+
 def resolve_executable(argv: list[str]) -> list[str]:
     """`argv` with a launchable path in front.
 
@@ -347,7 +350,21 @@ def resolve_executable(argv: list[str]) -> list[str]:
     if found is None:
         return argv                              # let the OSError name it
     if os.name == "nt" and found.lower().endswith((".cmd", ".bat")):
-        return [os.environ.get("COMSPEC", "cmd.exe"), "/c", found, *argv[1:]]
+        # The command interpreter re-parses its own command line even under
+        # shell=False, so a path or argument holding one of these characters
+        # can run something other than what this list says. REFUSE rather than
+        # quote: a wrong command that runs is worse than a run that stops, and
+        # a quoting scheme nothing here can test is not a control.
+        risky = [p for p in (found, *argv[1:]) if _CMD_METACHARACTERS & set(p)]
+        if risky:
+            raise CaseError(
+                "cannot launch the shim %s: %s holds a character the command "
+                "interpreter re-parses. Install the tool at a path without "
+                "one, or run this eval where the tool is not a .cmd shim."
+                % (found, risky[0])
+            )
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c",
+                found, *argv[1:]]
     return [found, *argv[1:]]
 
 
@@ -388,7 +405,16 @@ def _as_text(value) -> str:
 
 def _run(cmd: list[str], prompt: str, workdir: str) -> dict:
     started = time.time()
-    launch = resolve_executable(cmd)
+    try:
+        launch = resolve_executable(cmd)
+    except CaseError as exc:
+        # A refused launch is a FAILURE of this condition, never a crash of the
+        # run and never a miss. The other condition still runs, and the report
+        # marks this one UNRUN.
+        return {
+            "ok": False, "error": str(exc), "seconds": 0.0,
+            "stdout": "", "stderr": "", "returncode": None,
+        }
     try:
         proc = subprocess.run(
             launch,

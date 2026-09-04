@@ -388,9 +388,24 @@ class TestResolveExecutable(unittest.TestCase):
                 out = run_eval.resolve_executable(["faketool", "exec"])
             finally:
                 run_eval.shutil.which = real_which
-        self.assertEqual(out[1], "/c")
-        self.assertEqual(out[2], str(shim))
-        self.assertEqual(out[3], "exec")
+        self.assertEqual(out[1:4], ["/d", "/s", "/c"])
+        self.assertEqual(out[4], str(shim))
+        self.assertEqual(out[5], "exec")
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows shim behaviour")
+    def test_a_shim_argument_the_interpreter_reparses_is_refused(self):
+        """A wrong command that runs is worse than a run that stops."""
+        with tempfile.TemporaryDirectory() as tmp:
+            shim = Path(tmp) / "faketool.cmd"
+            shim.write_text("@echo off\n", encoding="utf-8")
+            real_which = run_eval.shutil.which
+            run_eval.shutil.which = lambda name: str(shim) if name == "faketool" else real_which(name)
+            try:
+                with self.assertRaises(run_eval.CaseError) as ctx:
+                    run_eval.resolve_executable(["faketool", "--cd", "C:/a b/c"])
+            finally:
+                run_eval.shutil.which = real_which
+        self.assertIn("re-parses", str(ctx.exception))
 
 
 class TestCodexModel(unittest.TestCase):

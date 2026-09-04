@@ -151,10 +151,32 @@ behind `main` reads as deleting the commits it does not yet carry. A rebase
 cleared it. **A reviewer that reads a stale base reports a deletion that never
 happened, and it will repeat that report on every push until the branch moves.**
 
-Two findings arrived after the five-round cap in
-[`delegation-policy.md`](../../delegation-policy.md). Per that rule this session
-stopped the dispatch and ruled on them itself: both were mechanical, and both
-were fixed.
+Findings arriving after the five-round cap in
+[`delegation-policy.md`](../../delegation-policy.md) were ruled on by this
+session rather than sent back for another round, which is what that rule
+prescribes. Two of those are recorded here rather than fixed.
+
+**Open finding 1, `ask-user`: the prompt carries the review rules without the
+label definitions.** `read_review_rules` takes the text from `## Code Review
+Rules` onward. That section ends by telling the reviewer to label every finding
+per "Review finding disposition", which sits **earlier** in the same file and is
+therefore not in the prompt. Both reviewers received the label names and not the
+rule for when each applies. The production CI workflow passes the whole file, so
+the harness is less faithful to production than the workflow it imitates.
+
+It is not fixed here because fixing it changes the prompt, and a changed prompt
+is a different experiment. **This pilot's numbers belong to the prompt in
+`runs/2026-09-04/*/prompt.txt` and to no other.** The fix belongs in the next
+run, together with the harder seeds named at the end of this file.
+
+**Open finding 2, ruled and partly closed: a `.cmd` shim launched through the
+command interpreter.** The interpreter re-parses its own command line, so a
+path or argument holding a space, `&`, `|`, `<`, `>`, `^`, `"`, `%`, or a
+parenthesis could run something other than what the harness intended. No path in
+this pilot holds one. Rather than add a quoting scheme nothing here can test,
+`resolve_executable` now **refuses** such a launch with a named reason, and the
+refusal is recorded as a condition failure, never as a miss. A wrong command
+that runs is worse than a run that stops.
 
 ## Limits, named
 
@@ -194,3 +216,15 @@ detection alone, at this size, the two lanes look the same.
 kind. It is harder seeds. Every catch in this pilot had a contradiction sitting
 beside it in the same diff. A defect class with no such contradiction is where
 the two lanes might diverge, and it is where a review is worth paying for.
+
+Two changes belong to that next run, and both change the prompt, so neither was
+made here:
+
+1. **Send the whole rules file, as the CI workflow does.** Open finding 1 above.
+2. **Seed defects with no contradiction in the diff.** A wrong constant that no
+   comment names, a missing branch no test covers, an invariant that holds only
+   in the cases the diff happens to show.
+
+The verification that this pilot's evidence is intact is one command:
+`run --validate-only` rebuilds every case and reports `matches the stored
+prompt` for all ten.
