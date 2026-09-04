@@ -509,14 +509,30 @@ def run_cases(
                 continue
 
             entry["diff_chars"] = len(numbered)
-            (case_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
-            (case_dir / "seeded.diff").write_text(seeded, encoding="utf-8")
+            prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
             if validate_only:
-                print("ok    %-6s built (%d chars)" % (cid, len(numbered)),
+                # Validation WRITES NO RUN ARTIFACT. Rewriting prompt.txt in a
+                # directory that already holds reviews would leave the stored
+                # prompt disagreeing with the hashes recorded beside those
+                # reviews, and the evidence would silently stop matching the
+                # result. Validation compares instead, and names any drift.
+                stored = case_dir / "prompt.txt"
+                if stored.exists():
+                    old = hashlib.sha256(
+                        stored.read_text(encoding="utf-8").encode("utf-8")
+                    ).hexdigest()
+                    state = "matches the stored prompt" if old == prompt_hash \
+                        else "DRIFT: the stored prompt no longer matches"
+                else:
+                    state = "no stored prompt"
+                print("ok    %-6s built (%d chars), %s" % (cid, len(numbered), state),
                       file=sys.stderr)
                 manifest["cases"][cid] = entry
                 continue
+
+            (case_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
+            (case_dir / "seeded.diff").write_text(seeded, encoding="utf-8")
 
             for condition in conditions:
                 if condition == "claude":
@@ -536,7 +552,7 @@ def run_cases(
                     # hash the report would pair two reviews of DIFFERENT prompts
                     # and call the pair valid. The hash is what makes a pair
                     # checkable after the fact.
-                    "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                    "prompt_sha256": prompt_hash,
                     "rules_sha256": rules_digest,
                 }
                 if condition == "claude":
