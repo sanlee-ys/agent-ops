@@ -32,6 +32,46 @@ Model tier follows the same measure-first discipline
 ([SYS-002](https://github.com/sanlee-ys/architecture/blob/main/decisions/SYS-002-model-tier-standard.md)):
 escalate only where the task earns it.
 
+## A same-vendor fan-out keeps a ruling ledger and a five-round cap
+
+Added 2026-09-04. Design source: the `subagent-driven-development` skill in
+[obra/superpowers](https://github.com/obra/superpowers), MIT licence,
+Copyright (c) 2025 Jesse Vincent. Two mechanics are adapted; the rest of that
+methodology is declined.
+
+The fleet escalates **across vendors** after two failed hypothesis-driven
+attempts ([`vendors/codex/README.md`](vendors/codex/README.md)). This section
+adds the **same-vendor** case, where a Claude orchestrator drives Claude
+subagents at L2 and no vendor boundary is crossed.
+
+**The ledger.** The orchestrator writes one line each time it decides a
+finding:
+
+> `Ruling: <what the orchestrator decided> — <why> — <cost if wrong>`
+
+A silent discard is not permitted, and a parked finding is a decision that
+gets a line. The ledger lives in the orchestrator's transcript during the
+fan-out. The orchestrator copies it into the pull request body, or the chip,
+at the end. The transcript stops a repeat of a rejected fix; the pull request
+body keeps the rulings reviewable after the session ends.
+
+**The cap: five fix rounds per task.** Rounds 1 to 3 resume the same
+implementer with the open findings. Rounds 4 and 5 escalate. After round 5 the
+orchestrator stops all dispatch and rules on the open findings itself. Five,
+and not the cross-vendor two, because the two numbers measure different
+things: the cross-vendor two counts failed hypotheses inside one session, and
+the five counts fix rounds against a review, where rounds 1 to 3 cost only a
+resume. Five is also the source's measured default.
+
+**Escalation means a fresh subagent, one model tier up** (SYS-002 above),
+never a retry of the same subagent. The ledger and the open findings are its
+first input. Escalate the model, never the permission.
+
+**Interaction with loop safety.** An agentic loop under
+[`conventions/loop-safety.md`](conventions/loop-safety.md) counts each
+keep-or-revert cycle against this same cap. The cap does not replace the
+`max_iterations` rail; the lower of the two numbers binds first.
+
 ## Review findings carry a disposition label
 
 Added 2026-08-11. Design source: Kun Chen's "No Mistakes" pipeline, whose
