@@ -84,10 +84,17 @@ class CaseError(RuntimeError):
 
 
 def _git(repo: Path, *args: str) -> str:
+    # `text=True` alone decodes with the platform's locale encoding. On Windows
+    # that is cp1252, and a UTF-8 diff then reaches the reviewer as mojibake: an
+    # em dash arrives as three wrong characters. The reviewer reports the
+    # corruption as a defect in the code, which is a false finding the harness
+    # manufactured. Measured on 2026-09-04, case c09. Decode UTF-8 explicitly.
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if proc.returncode != 0:
         raise CaseError(
