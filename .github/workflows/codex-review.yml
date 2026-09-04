@@ -38,6 +38,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      - name: Clear the success label from any earlier run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Labels persist across pushes. Without this step, a later push
+          # whose review fails soft would keep the label from an earlier
+          # success, and the label would then prove nothing about the
+          # current head. Found by the first live review on PR #130.
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label reviewed-by-codex \
+            || echo "NOTICE: no earlier success label to clear."
+
       - name: Check for the OpenAI API key
         id: gate
         env:

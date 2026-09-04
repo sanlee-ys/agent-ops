@@ -115,7 +115,9 @@ workflow `.github/workflows/codex-review.yml` (PR #126) closes that gap.
   bugs, regressions, requirement mismatches, missing or weakened tests, and
   scope fidelity. It never comments on style.
 - **On success:** it applies the label `reviewed-by-codex`. The label is
-  provenance: it appears only when a review posted, never on a failed run.
+  provenance for the current head: each run removes it first and re-applies
+  it only when a review posted. A failed or skipped run leaves the PR
+  without it. Codex itself found the persistence gap on the first live run.
 - **Fail soft:** with no `OPENAI_API_KEY` repository secret, or on an API
   error, it prints a notice and exits 0. It posts nothing and blocks nothing.
 - **Boundary:** it runs under `pull_request`, not `pull_request_target`, with
