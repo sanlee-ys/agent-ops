@@ -24,9 +24,9 @@ at plan-and-approve, or gets a verifier built first.
   covers the work, and permanent home of novel design.
 - **L1 — autonomous + verify.** Execute end-to-end; a verifier gates the
   result; the human reads the summary.
-- **L2 — orchestrated fan-out.** Sub-agents under an explicit token cap
-  (`fanout-guard.py` blocks an uncapped one), verifier plus a single
-  integrator on the result.
+- **L2 — orchestrated fan-out.** Sub-agents under the fix-round cap and the
+  ruling ledger below (the token-cap guard was retired on 2026-08-30),
+  verifier plus a single integrator on the result.
 
 Model tier follows the same measure-first discipline
 ([SYS-002](https://github.com/sanlee-ys/architecture/blob/main/decisions/SYS-002-model-tier-standard.md)):
