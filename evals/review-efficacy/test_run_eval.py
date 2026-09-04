@@ -150,24 +150,26 @@ class TestMcNemar(unittest.TestCase):
         self.assertEqual(run_eval.min_discordant_for_significance(), 6)
 
 
-def _write_run(tmp: Path, cases: dict, grades: dict, conditions=None) -> Path:
+def _write_run(tmp: Path, cases: dict, grades: dict, conditions=None,
+               generated_at=("t1", "t2")) -> Path:
     run_dir = tmp / "run"
     run_dir.mkdir()
-    manifest = {"cases": cases, "conditions": conditions or {
-        "claude": {"model": "claude-sonnet-5"}, "codex": {"model": "gpt-x"}}}
+    manifest = {"cases": cases, "generated_at": list(generated_at),
+                "conditions": conditions or {
+                    "claude": {"model": "claude-sonnet-5"}, "codex": {"model": "gpt-x"}}}
     (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "grades.json").write_text(json.dumps(grades), encoding="utf-8")
     return run_dir
 
 
-def _case(ok_claude=True, ok_codex=True):
+def _case(ok_claude=True, ok_codex=True, claude_hash="h1", codex_hash="h1"):
     return {
         "pr": 1,
         "defect_class": "x",
-        "writer_provenance": "Claude Fable 5 <noreply@anthropic.com>",
+        "writer_provenance": {"claude_commits": 2, "commits": 2, "detail": "all"},
         "conditions": {
-            "claude": {"ok": ok_claude},
-            "codex": {"ok": ok_codex},
+            "claude": {"ok": ok_claude, "prompt_sha256": claude_hash},
+            "codex": {"ok": ok_codex, "prompt_sha256": codex_hash},
         },
     }
 
@@ -180,9 +182,10 @@ def _grade(claude_catch, codex_catch):
 
 
 class TestReport(unittest.TestCase):
-    def _report(self, cases, grades, conditions=None):
+    def _report(self, cases, grades, conditions=None, generated_at=("t1", "t2")):
         with tempfile.TemporaryDirectory() as tmp:
-            run_dir = _write_run(Path(tmp), cases, {"cases": grades}, conditions)
+            run_dir = _write_run(Path(tmp), cases, {"cases": grades}, conditions,
+                                 generated_at)
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 code = run_eval.report(run_dir)
@@ -246,14 +249,39 @@ class TestReport(unittest.TestCase):
         _, out = self._report(cases, grades)
         self.assertIn("Writer provenance: 1 of 1", out)
 
-    def test_a_case_with_no_claude_trailer_is_warned_about(self):
-        """The headline claim is about a Claude-authored diff. A case with no
-        trailer narrows the population, and the report says so."""
+    def test_a_partly_claude_case_narrows_the_population(self):
+        """A pull request can end on a Claude commit and still carry a
+        hand-written commit in the middle."""
         case = _case()
-        case["writer_provenance"] = "none: the head commit has no Co-Authored-By trailer"
+        case["writer_provenance"] = {"claude_commits": 1, "commits": 3, "detail": "1 of 3"}
         _, out = self._report({"a": case}, {"a": _grade(True, True)})
         self.assertIn("WARNING", out)
         self.assertIn("not Claude-authored diffs", out)
+
+    def test_a_pair_of_different_prompts_is_excluded(self):
+        """A split re-run rewrites prompt.txt. Two reviews of two prompts are
+        not a pair, whatever the grader wrote."""
+        cases = {"a": _case(), "b": _case(claude_hash="h1", codex_hash="h2")}
+        grades = {"a": _grade(True, False), "b": _grade(True, False)}
+        _, out = self._report(cases, grades)
+        self.assertIn("EXCLUDED, the two conditions reviewed different prompts: b", out)
+        self.assertIn("complete pairs only: 1 of 2", out)
+
+    def test_a_missing_prompt_hash_is_noted_not_excluded(self):
+        case = _case()
+        case["conditions"]["codex"].pop("prompt_sha256")
+        _, out = self._report({"a": case}, {"a": _grade(True, True)})
+        self.assertIn("no prompt hash recorded", out)
+        self.assertIn("complete pairs only: 1 of 1", out)
+
+    def test_one_review_invocation_needs_no_prompt_hash(self):
+        """One invocation cannot have used two prompts, so a single
+        generated_at entry settles the question without a hash."""
+        case = _case()
+        case["conditions"]["codex"].pop("prompt_sha256")
+        _, out = self._report({"a": case}, {"a": _grade(True, True)},
+                              generated_at=("t1",))
+        self.assertNotIn("no prompt hash recorded", out)
 
     def test_it_says_when_the_run_cannot_reach_significance(self):
         cases = {c: _case() for c in "ab"}
