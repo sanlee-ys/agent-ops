@@ -119,20 +119,36 @@ def build_diff(repo: Path, base: str, head: str, paths: list[str]) -> str:
 _COAUTHOR = re.compile(r"^Co-Authored-By:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
 
 
-def writer_provenance(repo: Path, head: str) -> str:
-    """The head commit's `Co-Authored-By` trailer, or a marker saying there is none.
+def writer_provenance(repo: Path, base: str, head: str) -> dict:
+    """Who wrote every commit in `base..head`, from the `Co-Authored-By` trailers.
 
     The eval's headline claim is about a CLAUDE-authored diff. That claim needs
     evidence per case, not a general statement about who works in this
     repository. The trailer is the record this fleet already writes, so the
     harness reads it rather than asks the case file to assert it.
+
+    EVERY commit in the range is checked, not only the head. A pull request can
+    end on a Claude commit and still carry a hand-written commit in the middle,
+    and the diff under review is the whole range. A case is claimed as
+    Claude-authored only when every commit in it names Claude.
     """
     try:
-        body = _git(repo, "log", "-1", "--format=%b", head)
+        log = _git(repo, "log", "--format=%H%x00%b%x1e", "%s..%s" % (base, head))
     except CaseError as exc:
-        return "unknown: %s" % exc
-    trailers = [m.group(1).strip() for m in _COAUTHOR.finditer(body)]
-    return "; ".join(trailers) if trailers else "none: the head commit has no Co-Authored-By trailer"
+        return {"claude_commits": 0, "commits": 0, "detail": "unknown: %s" % exc}
+    commits = [c for c in log.split("\x1e") if c.strip()]
+    claude = 0
+    for commit in commits:
+        body = commit.split("\x00", 1)[1] if "\x00" in commit else ""
+        trailers = [m.group(1).strip() for m in _COAUTHOR.finditer(body)]
+        if any("claude" in t.lower() for t in trailers):
+            claude += 1
+    return {
+        "claude_commits": claude,
+        "commits": len(commits),
+        "detail": "every commit in base..head names Claude" if commits and claude == len(commits)
+        else "%d of %d commits name Claude" % (claude, len(commits)),
+    }
 
 
 def read_review_rules(repo: Path) -> tuple[str, str]:
@@ -447,7 +463,11 @@ def run_cases(
     manifest.setdefault("generated_at", [])
     if not isinstance(manifest["generated_at"], list):
         manifest["generated_at"] = [manifest["generated_at"]]
-    manifest["generated_at"].append(datetime.now(timezone.utc).isoformat())
+    if not validate_only:
+        # `generated_at` records REVIEW runs. A validate-only pass runs no
+        # reviewer, so adding an entry for it would misreport how many
+        # invocations produced the results in this directory.
+        manifest["generated_at"].append(datetime.now(timezone.utc).isoformat())
     manifest["repo_head"] = _git(repo, "rev-parse", "HEAD").strip()
     manifest["rules_file"] = str(RULES_FILE).replace("\\", "/")
     manifest["rules_sha256"] = rules_digest
@@ -472,7 +492,7 @@ def run_cases(
                 "defect_class": case.get("defect_class"),
                 "defect_description": case.get("defect_description"),
                 "defect_location": case.get("defect_location"),
-                "writer_provenance": writer_provenance(repo, case["head"]),
+                "writer_provenance": writer_provenance(repo, case["base"], case["head"]),
             })
             entry.pop("error", None)
             entry.setdefault("conditions", {})
@@ -512,6 +532,12 @@ def run_cases(
                     "seconds": result["seconds"],
                     "returncode": result["returncode"],
                     "command": cmd,
+                    # A split re-run rewrites prompt.txt. Without a per-condition
+                    # hash the report would pair two reviews of DIFFERENT prompts
+                    # and call the pair valid. The hash is what makes a pair
+                    # checkable after the fact.
+                    "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                    "rules_sha256": rules_digest,
                 }
                 if condition == "claude":
                     text, model = _claude_review_text(result["stdout"])
@@ -602,10 +628,27 @@ def report(run_dir: Path) -> int:
     grades = json.loads(grades_path.read_text(encoding="utf-8"))
 
     rows = []
+    mismatched: list[str] = []
+    unhashed: list[str] = []
     for cid in sorted(manifest["cases"]):
         entry = manifest["cases"][cid]
         graded = grades.get("cases", {}).get(cid, {})
         row = {"id": cid, "pr": entry.get("pr"), "class": entry.get("defect_class")}
+        # A pair is only a pair when both conditions reviewed the SAME prompt.
+        # A split re-run rewrites prompt.txt, so the recorded hashes are the
+        # only thing that can prove it afterwards.
+        hashes = [entry.get("conditions", {}).get(c, {}).get("prompt_sha256")
+                  for c in CONDITIONS]
+        row["prompt_match"] = None
+        if all(hashes):
+            row["prompt_match"] = hashes[0] == hashes[1]
+            if not row["prompt_match"]:
+                mismatched.append(cid)
+        elif (any(entry.get("conditions", {}).get(c, {}).get("ok") for c in CONDITIONS)
+              and len(manifest.get("generated_at") or []) != 1):
+            # One review invocation cannot have used two prompts, so a single
+            # `generated_at` entry settles the question without a hash.
+            unhashed.append(cid)
         for cond in CONDITIONS:
             run_ok = entry.get("conditions", {}).get(cond, {}).get("ok")
             g = graded.get(cond, {})
@@ -628,16 +671,19 @@ def report(run_dir: Path) -> int:
 
     # The headline claim is about a Claude-authored diff, so the population's
     # provenance is reported next to the table, never assumed.
-    provenance = [manifest["cases"][cid].get("writer_provenance", "")
+    provenance = [manifest["cases"][cid].get("writer_provenance")
                   for cid in sorted(manifest["cases"])]
-    claude_written = sum(1 for p in provenance if "claude" in str(p).lower())
+    fully_claude = sum(
+        1 for p in provenance
+        if isinstance(p, dict) and p.get("commits") and p["claude_commits"] == p["commits"]
+    )
     print()
-    print("Writer provenance: %d of %d head commits carry a Claude "
-          "Co-Authored-By trailer." % (claude_written, len(provenance)))
-    if claude_written < len(provenance):
-        print("  WARNING: %d case(s) carry no Claude trailer. The population "
-              "is merged diffs of this repository, not Claude-authored diffs."
-              % (len(provenance) - claude_written))
+    print("Writer provenance: %d of %d cases have a Claude Co-Authored-By "
+          "trailer on EVERY commit in base..head." % (fully_claude, len(provenance)))
+    if fully_claude < len(provenance):
+        print("  WARNING: %d case(s) do not. For those, the population is "
+              "merged diffs of this repository, not Claude-authored diffs."
+              % (len(provenance) - fully_claude))
 
     print()
     print("Model ids recorded for this run:")
@@ -672,9 +718,17 @@ def report(run_dir: Path) -> int:
                   % (cond, sum(vals), len(vals), sum(vals) / len(vals)))
 
     scored = [r for r in rows if r["claude"] in ("catch", "miss")
-              and r["codex"] in ("catch", "miss")]
+              and r["codex"] in ("catch", "miss")
+              and r["prompt_match"] is not False]
     n = len(scored)
     print()
+    if mismatched:
+        print("EXCLUDED, the two conditions reviewed different prompts: %s"
+              % ", ".join(mismatched))
+    if unhashed:
+        print("NOTE: no prompt hash recorded for %s. The run predates the "
+              "per-condition hash, so a split re-run cannot be ruled out from "
+              "the manifest alone." % ", ".join(unhashed))
     print("Paired statistic, complete pairs only: %d of %d cases." % (n, len(rows)))
     if not n:
         return OK

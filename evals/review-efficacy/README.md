@@ -49,9 +49,16 @@ this eval never seeds.
 **The population must be Claude-authored, and the harness proves it per case.**
 The question is about a Codex review of a CLAUDE diff, so "everything in this
 repository was written by Claude" is an assertion, not evidence. The runner
-reads each case's head commit for a `Co-Authored-By` trailer and records it in
-`manifest.json`. `report` counts how many cases carry a Claude trailer, and it
-narrows the stated population in writing when any case does not.
+reads **every** commit in each case's `base..head` range for a `Co-Authored-By`
+trailer and records the count in `manifest.json`. A head commit alone is not
+enough: a pull request can end on a Claude commit and still carry a hand-written
+commit in the middle, and the diff under review is the whole range. `report`
+counts the cases where every commit names Claude, and it narrows the stated
+population in writing when any case falls short.
+
+The trailer is the strongest record this fleet writes, and it is still weaker
+than a proof. It says a Claude session co-authored the commit. It does not
+measure how much of the diff the model produced.
 
 Three rules keep a seeded case honest, and
 [`run_eval.py`](run_eval.py) enforces all three at build time:
@@ -86,14 +93,20 @@ case count, which is where this eval starts.
 **Both conditions read the same rules text from the same file.** The runner does
 not restate the rules. A restatement is a second copy, and a second copy drifts.
 
-**The two isolations are not equally strong, and the eval says so rather than
-claim otherwise.** The Claude condition refuses its file and shell tools, so it
-cannot read anything. The Codex condition runs in an empty working directory
-under a read-only sandbox, so it cannot write and has no repository at hand, but
-a read outside that directory is not blocked. Both prompts say to review only
-the diff. Both transcripts reach a file, so a read would be visible to the
-grader. **Treat a Codex catch that cites a file the diff does not contain as
-suspect, and check its transcript.**
+**Neither isolation is a guarantee, and the eval says so rather than claim
+otherwise.** The Claude condition passes `--disallowedTools` for the built-in
+file and shell tools. That is a denylist, so a configured MCP server or a new
+built-in tool is not covered by it. The Codex condition runs in an empty working
+directory under a read-only sandbox, so it cannot write and has no repository at
+hand, but a read outside that directory is not blocked. Both prompts say to
+review only the diff. Both transcripts reach a file, so a read is visible.
+**Treat a catch that cites a file the diff does not contain as suspect, and
+check its transcript.**
+
+**A pair is only a pair when both conditions reviewed the same prompt.** A
+re-run of one condition rewrites `prompt.txt`, so the runner records the
+prompt's sha256 per condition and `report` excludes a case whose two hashes
+differ.
 
 **Both models resolve at run time and reach `manifest.json`.** A model id
 written into this file would go stale the moment a lane changes model, and the
