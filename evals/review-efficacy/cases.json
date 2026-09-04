@@ -1,0 +1,156 @@
+{
+  "repo": "sanlee-ys/agent-ops",
+  "note": "Every case is a merged pull request of this repository, with one defect seeded into the diff. The seeding rules and the reason for the design are in README.md. Fetch the pull request head refs before a run: git fetch origin \"+refs/pull/*/head:refs/remotes/origin/pr/*\".",
+  "cases": [
+    {
+      "id": "c01",
+      "pr": 111,
+      "title": "fix(destructive-guard): v1.1 — three matcher and verdict defects",
+      "base": "9206fafe31df57ff7d204b377aa1c239c10f04a4",
+      "head": "56bb9194e9a7e185f3928a50a16e473f3edfd538",
+      "paths": ["hooks/destructive-command-guard.py", "tests/test_destructive_command_guard.py"],
+      "defect_class": "logic-inversion",
+      "defect_location": "hooks/destructive-command-guard.py, _classify_git, the no_verify set",
+      "defect_description": "The subcommand test is inverted. The short flag -n means --no-verify for `git commit` only, but the seeded line binds it to `git push`, where -n means --dry-run. So `git commit -n` is no longer scored and `git push -n` is scored wrongly. The two tests added in the same diff assert the opposite behaviour.",
+      "mutation": {
+        "find": "{\"--no-verify\", \"-n\"} if sub == \"commit\" else",
+        "replace": "{\"--no-verify\", \"-n\"} if sub == \"push\" else"
+      }
+    },
+    {
+      "id": "c02",
+      "pr": 125,
+      "title": "loops: add a statistical confidence gate for benchmark-driven loops",
+      "base": "8906d463c1344a42fc4bef980016b9a3bbc39611",
+      "head": "1502fe72e3f3829bdb49f354fa93c0abb7e268a3",
+      "paths": ["scripts/confidence_gate.py"],
+      "defect_class": "off-by-one",
+      "defect_location": "scripts/confidence_gate.py, evaluate, the minimum-runs check",
+      "defect_description": "An off-by-one on the run floor. The module docstring says the rule needs three or more prior runs, and the evaluate docstring says fewer than three yields insufficient_runs. The seeded comparison also rejects exactly three runs, so the documented floor and the code disagree.",
+      "mutation": {
+        "find": "if runs < _MIN_RUNS:",
+        "replace": "if runs <= _MIN_RUNS:"
+      }
+    },
+    {
+      "id": "c03",
+      "pr": 102,
+      "title": "fix(staging-guard): v1.2 — `git stage` and combined short flags bypassed v1.0",
+      "base": "69e434b6c08098ba5c16b8445ebe6b438030cb48",
+      "head": "5e62c9f6ce9674e111cd9744377c891b3b2241fe",
+      "paths": ["hooks/git-staging-guard.py", "tests/test_git_staging_guard.py"],
+      "defect_class": "weakened-test",
+      "defect_location": "tests/test_git_staging_guard.py, test_combined_short_flags_on_add, the first assertion",
+      "defect_description": "A weakened assertion. The test claims to prove that `git add -Au` is blocked, but the seeded assertion only checks that the helper returned something. It passes for a BLOCK verdict and for an ALLOW verdict, so the headline bypass this pull request closes is no longer covered by a test.",
+      "mutation": {
+        "find": "self.assertEqual(run(\"git add -Au\"), BLOCK)",
+        "replace": "self.assertIsNotNone(run(\"git add -Au\"))"
+      }
+    },
+    {
+      "id": "c04",
+      "pr": 114,
+      "title": "fix(guard): v2.13 — an `=`-attached dest flag ate the credential source",
+      "base": "4fcbf72e1d72b7b4cba35d40ed469477f41c042a",
+      "head": "2fbfee2fbe861d87aa78b3b48dafc1077f6ea574",
+      "paths": ["security/credential-guard.py", "tests/test_credential_guard.py"],
+      "defect_class": "regression",
+      "defect_location": "security/credential-guard.py, _copy_operands, the source-flag branch",
+      "defect_description": "The source half of the fix takes the wrong side of the split. It appends the flag NAME instead of the flag VALUE, so an `=`-attached source flag loses the file it names. The pull request claims to fix both the destination and the source parser; only the destination half works.",
+      "mutation": {
+        "find": "positional.append(tok.split(\"=\", 1)[1])",
+        "replace": "positional.append(tok.split(\"=\", 1)[0])"
+      }
+    },
+    {
+      "id": "c05",
+      "pr": 119,
+      "title": "scripts: reconcile an agent's claims against the system of record",
+      "base": "b1675e537fa8bbebffc96bff5610a9b468631ab5",
+      "head": "52351bd23ee07e20c1411bde6d9253aad4c4a672",
+      "paths": ["scripts/reconcile.py"],
+      "defect_class": "unchecked-none",
+      "defect_location": "scripts/reconcile.py, filter_merged_since",
+      "defect_description": "An unchecked None. parse_timestamp returns None for an absent or unreadable merged_at, and the function's own docstring says such a row is dropped. The seeded comparison drops the None check, so an open pull request raises TypeError and the whole snapshot fails.",
+      "mutation": {
+        "find": "if merged is not None and merged >= since:",
+        "replace": "if merged >= since:"
+      }
+    },
+    {
+      "id": "c06",
+      "pr": 113,
+      "title": "fix(config-guard): v1.2 — enumerate the two ADR-015 guards",
+      "base": "4fcbf72e1d72b7b4cba35d40ed469477f41c042a",
+      "head": "5b3e16449d157c80a0e7b4ea947de8a496be0409",
+      "paths": ["hooks/config-change-guard.py", "tests/test_config_change_guard.py"],
+      "defect_class": "weakened-test",
+      "defect_location": "tests/test_config_change_guard.py, test_each_guard_removed_individually",
+      "defect_description": "A weakened assertion. The new test claims that every guard in the enumeration is load-bearing on its own, but the seeded assertion only checks that the guard printed something. It passes whether the guard blocked or allowed, so the test proves nothing.",
+      "mutation": {
+        "find": "self.assertTrue(blocked(out), \"removing %s must block\" % g)",
+        "replace": "self.assertIsNotNone(out, \"removing %s must block\" % g)"
+      }
+    },
+    {
+      "id": "c07",
+      "pr": 121,
+      "title": "Register hook-tamper-guard in REQUIRED_GUARDS (config-change-guard v1.3)",
+      "base": "d52dd5e15262228f5684045d99c49d3edcdec352",
+      "head": "0a3cf71bfde90907e59b48fa8bb291d8b846a66b",
+      "paths": ["hooks/config-change-guard.py", "tests/test_config_change_guard.py"],
+      "defect_class": "scope-creep",
+      "defect_location": "hooks/config-change-guard.py, the REQUIRED_GUARDS mapping",
+      "defect_description": "An unrequested second entry rides in on the same line. The pull request asks only for hook-tamper-guard. The seeded line also re-declares fanout-guard, and because a later duplicate key wins in a Python dict literal, it silently moves fanout-guard from PreToolUse to the non-blocking PostToolUse event.",
+      "mutation": {
+        "find": "    \"hook-tamper-guard\": \"PreToolUse\",",
+        "replace": "    \"hook-tamper-guard\": \"PreToolUse\", \"fanout-guard\": \"PostToolUse\","
+      }
+    },
+    {
+      "id": "c08",
+      "pr": 99,
+      "title": "fix(guard): v2.12 — a remote resource is not a local credential store",
+      "base": "b93e41c2fcd516d67d7f6199ac7c7b14aabf979f",
+      "head": "b57d4224a9b56c9d321459bc3417632072ef9cf2",
+      "paths": ["security/credential-guard.py", "tests/test_credential_guard.py"],
+      "defect_class": "weakened-guard",
+      "defect_location": "security/credential-guard.py, the _REMOTE_URL pattern",
+      "defect_description": "The start anchor is missing from the remote-URL pattern. The comment beside the use site says an http(s) URL is a remote resource, which means a value that IS a URL. Without the anchor any value that merely CONTAINS an http(s) substring is exempted, so a local credential path with a URL appended to it skips the sensitive-path check.",
+      "mutation": {
+        "find": "_REMOTE_URL = re.compile(r\"^https?://\", re.IGNORECASE)",
+        "replace": "_REMOTE_URL = re.compile(r\"https?://\", re.IGNORECASE)"
+      }
+    },
+    {
+      "id": "c09",
+      "pr": 120,
+      "title": "scripts: measure rule adherence over local transcripts (v1)",
+      "base": "b3a63468dee2a53697029714bb632113890186db",
+      "head": "c6ec13ec8541fe8122d43bb1e05b553b4f0af85e",
+      "paths": ["scripts/dead_rules_audit.py"],
+      "defect_class": "off-by-one",
+      "defect_location": "scripts/dead_rules_audit.py, is_compound_inspection",
+      "defect_description": "An off-by-one on the segment floor. The function docstring says three or more segments, and states that two-segment chains are excluded on purpose because counting them would drown the signal. The seeded comparison admits two-segment chains.",
+      "mutation": {
+        "find": "if len(segments) < 3:",
+        "replace": "if len(segments) < 2:"
+      }
+    },
+    {
+      "id": "c10",
+      "pr": 112,
+      "title": "fix(pi): close three lane gaps — shadow adapter, exact-match park, fail-open shell hedge",
+      "base": "9206fafe31df57ff7d204b377aa1c239c10f04a4",
+      "head": "3ea7797d1edb1cc70255da31b527a740ee08fa10",
+      "paths": ["vendors/pi/scripts/check-park.py", "vendors/pi/hooks/pi-guard-adapter.py"],
+      "defect_class": "logic-inversion",
+      "defect_location": "vendors/pi/scripts/check-park.py, _provider_reason",
+      "defect_description": "The wrong end of the string is tested. The constant is named _ALLOWED_PROVIDER_PREFIX and the comment above it calls this a family match, but the seeded line tests the suffix. The documented target provider id kimi-coding starts with kimi and does not end with it, so the park check fails on its own runbook end state.",
+      "mutation": {
+        "find": "if not folded.startswith(_ALLOWED_PROVIDER_PREFIX):",
+        "replace": "if not folded.endswith(_ALLOWED_PROVIDER_PREFIX):"
+      }
+    }
+  ]
+}
