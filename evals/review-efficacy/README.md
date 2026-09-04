@@ -193,7 +193,9 @@ unreachable from `main`.
 git -C <repo> fetch origin "+refs/pull/*/head:refs/remotes/origin/pr/*"
 ```
 
-Check that every case still builds against live history:
+Check that every case still builds against live history. This is read-only: it
+writes nothing, and against an existing run directory it also says whether each
+case's diff has moved since the reviews were taken.
 
 ```
 uv run python evals/review-efficacy/run_eval.py run --validate-only

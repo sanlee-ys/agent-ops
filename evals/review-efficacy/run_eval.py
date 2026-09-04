@@ -528,7 +528,6 @@ def run_cases(
                     state = "no stored prompt"
                 print("ok    %-6s built (%d chars), %s" % (cid, len(numbered), state),
                       file=sys.stderr)
-                manifest["cases"][cid] = entry
                 continue
 
             (case_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
@@ -572,7 +571,14 @@ def run_cases(
 
             manifest["cases"][cid] = entry
 
-    (out_dir / "manifest.json").write_text(
+    if validate_only:
+        # Validation is READ-ONLY, all the way out. Writing the manifest here
+        # would replace repo_head, rules_sha256, and the case metadata of a
+        # directory whose reviewer outputs were taken under the OLD values, and
+        # the manifest would then misdescribe its own run.
+        return PARTIAL_FAILURE if failures else OK
+
+    manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
     )
     template = out_dir / "grades.template.json"
@@ -721,11 +727,25 @@ def report(run_dir: Path) -> int:
     print("Model ids recorded for this run:")
     unresolved = []
     for cond in CONDITIONS:
-        model = manifest.get("conditions", {}).get(cond, {}).get("model")
-        printable = model if model else "NOT RECORDED"
-        if not model or str(model).startswith("unresolved"):
+        # Derived from the PER-CASE records, never from a single run-level
+        # field. A split re-run after a model change leaves older cases on the
+        # older model, and one run-level value would attribute every result to
+        # the newest one.
+        seen = []
+        for cid in sorted(manifest["cases"]):
+            model = manifest["cases"][cid].get("conditions", {}).get(cond, {}).get("model")
+            if model and model not in seen:
+                seen.append(model)
+        if not seen:
+            fallback = manifest.get("conditions", {}).get(cond, {}).get("model")
+            seen = [fallback] if fallback else []
+        printable = ", ".join(str(m) for m in seen) if seen else "NOT RECORDED"
+        if not seen or any(str(m).startswith("unresolved") for m in seen):
             unresolved.append(cond)
         print("  %-7s %s" % (cond, printable))
+        if len(seen) > 1:
+            print("  WARNING: %s ran on more than one model in this directory. "
+                  "The cases are not comparable to each other." % cond)
     if unresolved:
         # Honesty rule 5 says a result states its models. A run that cannot
         # name a model still produced review text, so the numbers are not

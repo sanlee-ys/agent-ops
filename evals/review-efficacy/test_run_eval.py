@@ -226,6 +226,17 @@ class TestReport(unittest.TestCase):
         self.assertIn("claude  catch rate: 2/4", out)
         self.assertIn("codex   catch rate: 3/4", out)
 
+    def test_mixed_models_across_cases_are_warned_about(self):
+        """A split re-run after a model change leaves older cases on the older
+        model. One run-level value would hide that."""
+        a, b = _case(), _case()
+        a["conditions"]["codex"]["model"] = "gpt-old"
+        b["conditions"]["codex"]["model"] = "gpt-new"
+        _, out = self._report({"a": a, "b": b},
+                              {"a": _grade(True, True), "b": _grade(True, True)})
+        self.assertIn("gpt-old, gpt-new", out)
+        self.assertIn("ran on more than one model", out)
+
     def test_an_unresolved_model_id_is_warned_about(self):
         cases = {"a": _case()}
         grades = {"a": _grade(True, True)}
