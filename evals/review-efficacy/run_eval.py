@@ -446,7 +446,8 @@ def run_cases(
 ) -> int:
     rules, rules_digest = read_review_rules(repo)
     codex_model = resolve_codex_model()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if not validate_only:
+        out_dir.mkdir(parents=True, exist_ok=True)
     # A re-run of ONE condition must not delete the other condition's records.
     # An existing manifest is loaded and updated in place, so `--conditions
     # codex` after a Claude pass keeps both. The run times are a list, so the
@@ -482,7 +483,8 @@ def run_cases(
             if only and cid not in only:
                 continue
             case_dir = out_dir / cid
-            case_dir.mkdir(parents=True, exist_ok=True)
+            if not validate_only:
+                case_dir.mkdir(parents=True, exist_ok=True)
             entry: dict = manifest["cases"].get(cid) or {}
             entry.update({
                 "pr": case.get("pr"),
