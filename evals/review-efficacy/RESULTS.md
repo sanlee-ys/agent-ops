@@ -1,6 +1,7 @@
 # Pilot, 2026-09-04
 
-**The headline: no difference, and this run could not have measured one.** Both
+**The headline: no OBSERVED difference, and this run could not have measured
+one.** The word matters. Zero discordant pairs cannot establish equality. Both
 reviewers caught the same 8 of 10 seeded defects and missed the same 2. There
 were **zero discordant pairs**, so the exact McNemar test has nothing to weigh
 and returns undefined, not a p value. The design's own floor is six discordant
@@ -242,9 +243,18 @@ Two changes belong to that next run, and both change the prompt, so neither was
 made here:
 
 1. **Send the whole rules file, as the CI workflow does.** Open finding 1 above.
-2. **Seed defects with no contradiction in the diff.** A wrong constant that no
+2. **Send the pull request body too.** The Code Review Rules ask the reviewer to
+   check the diff against what the request asked for, and a scope-fidelity
+   question cannot be answered from a title alone. The CI workflow sends the
+   body; this harness sends only the title. That biases the scope-creep class,
+   which is one of the ten seeded here.
+3. **Seed defects with no contradiction in the diff.** A wrong constant that no
    comment names, a missing branch no test covers, an invariant that holds only
    in the cases the diff happens to show.
+
+Items 1 and 2 are both **prompt-fidelity gaps against the production lane**, and
+both are left for the next run for the same reason: a changed prompt is a
+different experiment, and this pilot's evidence is the prompts it stored.
 
 The verification that this pilot's evidence is intact is one command:
 `run --validate-only` rebuilds every case and reports `matches the stored
