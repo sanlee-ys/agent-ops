@@ -100,6 +100,32 @@ Constraints:
 Please diagnose only; don't modify files.
 ```
 
+## CI review
+
+The channel above needs a session to invoke it. For a consequential diff,
+that is not enough: the review must happen even when no session asks. The
+workflow `.github/workflows/codex-review.yml` (PR #126) closes that gap.
+
+- **Trigger:** add the label `codex-review` to a pull request. The workflow
+  also re-runs on each push to a labeled PR. It does nothing on an unlabeled
+  PR, which keeps the fleet rule that mechanical green-CI work merges without
+  a second-model review.
+- **What it posts:** one PR comment with findings. Each finding carries the
+  same `auto-fix` or `ask-user` disposition the channel uses. It reviews
+  bugs, regressions, requirement mismatches, missing or weakened tests, and
+  scope fidelity. It never comments on style.
+- **On success:** it applies the label `reviewed-by-codex`. The label is
+  provenance: it appears only when a review posted, never on a failed run.
+- **Fail soft:** with no `OPENAI_API_KEY` repository secret, or on an API
+  error, it prints a notice and exits 0. It posts nothing and blocks nothing.
+- **Boundary:** it runs under `pull_request`, not `pull_request_target`, with
+  `pull-requests: write` and `contents: read` only. It never pushes to a
+  branch. A fork PR gets no secret and fails soft by design.
+- **Model:** the one set in the local Codex config, `gpt-5.6-sol` on
+  2026-09-03. Change it in the workflow when the lane's model changes.
+
+The secret was added on 2026-09-04. The first labeled PR was the live test.
+
 ## Guard wiring
 
 The current fleet configuration mirrors and wires the credential, staging,
