@@ -98,12 +98,22 @@ jobs:
         run: |
           # actions/checkout ran with fetch-depth: 0 above, so both the base
           # and head revisions are already present locally; no extra fetch.
+          #
+          # Diff from the merge base, not from the tip of the base branch.
+          # base.sha is the tip of main at event time, so a branch behind
+          # main reads as deleting every commit it does not carry, and the
+          # reviewer reports a false scope finding. PR #136 saw that five
+          # rounds running until a rebase cleared it.
           python3 - "$BASE_SHA" "$HEAD_SHA" <<'PY' > diff.txt
           import re
           import subprocess
           import sys
 
-          base, head = sys.argv[1], sys.argv[2]
+          base_tip, head = sys.argv[1], sys.argv[2]
+          base = subprocess.run(
+              ["git", "merge-base", base_tip, head],
+              capture_output=True, text=True, check=True,
+          ).stdout.strip() or base_tip
           diff = subprocess.run(
               ["git", "diff", "--unified=3", base, head],
               capture_output=True, text=True, check=True,

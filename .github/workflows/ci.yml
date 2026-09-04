@@ -40,3 +40,11 @@ jobs:
 
       - name: Run the adversarial guard test suite
         run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Run the review-efficacy eval harness tests
+        # The harness (evals/review-efficacy, PR #136) ships its own tests.
+        # Until this step existed they passed by hand only, which is not a
+        # verifier. The eval itself does not run here; it needs API access.
+        run: |
+          python -m py_compile evals/review-efficacy/run_eval.py
+          python -m unittest discover -s evals/review-efficacy -p "test_*.py" -v
