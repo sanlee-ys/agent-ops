@@ -134,15 +134,36 @@ defects in the harness, and one of them was found by a reviewer inside the eval.
 
 ## What the review lane found in this pull request
 
-The `codex-review` lane reviewed this work seven times as it was built. It
-raised **eleven distinct real findings**, and this session fixed all of them:
-a truncated prompt could be graded a miss; the Codex model id was a hard-coded
-string; a timed-out condition discarded its partial output; the README claimed
-an isolation guarantee the mechanism does not provide; the harness shipped with
-no tests; a split re-run could pair two different prompts; provenance checked
-only the head commit; per-condition metrics vanished when the other lane failed;
-`--validate-only` wrote and overwrote run evidence; and the report attributed
-every case to one model id.
+The `codex-review` lane reviewed this work nine times as it was built. It raised
+**20 distinct real findings**. This session fixed 19 and ruled the twentieth
+open, which is finding 1 below. The full list, by round:
+
+1. A truncated prompt could be graded a miss.
+2. The Codex condition's isolation was weaker than the README claimed.
+3. The Codex model id was a hard-coded string.
+4. The harness shipped with no tests.
+5. A timed-out condition discarded its partial output.
+6. Per-condition metrics vanished when the other lane failed.
+7. An unresolved model id was recorded as ordinary run metadata.
+8. Nothing proved the diffs were Claude-authored.
+9. `number_diff` numbered a `\ No newline at end of file` marker.
+10. A split re-run could pair two reviews of different prompts.
+11. Provenance checked the head commit only.
+12. `--disallowedTools` is a denylist, not the guarantee the README stated.
+13. `--validate-only` rewrote `prompt.txt` beside older reviews.
+14. `--validate-only` rewrote `manifest.json` and the grades template.
+15. One run-level model id was attributed to every case.
+16. `--validate-only` created directories.
+17. A `.cmd` shim went through the command interpreter unguarded.
+18. The prompt omits the label definitions. **Open, finding 1 below.**
+19. `RESULTS.md` reported a stale test count.
+20. `RESULTS.md` called a partial list exhaustive. **This list is the fix.**
+
+Findings 19 and 20 are worth naming rather than quietly correcting. They are the
+failure [`conventions/`](../../conventions/) keeps warning about from the other
+side: **nothing tests prose, so a document that drifts from the code it
+describes just sits there and lies.** A reviewer caught both, in a file whose
+whole subject is honest measurement.
 
 It also reported the same **false** scope finding in five consecutive rounds:
 that the diff deleted `delegation-policy.md` and `ADR-014` material. The cause
@@ -200,7 +221,7 @@ that runs is worse than a run that stops.
    reflects that this run predates the per-condition hash, which landed later
    the same day.
 9. **The harness's tests do not run in this repository's CI.** The CI job
-   discovers `tests/` only, and this lane does not edit `.github/`. 39 tests
+   discovers `tests/` only, and this lane does not edit `.github/`. 46 tests
    pass when run by hand.
 
 ## What this does not say
