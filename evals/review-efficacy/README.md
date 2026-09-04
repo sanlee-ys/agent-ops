@@ -57,6 +57,12 @@ Three rules keep a seeded case honest, and
   body is a malformed diff, and a reviewer that reports the malformation has not
   found the seeded defect.
 
+A fourth rule follows from the same reasoning. **A diff over the character cap
+is a build error, not a truncated prompt.** Truncation can cut the seeded defect
+out of the prompt, and the reviewer would then be graded a miss for a defect it
+never received. That is a false result, which is worse than a missing one.
+Narrow the case's `paths` instead.
+
 ## The two conditions
 
 **Paired design: both conditions review the same seeded diff.** The pairing
@@ -66,17 +72,25 @@ case count, which is where this eval starts.
 | | Condition A | Condition B |
 | --- | --- | --- |
 | Reviewer | `claude -p` | `codex exec` |
-| Model | Sonnet, the tier the fleet uses for review | the id in `~/.codex/config.toml` |
+| Model | Sonnet, the tier the fleet uses for review | the id the harness reads from the Codex config at run time |
 | Rules | the `## Code Review Rules` section of [`vendors/shared/AGENTS.md`](../../vendors/shared/AGENTS.md) | the same text, read from the same file |
-| Repository access | none | none |
+| Isolation | file and shell tools refused | an empty working directory, read-only sandbox |
 
 **Both conditions read the same rules text from the same file.** The runner does
 not restate the rules. A restatement is a second copy, and a second copy drifts.
 
-**Neither condition can read the repository under review.** Both run with an
-empty scratch directory as the working directory, and the Claude condition also
-runs with its file and shell tools refused. Both therefore judge the diff text
-and only the diff text.
+**The two isolations are not equally strong, and the eval says so rather than
+claim otherwise.** The Claude condition refuses its file and shell tools, so it
+cannot read anything. The Codex condition runs in an empty working directory
+under a read-only sandbox, so it cannot write and has no repository at hand, but
+a read outside that directory is not blocked. Both prompts say to review only
+the diff. Both transcripts reach a file, so a read would be visible to the
+grader. **Treat a Codex catch that cites a file the diff does not contain as
+suspect, and check its transcript.**
+
+**Both models resolve at run time and reach `manifest.json`.** A model id
+written into this file would go stale the moment a lane changes model, and the
+result would then name the wrong model.
 
 **One asymmetry stays, and it is deliberate.** Each vendor still loads its own
 standing instruction file. This eval measures the lanes as the fleet runs them,
@@ -124,7 +138,26 @@ These come from telltale's honest-gauge rule and from
    `report` excludes the case from the paired statistics.
 5. **Every result states its revisions, models, and dates.** `manifest.json`
    records the base and head commit of each case, the sha256 of the rules file,
-   the resolved Claude model id, and the run time.
+   both resolved model ids, and the run time.
+6. **A prompt that could not carry the seeded defect never runs.** An over-cap
+   diff fails at build time. A truncated producer taints everything downstream
+   of it ([`conventions/truncated-producers-taint.md`](../../conventions/truncated-producers-taint.md)).
+
+## The harness has its own tests, and this repository's CI does not run them
+
+`test_run_eval.py` covers the four places that produce a wrong measurement: the
+seed validation, the line numbering, the exact McNemar statistic, and the
+exclusion of a case that did not run or was not graded.
+
+```
+uv run python -m unittest discover -s evals/review-efficacy -p "test_*.py" -v
+```
+
+**CI does not run them.** `.github/workflows/ci.yml` discovers `tests/` only,
+and the lane that built this eval does not edit that file. Per the gate rule in
+[`delegation-policy.md`](../../delegation-policy.md), a check that cannot run is
+not a pass, so run the command above by hand until the CI job discovers this
+directory too.
 
 ## Run it
 
@@ -163,5 +196,6 @@ uv run python evals/review-efficacy/run_eval.py report --run evals/review-effica
 | --- | --- |
 | `cases.json` | The cases: pull request, revisions, paths, defect class, seed |
 | `run_eval.py` | The harness. Read it for the mechanics |
+| `test_run_eval.py` | The harness's own tests. Not in CI. Run them by hand |
 | `RESULTS.md` | The pilot result, with its power statement |
 | `runs/<date>/` | Raw outputs, `manifest.json`, and `grades.json` |
