@@ -1,0 +1,3 @@
+One test does not assert the behavior it claims to cover.
+
+- auto-fix: Line 95 uses `assertIsNotNone(run("git add -Au"))`, which passes for any non-`None` verdict, including `ALLOW`. Change it to `assertEqual(run("git add -Au"), BLOCK)` so the measured bypass is explicitly guarded against.

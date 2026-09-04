@@ -1,0 +1,3 @@
+One in-scope bug found; the diff otherwise stays within the requested three fixes.
+
+- auto-fix: Line 278 assigns `-n` to `push`, contradicting the comment and Git semantics. It should be `if sub == "commit"`. As written, both new tests fail: `git commit -n` allows, while `git push -n` warns.

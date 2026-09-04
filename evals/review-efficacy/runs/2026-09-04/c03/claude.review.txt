@@ -1,0 +1,5 @@
+Summary: the guard logic and docs are correct; one test assertion in the new coverage is weaker than its siblings.
+
+- auto-fix: `tests/test_git_staging_guard.py` line 95, in `test_combined_short_flags_on_add`, uses `self.assertIsNotNone(run("git add -Au"))` while every other case in this file (including the very next line, `-uA`) uses `self.assertEqual(run(...), BLOCK)`. `assertIsNotNone` only proves the guard returned *something*, not that it returned `BLOCK` — a future regression that makes `-Au` return a truthy-but-wrong value (e.g., an `ALLOW`-shaped object, or the wrong verdict type) would pass this test silently. Tighten it to `self.assertEqual(run("git add -Au"), BLOCK)` to match the rest of the suite.
+
+No other findings: the `stage`-subcommand match, the combined-short-flag letter check, and the updated "WHAT IS BLOCKED" documentation all correctly implement what the PR title and version-header comment describe, and the rest of the new tests exercise real positive/negative boundaries (`-N`, `-f`, `-nv`, `-ip`, `stash -u`, prose) accurately.

@@ -1,0 +1,5 @@
+Found three correctness/test issues; scope otherwise matches the PR title.
+
+- auto-fix: Lines 149–157 claim compound inspection requires three or more segments, but `len(segments) < 2` means two-segment chains are also counted. Change the threshold to `< 3`.
+- auto-fix: Lines 78–82 and 129–145 classify broad `git`/`gh` namespaces as read-only, including mutating commands such as `git branch -D`, `git stash pop`, `git config …`, or `gh pr merge`. This contradicts the detector’s guarantee that mutation chains are excluded and will produce false violations.
+- auto-fix: The new detector and parsing logic ships without tests. Tests should cover the stated three-segment threshold, mutating-command exclusions, quoted separators, `git -C`, transcript filtering, and the no-prose-example guarantee.

@@ -1,0 +1,3 @@
+One blocking bug found; the diff also adds an unrequested behavior change.
+
+- auto-fix: Line 113 repeats `"fanout-guard"` with `"PostToolUse"` in the same dictionary entry. Python will overwrite its existing `"PreToolUse"` mapping, weakening validation and likely rejecting correctly wired configurations. Remove the duplicate `"fanout-guard": "PostToolUse"` pair so this change only registers `"hook-tamper-guard": "PreToolUse"` as requested.

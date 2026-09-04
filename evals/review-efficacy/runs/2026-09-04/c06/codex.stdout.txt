@@ -1,0 +1,1 @@
+No in-scope findings; the diff adds the two requested guards and tests each required guard individually.

@@ -351,6 +351,32 @@ def resolve_executable(argv: list[str]) -> list[str]:
     return [found, *argv[1:]]
 
 
+def redact_local_paths(text: str, home: str | None = None) -> str:
+    """`text` with this machine's home directory written as `~`.
+
+    THIS REPOSITORY IS PUBLIC, and a run directory is committed whole. Two
+    sources put a machine path into a saved output, both found by
+    `scripts/redline-guard.py` on the pilot: the recorded `codex exec --cd
+    <scratch>` argument, and Codex's own banner, which prints `workdir:` on
+    stderr. Redaction happens at write time, here, so the guard is the backstop
+    and not the only control.
+
+    The substitution is visible, never silent: a reader sees `~` and knows a
+    path was there. Three separator forms are handled and the longest is tried
+    first: the JSON-escaped `\\\\`, then `\\`, then `/`. The escaped form
+    matters because a path inside a JSON file is stored escaped, and a pattern
+    that only knows the plain form walks straight past it. The match is
+    case-insensitive because Windows paths are.
+    """
+    root = home if home is not None else str(Path.home())
+    if not root:
+        return text
+    plain = root.replace("/", "\\")
+    variants = [plain.replace("\\", "\\\\"), plain, plain.replace("\\", "/")]
+    pattern = re.compile("|".join(re.escape(v) for v in variants), re.IGNORECASE)
+    return pattern.sub("~", text)
+
+
 def _as_text(value) -> str:
     """`TimeoutExpired.stdout` is bytes or str or None, depending on the call."""
     if value is None:
@@ -541,14 +567,16 @@ def run_cases(
                 else:
                     cmd = codex_command(scratch)
                 result = _run(cmd, prompt, scratch)
-                (case_dir / f"{condition}.stdout.txt").write_text(result["stdout"], encoding="utf-8")
-                (case_dir / f"{condition}.stderr.txt").write_text(result["stderr"], encoding="utf-8")
+                (case_dir / f"{condition}.stdout.txt").write_text(
+                    redact_local_paths(result["stdout"]), encoding="utf-8")
+                (case_dir / f"{condition}.stderr.txt").write_text(
+                    redact_local_paths(result["stderr"]), encoding="utf-8")
                 record = {
                     "ok": result["ok"],
                     "error": result["error"],
                     "seconds": result["seconds"],
                     "returncode": result["returncode"],
-                    "command": cmd,
+                    "command": [redact_local_paths(part) for part in cmd],
                     # A split re-run rewrites prompt.txt. Without a per-condition
                     # hash the report would pair two reviews of DIFFERENT prompts
                     # and call the pair valid. The hash is what makes a pair
@@ -558,7 +586,8 @@ def run_cases(
                 }
                 if condition == "claude":
                     text, model = _claude_review_text(result["stdout"])
-                    (case_dir / "claude.review.txt").write_text(text, encoding="utf-8")
+                    (case_dir / "claude.review.txt").write_text(
+                        redact_local_paths(text), encoding="utf-8")
                     record["model"] = model
                     manifest["conditions"].setdefault("claude", {})["model"] = model
                 else:

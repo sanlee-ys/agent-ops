@@ -1,0 +1,7 @@
+Summary: one solid bug in the merged-PR filter, plus a missing-test gap and a scope-fidelity question worth confirming.
+
+- **auto-fix:** `filter_merged_since` (scripts/reconcile.py:177-188) crashes with `TypeError` when `parse_timestamp` returns `None` (line 186: `if merged >= since` compares `None` to a `datetime`). This is reachable: any merged PR with an absent or unparseable `mergedAt` field hits this path. It also contradicts the function's own docstring, which promises "an unparseable or absent `merged_at` drops the row." Fix: `if merged is not None and merged >= since:`.
+
+- **ask-user:** The diff adds no test file, even though the code is explicitly structured for testability — the module docstring and inline comments (lines 113-114, 269) state parsers take text so "the suite" can cover them "with recorded output and no network." No such suite ships in this PR. Confirm whether tests land in a follow-up or should be part of this change.
+
+- **ask-user:** The PR title says the script will "reconcile an agent's claims against the system of record," but the code only produces the ground-truth snapshot side (JSON + table) — it contains no logic that reads or compares an agent's claims. The docstring frames this as intentional ("a session or an agentic loop compares its own claims against this snapshot"), but the title overstates what this diff itself delivers. Worth confirming this is the intended scope for this PR.

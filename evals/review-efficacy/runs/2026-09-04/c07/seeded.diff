@@ -1,0 +1,70 @@
+diff --git a/hooks/config-change-guard.py b/hooks/config-change-guard.py
+index f39abe0..a0f8f61 100644
+--- a/hooks/config-change-guard.py
++++ b/hooks/config-change-guard.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-# hook-version: 1.2 (2026-08-19)
++# hook-version: 1.3 (2026-08-22)
+ """Config tamper guard (global ConfigChange hook) — keeps the guard chain wired.
+ 
+ The fleet's safety posture (agent-ops ADR-012) rests on a single mechanism:
+@@ -100,6 +100,9 @@ import json
+ # so a guard relocated to a non-blocking event no longer passes. v1.2 adds the
+ # two ADR-015 guards — per ADR-013 this list is a literal enumeration of the
+ # repo's redline controls, and it had fallen behind that ADR by two entries.
++# v1.3 adds hook-tamper-guard, added to the enumeration when San authorized its
++# deployment (2026-08-22). The deploy script syncs this file and wires the new
++# guard in one pass, so the assertion never fires on an unwired settings file.
+ REQUIRED_GUARDS = {
+     "credential-guard": "PreToolUse",
+     "published-history-guard": "PreToolUse",
+@@ -107,6 +110,7 @@ REQUIRED_GUARDS = {
+     "fanout-guard": "PreToolUse",
+     "destructive-command-guard": "PreToolUse",
+     "secret-redaction-guard": "PreToolUse",
++    "hook-tamper-guard": "PreToolUse", "fanout-guard": "PostToolUse",
+ }
+ 
+ # Only the scopes that can carry the global guard chain.
+diff --git a/tests/test_config_change_guard.py b/tests/test_config_change_guard.py
+index cfe9b04..bc16d8c 100644
+--- a/tests/test_config_change_guard.py
++++ b/tests/test_config_change_guard.py
+@@ -47,7 +47,7 @@ from pathlib import Path
+ GUARD = Path(__file__).resolve().parent.parent / "hooks" / "config-change-guard.py"
+ 
+ # The full redline enumeration. ADR-013 says REQUIRED_GUARDS is a literal
+-# enumeration of the repo's redline controls; this tuple pins it at six, so a
++# enumeration of the repo's redline controls; this tuple pins it at seven, so a
+ # guard added to the repo without a REQUIRED_GUARDS entry turns a test red.
+ ALL_GUARDS = (
+     "credential-guard",
+@@ -56,6 +56,7 @@ ALL_GUARDS = (
+     "fanout-guard",
+     "destructive-command-guard",
+     "secret-redaction-guard",
++    "hook-tamper-guard",
+ )
+ 
+ 
+@@ -206,6 +207,8 @@ class TestAllowedShapes(GuardTestCase):
+                              "command": "uv run python ./hooks/destructive-command-guard.py"},
+                             {"type": "command",
+                              "command": '"C:\\Python311\\python.exe" secret-redaction-guard.py'},
++                            {"type": "command",
++                             "command": "python.exe .claude/hooks/hook-tamper-guard.py"},
+                         ],
+                     }
+                 ]
+@@ -313,7 +316,9 @@ def realistic_wiring(**extra):
+                     {"type": "command",
+                      "command": 'python3 "%s/secret-redaction-guard.py"' % h}]},
+                 {"matcher": "*", "hooks": [
+-                    {"type": "command", "command": 'python3 "%s/credential-guard.py"' % h}]},
++                    {"type": "command", "command": 'python3 "%s/credential-guard.py"' % h},
++                    {"type": "command",
++                     "command": 'python3 "%s/hook-tamper-guard.py"' % h}]},
+             ],
+             "ConfigChange": [
+                 {"hooks": [{"type": "command",

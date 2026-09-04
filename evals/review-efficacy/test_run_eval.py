@@ -333,6 +333,38 @@ class TestClaudeReviewText(unittest.TestCase):
         self.assertIsNone(model)
 
 
+class TestRedactLocalPaths(unittest.TestCase):
+    """This repository is public and a run directory is committed whole."""
+
+    def test_it_replaces_the_home_path(self):
+        out = run_eval.redact_local_paths(
+            r"workdir: D:\pf\someone\AppData\Local\Temp\x", r"D:\pf\someone")
+        self.assertEqual(out, r"workdir: ~\AppData\Local\Temp\x")
+
+    def test_it_handles_both_separators(self):
+        out = run_eval.redact_local_paths(
+            "a D:/pf/someone/x and b D:\\pf\\someone\\y", r"D:\pf\someone")
+        self.assertEqual(out, "a ~/x and b ~\\y")
+
+    def test_the_match_is_case_insensitive(self):
+        out = run_eval.redact_local_paths(r"d:\pf\someone\x", r"D:\pf\someone")
+        self.assertEqual(out, r"~\x")
+
+    def test_it_handles_the_json_escaped_form(self):
+        """A path inside a JSON file is stored escaped. A pattern that knows
+        only the plain form walks straight past it."""
+        out = run_eval.redact_local_paths(
+            r'{"cd": "D:\\pf\\someone\\Temp\\x"}', r"D:\pf\someone")
+        self.assertEqual(out, r'{"cd": "~\\Temp\\x"}')
+
+    def test_it_leaves_other_text_alone(self):
+        text = "no path here at all"
+        self.assertEqual(run_eval.redact_local_paths(text, r"D:\pf\someone"), text)
+
+    def test_an_empty_home_is_a_no_op(self):
+        self.assertEqual(run_eval.redact_local_paths("anything", ""), "anything")
+
+
 class TestResolveExecutable(unittest.TestCase):
     def test_an_unknown_command_passes_through(self):
         argv = ["definitely-not-a-real-command-xyz", "--flag"]

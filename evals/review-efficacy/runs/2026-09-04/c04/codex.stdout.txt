@@ -1,0 +1,3 @@
+Attached destination handling is fixed, but attached source flags remain broken.
+
+- auto-fix: At line 1561, `tok.split("=", 1)[0]` appends the flag name instead of its attached value; it must use `[1]`. Add a credential-bearing attached-source test, since current tests cover only attached destination flags.

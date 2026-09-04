@@ -167,6 +167,11 @@ These come from telltale's honest-gauge rule and from
 6. **A prompt that could not carry the seeded defect never runs.** An over-cap
    diff fails at build time. A truncated producer taints everything downstream
    of it ([`conventions/truncated-producers-taint.md`](../../conventions/truncated-producers-taint.md)).
+7. **A saved output writes this machine's home directory as `~`.** This
+   repository is public and a run directory is committed whole, so the
+   redaction happens at write time and `scripts/redline-guard.py` is the
+   backstop rather than the only control. The substitution is visible: a reader
+   sees `~` and knows a path was there. Nothing else in an output is altered.
 
 ## The harness has its own tests, and this repository's CI does not run them
 
