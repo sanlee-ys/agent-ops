@@ -74,3 +74,36 @@ on the waitlist; the interim backend must be labeled interim.
   waitlist converts; this ADR only locks the routing intent.
 - If the Kimi waitlist never converts, revisit the target family — do not
   silently promote interim Grok into the permanent Pi backend.
+
+## Premise check, 2026-09-04
+
+Decision 4 excludes a Claude pool behind Pi and calls it an "Unsupported
+third-party ride". This check tests that one premise against primary sources.
+
+- **Anthropic, Claude Code legal and compliance doc, read 2026-09-04.** The
+  "Authentication and credential use" section forbids a developer to
+  "route requests through Free, Pro, or Max plan credentials on behalf of their users".
+- **Anthropic support article 13189465, updated 2026-05-19.** Anthropic
+  "reserves the right to draw use of such third-party tools from usage credits"
+  instead of subscription limits. It prohibits a tool that can
+  "misrepresent their identity to Anthropic's servers".
+- **Anthropic support article 15036540, updated 2026-06-15.** The Agent SDK
+  credit plan is paused. Today "third-party app usage still draw from your
+  subscription's usage limits".
+- **Pi providers doc at commit `c03d78b`, dated 2026-08-06.** It states that
+  "Anthropic subscription auth is active for Claude Pro/Max accounts" and that
+  such use is "billed per token, not against Claude plan limits".
+
+**Verdict: the premise is stale as worded, and the sources contradict in part.**
+The word "Unsupported" is now too strong, because Anthropic permits a metered
+third-party path at its own discretion. But Pi's claim of an active Pro/Max
+subscription login contradicts Anthropic's terms, which forbid that login on
+plan credentials. Anthropic's terms bind. Pi's doc describes what the software
+attempts. That contradiction is itself the finding.
+
+The exclusion now rests on the harness-independence rule and the Kimi model
+target, not on vendor policy. The ADR already carries that reasoning: the
+Context section separates the harness axis from the model axis, and decision 4
+also cites the duplicate tool surface and the Cline shape.
+
+This check changes no decision. The Pi seat stays on Kimi by the ruling above.

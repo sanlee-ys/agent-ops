@@ -36,9 +36,10 @@ Grok Build stays guard-only ([`vendors/grok/`](../grok/)). Prefer other
 lanes when a model is required (Codex for GPT, Antigravity for Gemini,
 Claude for Anthropic).
 
-**Never:** Anthropic Pro/Max (or any Claude pool) behind Pi. Unsupported as a
-third-party client ride, and it would duplicate Claude Code with a worse tool
-surface. The Cline evaluation was that failure shape.
+**Never:** Anthropic Pro/Max (or any Claude pool) behind Pi. It would duplicate
+Claude Code with a worse tool surface, and Anthropic's terms forbid a
+third-party login on plan credentials (ADR-014 premise check, 2026-09-04). The
+Cline evaluation was that failure shape.
 
 ### Cutover when Kimi access lands
 
