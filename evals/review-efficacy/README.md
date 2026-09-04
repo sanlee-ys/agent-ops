@@ -46,6 +46,13 @@ defect classes in [`cases.json`](cases.json), not review value in general. A
 reviewer that is strong on a seeded off-by-one may still be weak on the defects
 this eval never seeds.
 
+**The population must be Claude-authored, and the harness proves it per case.**
+The question is about a Codex review of a CLAUDE diff, so "everything in this
+repository was written by Claude" is an assertion, not evidence. The runner
+reads each case's head commit for a `Co-Authored-By` trailer and records it in
+`manifest.json`. `report` counts how many cases carry a Claude trailer, and it
+narrows the stated population in writing when any case does not.
+
 Three rules keep a seeded case honest, and
 [`run_eval.py`](run_eval.py) enforces all three at build time:
 
