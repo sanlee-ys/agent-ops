@@ -577,20 +577,48 @@ def report(run_dir: Path) -> int:
         print("| %s | #%s | %s | %s | %s |"
               % (row["id"], row["pr"], row["class"], row["claude"], row["codex"]))
 
+    print()
+    print("Model ids recorded for this run:")
+    unresolved = []
+    for cond in CONDITIONS:
+        model = manifest.get("conditions", {}).get(cond, {}).get("model")
+        printable = model if model else "NOT RECORDED"
+        if not model or str(model).startswith("unresolved"):
+            unresolved.append(cond)
+        print("  %-7s %s" % (cond, printable))
+    if unresolved:
+        # Honesty rule 5 says a result states its models. A run that cannot
+        # name a model still produced review text, so the numbers are not
+        # discarded. They are published with the gap named on the same page.
+        print("  WARNING: the model id is unresolved for %s. This result "
+              "cannot name the model it measured." % ", ".join(unresolved))
+
+    # Per-condition metrics count every case that condition ran AND a grader
+    # scored. A condition is not penalised for the other condition's failure:
+    # only the PAIRED statistic needs both halves.
+    print()
+    for cond in CONDITIONS:
+        graded = [r for r in rows if r[cond] in ("catch", "miss")]
+        if not graded:
+            print("%s: no graded case." % cond)
+            continue
+        catches = sum(1 for r in graded if r[cond] == "catch")
+        print("%-7s catch rate: %d/%d graded cases" % (cond, catches, len(graded)))
+        vals = [r[cond + "_false"] for r in graded if r[cond + "_false"] is not None]
+        if vals:
+            print("%-7s false findings: %d over %d graded cases (mean %.2f)"
+                  % (cond, sum(vals), len(vals), sum(vals) / len(vals)))
+
     scored = [r for r in rows if r["claude"] in ("catch", "miss")
               and r["codex"] in ("catch", "miss")]
     n = len(scored)
     print()
-    print("Scored pairs: %d of %d cases." % (n, len(rows)))
+    print("Paired statistic, complete pairs only: %d of %d cases." % (n, len(rows)))
     if not n:
         return OK
 
-    claude_catch = sum(1 for r in scored if r["claude"] == "catch")
-    codex_catch = sum(1 for r in scored if r["codex"] == "catch")
     b = sum(1 for r in scored if r["codex"] == "catch" and r["claude"] == "miss")
     c = sum(1 for r in scored if r["claude"] == "catch" and r["codex"] == "miss")
-    print("Claude catch rate: %d/%d" % (claude_catch, n))
-    print("Codex catch rate:  %d/%d" % (codex_catch, n))
     print("Discordant pairs: Codex-only %d, Claude-only %d" % (b, c))
     p = mcnemar_exact_two_sided(b, c)
     print("Exact McNemar two-sided p: %s"
@@ -600,12 +628,6 @@ def report(run_dir: Path) -> int:
     if b + c < need:
         print("This run has %d. It CANNOT reach significance at any split."
               % (b + c))
-
-    for cond in CONDITIONS:
-        vals = [r[cond + "_false"] for r in scored if r[cond + "_false"] is not None]
-        if vals:
-            print("False findings, %s: %d over %d graded cases (mean %.2f)"
-                  % (cond, sum(vals), len(vals), sum(vals) / len(vals)))
     return OK
 
 
