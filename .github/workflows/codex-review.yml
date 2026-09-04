@@ -110,10 +110,16 @@ jobs:
           import sys
 
           base_tip, head = sys.argv[1], sys.argv[2]
-          base = subprocess.run(
+          # check=False on purpose: a nonzero exit (unrelated histories, a
+          # missing object) must fall back to the base tip, not fail the job.
+          # PR #137 shipped this with check=True, which raised before the
+          # fallback could run; the review on that PR caught it.
+          mb = subprocess.run(
               ["git", "merge-base", base_tip, head],
-              capture_output=True, text=True, check=True,
-          ).stdout.strip() or base_tip
+              capture_output=True, text=True, check=False,
+          )
+          base = mb.stdout.strip() if mb.returncode == 0 and mb.stdout.strip() else base_tip
+          print(f"NOTICE: diff base {base[:12]} ({'merge base' if base != base_tip else 'base tip'})", file=sys.stderr)
           diff = subprocess.run(
               ["git", "diff", "--unified=3", base, head],
               capture_output=True, text=True, check=True,
