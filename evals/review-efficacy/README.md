@@ -135,10 +135,15 @@ These come from telltale's honest-gauge rule and from
    score its own run.
 4. **An unrun condition is UNRUN, never a miss.** A failed subprocess, a
    timeout, and a missing tool are recorded as failures in `manifest.json`.
-   `report` excludes the case from the paired statistics.
+   `report` excludes the case from the PAIRED statistic only. A condition that
+   ran and was graded still counts toward its own catch rate, because one
+   reviewer's failure is not evidence about the other reviewer.
 5. **Every result states its revisions, models, and dates.** `manifest.json`
    records the base and head commit of each case, the sha256 of the rules file,
-   both resolved model ids, and the run time.
+   both resolved model ids, and the run time. When a model id does not resolve,
+   `report` prints the numbers with a warning beside them that says the result
+   cannot name the model it measured. It does not drop the numbers, and it does
+   not print them silently.
 6. **A prompt that could not carry the seeded defect never runs.** An over-cap
    diff fails at build time. A truncated producer taints everything downstream
    of it ([`conventions/truncated-producers-taint.md`](../../conventions/truncated-producers-taint.md)).

@@ -133,10 +133,12 @@ class TestMcNemar(unittest.TestCase):
         self.assertEqual(run_eval.min_discordant_for_significance(), 6)
 
 
-def _write_run(tmp: Path, cases: dict, grades: dict) -> Path:
+def _write_run(tmp: Path, cases: dict, grades: dict, conditions=None) -> Path:
     run_dir = tmp / "run"
     run_dir.mkdir()
-    (run_dir / "manifest.json").write_text(json.dumps({"cases": cases}), encoding="utf-8")
+    manifest = {"cases": cases, "conditions": conditions or {
+        "claude": {"model": "claude-sonnet-5"}, "codex": {"model": "gpt-x"}}}
+    (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "grades.json").write_text(json.dumps(grades), encoding="utf-8")
     return run_dir
 
@@ -160,27 +162,35 @@ def _grade(claude_catch, codex_catch):
 
 
 class TestReport(unittest.TestCase):
-    def _report(self, cases, grades):
+    def _report(self, cases, grades, conditions=None):
         with tempfile.TemporaryDirectory() as tmp:
-            run_dir = _write_run(Path(tmp), cases, {"cases": grades})
+            run_dir = _write_run(Path(tmp), cases, {"cases": grades}, conditions)
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 code = run_eval.report(run_dir)
             return code, buf.getvalue()
 
-    def test_a_failed_condition_is_unrun_and_leaves_the_statistics(self):
+    def test_a_failed_condition_is_unrun_and_leaves_the_paired_statistic(self):
         cases = {"a": _case(), "b": _case(ok_codex=False)}
         grades = {"a": _grade(True, False), "b": _grade(True, True)}
         _, out = self._report(cases, grades)
         self.assertIn("UNRUN", out)
-        self.assertIn("Scored pairs: 1 of 2", out)
+        self.assertIn("complete pairs only: 1 of 2", out)
 
-    def test_an_ungraded_case_leaves_the_statistics(self):
+    def test_a_half_run_case_still_counts_for_the_condition_that_ran(self):
+        """The other condition's failure must not delete a graded result."""
+        cases = {"a": _case(), "b": _case(ok_codex=False)}
+        grades = {"a": _grade(True, False), "b": _grade(True, True)}
+        _, out = self._report(cases, grades)
+        self.assertIn("claude  catch rate: 2/2 graded cases", out)
+        self.assertIn("codex   catch rate: 0/1 graded cases", out)
+
+    def test_an_ungraded_case_leaves_the_paired_statistic(self):
         cases = {"a": _case(), "b": _case()}
         grades = {"a": _grade(True, False), "b": _grade(None, None)}
         _, out = self._report(cases, grades)
         self.assertIn("UNGRADED", out)
-        self.assertIn("Scored pairs: 1 of 2", out)
+        self.assertIn("complete pairs only: 1 of 2", out)
 
     def test_it_counts_the_discordant_pairs_in_the_right_direction(self):
         cases = {c: _case() for c in "abcd"}
@@ -192,8 +202,25 @@ class TestReport(unittest.TestCase):
         }
         _, out = self._report(cases, grades)
         self.assertIn("Codex-only 2, Claude-only 1", out)
-        self.assertIn("Claude catch rate: 2/4", out)
-        self.assertIn("Codex catch rate:  3/4", out)
+        self.assertIn("claude  catch rate: 2/4", out)
+        self.assertIn("codex   catch rate: 3/4", out)
+
+    def test_an_unresolved_model_id_is_warned_about(self):
+        cases = {"a": _case()}
+        grades = {"a": _grade(True, True)}
+        _, out = self._report(cases, grades, conditions={
+            "claude": {"model": None},
+            "codex": {"model": "unresolved: could not read the Codex config"},
+        })
+        self.assertIn("WARNING", out)
+        self.assertIn("cannot name the model", out)
+
+    def test_resolved_model_ids_produce_no_warning(self):
+        cases = {"a": _case()}
+        grades = {"a": _grade(True, True)}
+        _, out = self._report(cases, grades)
+        self.assertIn("claude-sonnet-5", out)
+        self.assertNotIn("WARNING", out)
 
     def test_it_says_when_the_run_cannot_reach_significance(self):
         cases = {c: _case() for c in "ab"}
