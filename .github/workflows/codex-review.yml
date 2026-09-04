@@ -49,21 +49,18 @@ jobs:
           # success, and the label would then prove nothing about the
           # current head. Found by the first live review on PR #130.
           #
-          # Ignore only the case where the label is not on the PR. Any other
-          # failure (auth, permission, API) must stop the run: a swallowed
-          # error would leave a stale label certifying an unreviewed head.
-          # Found by the second live review on the same PR.
-          set +e
-          err=$(gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label reviewed-by-codex 2>&1)
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "Cleared any earlier success label."
-          elif printf '%s' "$err" | grep -qi "not found"; then
-            echo "NOTICE: no earlier success label to clear."
+          # Look the labels up first, then remove only when the label is
+          # present. Any lookup or removal failure (auth, permission, API,
+          # a 404) stops the run: a swallowed error would leave a stale label
+          # certifying an unreviewed head. No error-text matching, so an HTTP
+          # 404 cannot pass as "label absent". Found by the second and third
+          # live reviews on PRs #130 and #131.
+          labels=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')
+          if printf '%s\n' "$labels" | grep -qx "reviewed-by-codex"; then
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label reviewed-by-codex
+            echo "Cleared the success label from an earlier run."
           else
-            echo "ERROR: could not clear the success label: $err"
-            exit 1
+            echo "NOTICE: no earlier success label to clear."
           fi
 
       - name: Check for the OpenAI API key
