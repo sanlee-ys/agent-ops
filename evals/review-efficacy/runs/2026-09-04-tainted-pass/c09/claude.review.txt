@@ -1,0 +1,13 @@
+Summary: solid detector script, but it has a real off-by-one bug, likely-corrupted regex data in its flagship detector, dead code, no tests, an over-broad verb list that contradicts its own docstring, and a dangling doc reference.
+
+- **auto-fix:** `is_compound_inspection` (lines 148-157) checks `len(segments) < 2`, so it fires on **two** read-only segments. The function's own docstring says "True for a chain of **three or more** read-only segments... Three, not two: a two-segment chain is cheap and common, and counting it would drown the signal." The guard should be `< 3`, not `< 2`.
+
+- **ask-user:** `_EM_DASH = re.compile("[â€”â€“]")` (line 101), and the surrounding docstring/comment text at lines 18 and 87, contain what looks like mojibake (UTF-8 em/en dash bytes decoded as Latin-1/CP1252) instead of literal `—`/`–` characters. If that is really what is stored in the file, the em-dash detector — the detector this script's report treats specially (`_NO_EXAMPLES`, the "no examples: the evidence is prose" line) — will never match a real em dash or en dash in a transcript and will silently report zero hits always. Please confirm the file's actual encoding and the literal bytes in that regex before merge.
+
+- **auto-fix:** Line 133, `if sub in ("-c", "-c"):`, is dead code: the tuple has a duplicated literal (should very likely be `("-C", "-c")`), and it can never be true anyway, because `_subcommand()` (lines 118-122) already filters out every token that starts with `-` before indexing, so `sub` is never `-c` or `-C` to begin with. The line does not do what its position implies.
+
+- **ask-user:** No test file accompanies this 368-line script. It ships four regex/logic detectors with non-obvious edge cases (see the off-by-one above, which a single unit test would have caught), plus timestamp parsing and JSONL walking, and none of it is covered by an automated test.
+
+- **ask-user:** `_READ_ONLY_VERBS` (lines 70-75) marks `docker`, `npm`, `cargo`, `node`, `python`, `uv` as unconditionally read-only with no subcommand check (line 136, `return True` for any non-git/gh verb). A chain like `npm install && cargo build && docker push` would be counted as `compound-inspection`, even though the docstring explicitly says "a chain that mutates something... is not what this counts."
+
+- **ask-user:** The module docstring (line 14-15) and `format_report` (line 327) both point readers to `conventions/dead-rules-audit.md` for the full limits before quoting any number from this tool, but this diff does not add that file. Confirm it already exists in the repo; otherwise this is a dangling reference on first use of the script.

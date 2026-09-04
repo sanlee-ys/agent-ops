@@ -1,0 +1,11 @@
+Summary: The gate's core threshold logic has a genuine off-by-one bug, and there are secondary issues in the negative-direction verdict logic, an inaccurate error message, no test coverage, and an unaddressed integration gap.
+
+- **auto-fix:** `evaluate()` uses `if runs <= _MIN_RUNS:` (scripts/confidence_gate.py:113), which requires **more than 3** prior runs before scoring. This contradicts the module's own documentation ("requires three or more prior runs", lines 22-23) and the generated error message itself ("only 3 prior run(s); the confidence rule needs at least 3" is self-contradictory when `runs == 3`). Should be `runs < _MIN_RUNS`.
+
+- **ask-user:** For a negative `best_improvement` (candidate moved the wrong way) with `1.0 <= confidence < 2.0`, the code (lines 142-151) reports `"noise"`, but the module docstring (lines 20-21) states that confidence "in between" 1.0 and 2.0 always means `"inconclusive"` ("the run count cannot yet tell"). This silently collapses a real-but-below-threshold wrong-direction move into "noise" rather than "inconclusive," which is inconsistent with the documented three-tier rule. Confirm whether this asymmetry between the positive- and negative-improvement branches is intended.
+
+- **auto-fix:** The `mad == 0` reason text ("prior runs are identical (MAD=0)", lines 133-136) is inaccurate: MAD can be exactly 0 without all prior runs being identical (e.g. `[1, 1, 1, 10]` has MAD 0 but is not a set of identical values). The reason string should describe "at least half the runs share the median" rather than "identical."
+
+- **ask-user:** The diff adds `scripts/confidence_gate.py` as a standalone CLI but does not wire it into any actual benchmark-driven loop referenced by the PR title, nor update `conventions/loop-safety.md` (which the module's own docstring cites as the source of the rail requirement). Confirm whether wiring the gate into a real loop is intended for this PR or deferred to a follow-up.
+
+- **ask-user:** No test file is included for this new module. The confidence/verdict logic has several boundary conditions (exact `_MIN_RUNS`, `mad == 0`, `confidence` exactly at 1.0/2.0, negative `best_improvement`) that a reachable-input bug already slipped through (see first finding) — this is exactly the kind of logic that needs test coverage before merge.

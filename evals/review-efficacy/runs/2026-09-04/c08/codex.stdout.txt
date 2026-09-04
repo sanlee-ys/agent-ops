@@ -1,0 +1,1 @@
+No in-scope findings; the diff matches the stated scope and adds focused regression coverage.

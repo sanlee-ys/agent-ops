@@ -1,0 +1,79 @@
+diff --git a/security/credential-guard.py b/security/credential-guard.py
+index 81cbea0..1f6dc39 100644
+--- a/security/credential-guard.py
++++ b/security/credential-guard.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-# hook-version: 2.12 (canonical: THIS file, per decisions/ADR-002 â€” the live
++# hook-version: 2.13 (canonical: THIS file, per decisions/ADR-002 â€” the live
+ # deploy at ~/.claude/hooks/ and any provisioning copies sync FROM here)
+ # 2.1 (2026-07-18): prose-flag false-positive fix; a copy still reporting 2 is
+ # stale. Minor bump = same v2 architecture, corrected behaviour.
+@@ -78,6 +78,10 @@
+ # quotes substitute first, so that stays blocked (measured, all four nestings).
+ # The same literalness test now gates PROSE_FLAG_CRED_VAR, since `--body
+ # '$ANTHROPIC_API_KEY'` publishes the literal name, not the key.
++# 2.13 (2026-08-19): an `=`-attached dest/src flag value (`cp
++# --target-directory=/tmp ~/.env`) no longer consumes the NEXT token â€” the
++# copy-launder parser read the credential source as the flag's value and never
++# judged it; the attached text after the first `=` is now the value.
+ """Credential exposure guard (global PreToolUse hook) â€” path-based default-deny.
+ 
+ v2 (2026-07-06, agent-ops decisions/ADR-003 Phase 1). v1 enumerated the *read
+@@ -1540,14 +1544,27 @@ def _copy_operands(seg):
+     while i < len(toks):
+         tok = toks[i]
+         low = tok.lower().split("=")[0]
+-        if low in _DEST_FLAGS and i + 1 < len(toks):
+-            dest = toks[i + 1]
+-            i += 2
+-            continue
+-        if low in _SRC_FLAGS and i + 1 < len(toks):
+-            positional.append(toks[i + 1])
+-            i += 2
+-            continue
++        if low in _DEST_FLAGS:
++            # `--target-directory=/tmp` carries its value in the same token.
++            # Consuming the NEXT token instead ate the credential source, so
++            # `cp --target-directory=/tmp ~/.env` was judged sourceless (v2.13).
++            if "=" in tok:
++                dest = tok.split("=", 1)[1]
++                i += 1
++                continue
++            if i + 1 < len(toks):
++                dest = toks[i + 1]
++                i += 2
++                continue
++        if low in _SRC_FLAGS:
++            if "=" in tok:
++                positional.append(tok.split("=", 1)[0])
++                i += 1
++                continue
++            if i + 1 < len(toks):
++                positional.append(toks[i + 1])
++                i += 2
++                continue
+         if tok.startswith("-") or (cmd_style and tok.startswith("/")):
+             i += 1                                     # a switch
+             continue
+diff --git a/tests/test_credential_guard.py b/tests/test_credential_guard.py
+index d71af08..278697e 100644
+--- a/tests/test_credential_guard.py
++++ b/tests/test_credential_guard.py
+@@ -1411,6 +1411,8 @@ class TestCopyLaunderBlocked(GuardTestCase):
+                     "ln /home/user/.env /tmp/x",
+                     "ln -s /home/user/.env /tmp/x",
+                     "cp -t /tmp /home/user/.env",
++                    "cp --target-directory=/tmp ~/.env",
++                    "mv --target-directory=/tmp ~/.ssh/id_ed25519",
+                     "copy .env x.txt", "move .env x.txt", "ren .env x.txt",
+                     "cpi .env x.txt",
+                     "robocopy . C:\\tmp .env",
+@@ -1486,6 +1488,7 @@ class TestCopyLaunderBlocked(GuardTestCase):
+                     "cat ~/.claude/hooks.json.bak-20260806",
+                     "cp notes.md /tmp/notes.md",
+                     "mv build/out.js dist/out.js",
++                    "cp --target-directory=/tmp README.md",
+                     "tar czf backup.tgz src/",
+                     "cat notes.md.bak"]:
+             self.assertAllowed(*self.bash(cmd), msg=cmd)

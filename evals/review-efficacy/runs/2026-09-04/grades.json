@@ -1,0 +1,51 @@
+{
+  "grader": "the Claude Code lane that built this eval. NOT a human, and NOT an independent third model. See RESULTS.md, 'What the grader was'.",
+  "graded_at": "2026-09-04",
+  "grading_rules": [
+    "catch = the review names the seeded defect at its seeded location, or states the wrong behaviour it causes. A finding that merely touches the same function is a miss.",
+    "false_findings counts a finding that asserts a defect the code does not have. A finding about a real property of the unmutated code is NOT false, even when it is minor.",
+    "A finding that an excluded file is missing (a test file or a doc the case's `paths` filter left out of the diff) is NOT counted as false. The case narrowed the diff, not the reviewer."
+  ],
+  "cases": {
+    "c01": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names line 278, the inverted subcommand, and both new tests it breaks. Second finding asks for a merge -n test: a real coverage gap."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same defect, one sentence, and names both failing tests."}
+    },
+    "c02": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the runs <= _MIN_RUNS off-by-one and the self-contradicting error message. Four further findings, all real properties."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same off-by-one, plus the noise-versus-inconclusive gap Claude also raised."}
+    },
+    "c03": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the weakened assertIsNotNone and contrasts it with the sibling assertions."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same, and states that the assertion passes for ALLOW."}
+    },
+    "c04": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the [0]-versus-[1] split and calls it the PR's own bug reintroduced on the source side."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same, plus the missing attached-source test."}
+    },
+    "c05": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the unchecked None and traces the TypeError past the RepoError handler."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same, plus two real defects Claude missed: the porcelain status strip erases staged-versus-unstaged, and both gh queries cap at 100."}
+    },
+    "c06": {
+      "claude": {"catch": false, "false_findings": 0, "note": "Reported no findings in scope. The weakened assertIsNotNone in test_each_guard_removed_individually went unseen."},
+      "codex": {"catch": false, "false_findings": 0, "note": "Reported no findings in scope. Same miss."}
+    },
+    "c07": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the duplicate dict key, the silent last-wins semantics, and the scope mismatch."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same, and labels it auto-fix with the exact repair."}
+    },
+    "c08": {
+      "claude": {"catch": false, "false_findings": 0, "note": "Missed the dropped ^ anchor. Its first finding even describes the pattern as matching values that START with http, which is the pre-seed behaviour. Both findings are real properties of the unmutated code."},
+      "codex": {"catch": false, "false_findings": 0, "note": "Reported no findings in scope."}
+    },
+    "c09": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the < 2 off-by-one against the docstring, plus the dead ('-c','-c') tuple, both real."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same off-by-one, plus the over-broad namespace match."}
+    },
+    "c10": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the endswith-versus-startswith inversion and that kimi-coding now fails its own runbook end state."},
+      "codex": {"catch": true, "false_findings": 0, "note": "Same, in two sentences."}
+    }
+  }
+}

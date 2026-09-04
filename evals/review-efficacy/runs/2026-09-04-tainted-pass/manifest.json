@@ -1,0 +1,594 @@
+{
+  "cases": {
+    "c01": {
+      "base": "9206fafe31df57ff7d204b377aa1c239c10f04a4",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 86.2
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.1
+        }
+      },
+      "defect_class": "logic-inversion",
+      "defect_description": "The subcommand test is inverted. The short flag -n means --no-verify for `git commit` only, but the seeded line binds it to `git push`, where -n means --dry-run. So `git commit -n` is no longer scored and `git push -n` is scored wrongly. The two tests added in the same diff assert the opposite behaviour.",
+      "defect_location": "hooks/destructive-command-guard.py, _classify_git, the no_verify set",
+      "diff_chars": 7092,
+      "diff_truncated": false,
+      "head": "56bb9194e9a7e185f3928a50a16e473f3edfd538",
+      "paths": [
+        "hooks/destructive-command-guard.py",
+        "tests/test_destructive_command_guard.py"
+      ],
+      "pr": 111
+    },
+    "c02": {
+      "base": "8906d463c1344a42fc4bef980016b9a3bbc39611",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 72.9
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "off-by-one",
+      "defect_description": "An off-by-one on the run floor. The module docstring says the rule needs three or more prior runs, and the evaluate docstring says fewer than three yields insufficient_runs. The seeded comparison also rejects exactly three runs, so the documented floor and the code disagree.",
+      "defect_location": "scripts/confidence_gate.py, evaluate, the minimum-runs check",
+      "diff_chars": 10596,
+      "diff_truncated": false,
+      "head": "1502fe72e3f3829bdb49f354fa93c0abb7e268a3",
+      "paths": [
+        "scripts/confidence_gate.py"
+      ],
+      "pr": 125
+    },
+    "c03": {
+      "base": "69e434b6c08098ba5c16b8445ebe6b438030cb48",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 123.6
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.1
+        }
+      },
+      "defect_class": "weakened-test",
+      "defect_description": "A weakened assertion. The test claims to prove that `git add -Au` is blocked, but the seeded assertion only checks that the helper returned something. It passes for a BLOCK verdict and for an ALLOW verdict, so the headline bypass this pull request closes is no longer covered by a test.",
+      "defect_location": "tests/test_git_staging_guard.py, test_combined_short_flags_on_add, the first assertion",
+      "diff_chars": 7580,
+      "diff_truncated": false,
+      "head": "5e62c9f6ce9674e111cd9744377c891b3b2241fe",
+      "paths": [
+        "hooks/git-staging-guard.py",
+        "tests/test_git_staging_guard.py"
+      ],
+      "pr": 102
+    },
+    "c04": {
+      "base": "4fcbf72e1d72b7b4cba35d40ed469477f41c042a",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 51.9
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "regression",
+      "defect_description": "The source half of the fix takes the wrong side of the split. It appends the flag NAME instead of the flag VALUE, so an `=`-attached source flag loses the file it names. The pull request claims to fix both the destination and the source parser; only the destination half works.",
+      "defect_location": "security/credential-guard.py, _copy_operands, the source-flag branch",
+      "diff_chars": 4277,
+      "diff_truncated": false,
+      "head": "2fbfee2fbe861d87aa78b3b48dafc1077f6ea574",
+      "paths": [
+        "security/credential-guard.py",
+        "tests/test_credential_guard.py"
+      ],
+      "pr": 114
+    },
+    "c05": {
+      "base": "b1675e537fa8bbebffc96bff5610a9b468631ab5",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 85.5
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "unchecked-none",
+      "defect_description": "An unchecked None. parse_timestamp returns None for an absent or unreadable merged_at, and the function's own docstring says such a row is dropped. The seeded comparison drops the None check, so an open pull request raises TypeError and the whole snapshot fails.",
+      "defect_location": "scripts/reconcile.py, filter_merged_since",
+      "diff_chars": 16125,
+      "diff_truncated": false,
+      "head": "52351bd23ee07e20c1411bde6d9253aad4c4a672",
+      "paths": [
+        "scripts/reconcile.py"
+      ],
+      "pr": 119
+    },
+    "c06": {
+      "base": "4fcbf72e1d72b7b4cba35d40ed469477f41c042a",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 100.2
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "weakened-test",
+      "defect_description": "A weakened assertion. The new test claims that every guard in the enumeration is load-bearing on its own, but the seeded assertion only checks that the guard printed something. It passes whether the guard blocked or allowed, so the test proves nothing.",
+      "defect_location": "tests/test_config_change_guard.py, test_each_guard_removed_individually",
+      "diff_chars": 4990,
+      "diff_truncated": false,
+      "head": "5b3e16449d157c80a0e7b4ea947de8a496be0409",
+      "paths": [
+        "hooks/config-change-guard.py",
+        "tests/test_config_change_guard.py"
+      ],
+      "pr": 113
+    },
+    "c07": {
+      "base": "d52dd5e15262228f5684045d99c49d3edcdec352",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 41.9
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "scope-creep",
+      "defect_description": "An unrequested second entry rides in on the same line. The pull request asks only for hook-tamper-guard. The seeded line also re-declares fanout-guard, and because a later duplicate key wins in a Python dict literal, it silently moves fanout-guard from PreToolUse to the non-blocking PostToolUse event.",
+      "defect_location": "hooks/config-change-guard.py, the REQUIRED_GUARDS mapping",
+      "diff_chars": 3723,
+      "diff_truncated": false,
+      "head": "0a3cf71bfde90907e59b48fa8bb291d8b846a66b",
+      "paths": [
+        "hooks/config-change-guard.py",
+        "tests/test_config_change_guard.py"
+      ],
+      "pr": 121
+    },
+    "c08": {
+      "base": "b93e41c2fcd516d67d7f6199ac7c7b14aabf979f",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 168.3
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "weakened-guard",
+      "defect_description": "The start anchor is missing from the remote-URL pattern. The comment beside the use site says an http(s) URL is a remote resource, which means a value that IS a URL. Without the anchor any value that merely CONTAINS an http(s) substring is exempted, so a local credential path with a URL appended to it skips the sensitive-path check.",
+      "defect_location": "security/credential-guard.py, the _REMOTE_URL pattern",
+      "diff_chars": 9675,
+      "diff_truncated": false,
+      "head": "b57d4224a9b56c9d321459bc3417632072ef9cf2",
+      "paths": [
+        "security/credential-guard.py",
+        "tests/test_credential_guard.py"
+      ],
+      "pr": 99
+    },
+    "c09": {
+      "base": "b3a63468dee2a53697029714bb632113890186db",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 119.7
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "off-by-one",
+      "defect_description": "An off-by-one on the segment floor. The function docstring says three or more segments, and states that two-segment chains are excluded on purpose because counting them would drown the signal. The seeded comparison admits two-segment chains.",
+      "defect_location": "scripts/dead_rules_audit.py, is_compound_inspection",
+      "diff_chars": 17370,
+      "diff_truncated": false,
+      "head": "c6ec13ec8541fe8122d43bb1e05b553b4f0af85e",
+      "paths": [
+        "scripts/dead_rules_audit.py"
+      ],
+      "pr": 120
+    },
+    "c10": {
+      "base": "9206fafe31df57ff7d204b377aa1c239c10f04a4",
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "returncode": 0,
+          "seconds": 92.7
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-6rcummg0",
+            "-"
+          ],
+          "error": "could not start the command: [WinError 2] The system cannot find the file specified",
+          "ok": false,
+          "returncode": null,
+          "seconds": 0.0
+        }
+      },
+      "defect_class": "logic-inversion",
+      "defect_description": "The wrong end of the string is tested. The constant is named _ALLOWED_PROVIDER_PREFIX and the comment above it calls this a family match, but the seeded line tests the suffix. The documented target provider id kimi-coding starts with kimi and does not end with it, so the park check fails on its own runbook end state.",
+      "defect_location": "vendors/pi/scripts/check-park.py, _provider_reason",
+      "diff_chars": 5332,
+      "diff_truncated": false,
+      "head": "3ea7797d1edb1cc70255da31b527a740ee08fa10",
+      "paths": [
+        "vendors/pi/scripts/check-park.py",
+        "vendors/pi/hooks/pi-guard-adapter.py"
+      ],
+      "pr": 112
+    }
+  },
+  "conditions": {
+    "claude": {
+      "model": "claude-sonnet-5"
+    },
+    "codex": {
+      "model": "from ~/.codex/config.toml"
+    }
+  },
+  "diff_char_cap": 45000,
+  "generated_at": "2026-09-04T20:35:56.222092+00:00",
+  "repo_head": "3fad79bec0c6872dfadb363fdc015b4834b0c442",
+  "rules_file": "vendors/shared/AGENTS.md",
+  "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf"
+}

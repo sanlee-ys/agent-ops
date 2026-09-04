@@ -1,0 +1,3 @@
+Summary: The diff cleanly extends REQUIRED_GUARDS/ALL_GUARDS with the two ADR-015 guards and adds matching test coverage (per-guard removal, wiring-shape recognition); no bugs, regressions, requirement mismatches, or test weaknesses found in scope.
+
+- No findings in scope.

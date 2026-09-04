@@ -1,0 +1,2 @@
+SessionEnd hook [python3 "$HOME/.claude/hooks/memory-sync.py"] failed: Hook cancelled
+SessionEnd hook [python3 "$HOME/.claude/hooks/unpushed-work-warning.py"] failed: Hook cancelled

@@ -81,6 +81,10 @@ record is in [`incidents/`](incidents/).
     this clone hosts live hooks
   - [`agent-success-signals.md`](conventions/agent-success-signals.md):
     ask what a green signal measures
+- [`evals/`](evals/): measurements of the operating layer's own claims.
+  - [`review-efficacy/`](evals/review-efficacy/): does a Codex review of
+    a Claude diff catch a defect Claude alone misses? Paired seeded
+    defects, and a power floor the pilot does not clear.
 - [`reference/`](reference/): worked designs for problems this fleet
   does not have yet. Not rules.
 - [`vendors/`](vendors/): per-vendor adapters. Root stays vendor-neutral.

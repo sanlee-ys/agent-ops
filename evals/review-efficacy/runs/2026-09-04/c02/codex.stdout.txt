@@ -1,0 +1,5 @@
+The confidence gate has two threshold bugs and lacks tests.
+
+- auto-fix: Line 113 uses `runs <= _MIN_RUNS`, so exactly three prior runs return `insufficient_runs`, contradicting the stated “three or more” requirement. Use `runs < _MIN_RUNS`.
+- auto-fix: Lines 142–150 classify a worse-direction result with confidence from 1.0 up to 2.0 as `noise`; the documented thresholds require that range to be `inconclusive`.
+- auto-fix: This new decision and exit-code logic ships without tests for boundary cases, especially 3 runs and confidence values exactly at 1.0 and 2.0. No unrequested scope is apparent.

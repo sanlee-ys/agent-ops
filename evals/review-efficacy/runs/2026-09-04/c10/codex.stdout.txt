@@ -1,0 +1,4 @@
+Found one regression and one missing test.
+
+- auto-fix: `_provider_reason()` now uses `folded.endswith("kimi")`, which rejects the documented and previously allowed provider `"kimi-coding"`. The family check should use `startswith("kimi")`.
+- auto-fix: The changed provider/model matching and unparseable-shell denial behavior ship without tests demonstrating the newly accepted IDs, continued rejection of forbidden backends, and denial of shell arguments lacking a command string.

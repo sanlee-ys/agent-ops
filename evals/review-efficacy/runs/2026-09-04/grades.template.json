@@ -1,0 +1,126 @@
+{
+  "cases": {
+    "c01": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c02": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c03": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c04": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c05": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c06": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c07": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c08": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c09": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    },
+    "c10": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    }
+  },
+  "graded_at": "FILL IN: ISO date",
+  "grader": "FILL IN: who graded this run"
+}

@@ -1,0 +1,6 @@
+The diff stays within scope, but has four correctness/test gaps.
+
+- auto-fix: Line 186 compares `None >= since` when `merged_at` is absent or malformed. This raises `TypeError` instead of dropping the row as documented, and bypasses the `RepoError` handling.
+- auto-fix: Line 145 strips the two-character porcelain status. Both `" M"` and `"M "` become `"M"`, erasing the promised distinction between unstaged and staged changes.
+- auto-fix: Lines 285–289 cap both GitHub queries at 100 results. Repositories with more than 100 open PRs or more than 100 recently merged PRs produce a silently incomplete “ground-truth” snapshot.
+- auto-fix: The new script has no tests in this diff, despite introducing parsing, time filtering, subprocess failure handling, and exit-code guarantees. Tests should at minimum cover missing/malformed `merged_at`, staged versus unstaged statuses, and partial repository failures.

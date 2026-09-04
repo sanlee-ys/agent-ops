@@ -1,0 +1,235 @@
+diff --git a/scripts/confidence_gate.py b/scripts/confidence_gate.py
+new file mode 100644
+index 0000000..5577862
+--- /dev/null
++++ b/scripts/confidence_gate.py
+@@ -0,0 +1,229 @@
++#!/usr/bin/env python3
++"""Statistical confidence gate for a benchmark-driven loop's keep-or-revert call.
++
++THE PROBLEM. A loop that keeps or reverts a change based on one benchmark
++number cannot tell a real gain from ordinary run-to-run noise. One sample has
++no spread to compare against, so "the candidate scored better" and "the
++candidate scored better by chance" look identical from inside a single
++iteration. `conventions/loop-safety.md` names this: a loop re-earns the right
++to merge through mechanical rails, and a metric-driven keep/revert call is one
++of the places those rails must bite.
++
++THE RULE, adapted from davebcn87/pi-autoresearch (MIT License, Copyright (c)
++2026 Tobi Lutke, David Cortes), README section "Confidence Scoring Rule for
++Benchmark-Driven Loops":
++
++    confidence = |best_improvement| / MAD(prior_runs)
++
++where MAD is the median absolute deviation of the prior runs from their own
++median — a noise floor built from repeated measurements of the unchanged
++baseline. At 2.0 or above the gain is likely real ("keep"); below 1.0 it is
++within the noise floor ("noise"); in between the run count cannot yet tell
++("inconclusive"). The source project requires three or more prior runs before
++it scores at all, and this module keeps that floor.
++
++WHAT COUNTS AS "best_improvement" HERE. `prior_runs` is the baseline
++distribution (repeated measurements of the metric before the change).
++`candidate` is the one new measurement after the change. `best_improvement` is
++the candidate's distance from `median(prior_runs)`, signed so that a positive
++value always means "better", per the `direction` flag:
++
++    lower-is-better:  best_improvement = median(prior_runs) - candidate
++    higher-is-better: best_improvement = candidate - median(prior_runs)
++
++A candidate that moves the metric in the WORSE direction still gets a
++confidence score (the magnitude is unaffected by sign), but `verdict` can only
++be "keep" when `best_improvement` is positive. A confidently worse candidate
++(high confidence, negative best_improvement) reports "inconclusive" with a
++reason — the four-value verdict vocabulary this gate exposes has no separate
++"regress" state, and "inconclusive" is the truthful choice: it is not noise
++(the move is real) and it is not a keep (the move is the wrong way).
++
++MAD OF ZERO. Identical prior runs give a MAD of zero, which makes the ratio
++undefined rather than infinite-and-confident. This is reported explicitly as
++`inconclusive` with a reason, and the code never divides by zero.
++
++OUTPUT. A single JSON object on stdout with `confidence` (float or null),
++`verdict` (one of keep, noise, inconclusive, insufficient_runs), `runs` (the
++count of prior runs), `mad`, `best_improvement`, and `reason` (present only
++when the verdict is not a plain threshold read: insufficient_runs, a zero MAD,
++or a confident-but-wrong-direction candidate).
++
++EXIT CODES are the interface a loop gates on: 0 "keep" (the candidate is a
++likely-real improvement), 1 any other verdict (noise, inconclusive,
++insufficient_runs — the loop must not keep the change), 2 usage error (bad
++JSON, missing keys, an unrecognized `--direction`). A loop that only checks
++"did this exit zero" already gets the right answer.
++
++It reads only its input; it writes nothing and sends nothing anywhere.
++"""
++from __future__ import annotations
++
++import argparse
++import json
++import statistics
++import sys
++from typing import Any
++
++KEEP = 0
++NOT_KEEP = 1
++USAGE_ERROR = 2
++
++DIRECTIONS = ("lower-is-better", "higher-is-better")
++
++_MIN_RUNS = 3
++_KEEP_THRESHOLD = 2.0
++_NOISE_THRESHOLD = 1.0
++
++
++def median_absolute_deviation(values: list[float]) -> float:
++    """MAD of `values` around their own median. Undefined only for an empty
++    input, which callers here never pass (runs < 3 is handled before this is
++    called)."""
++    center = statistics.median(values)
++    deviations = [abs(v - center) for v in values]
++    return statistics.median(deviations)
++
++
++def evaluate(
++    prior_runs: list[float], candidate: float, direction: str
++) -> dict[str, Any]:
++    """The confidence gate's decision, as a plain dict — the CLI's `main`
++    below only adds argument parsing and JSON/exit-code plumbing around this.
++
++    `direction` must be one of DIRECTIONS. `prior_runs` may be any length;
++    fewer than three yields `insufficient_runs` per the source rule's own
++    floor, computed here rather than left to the caller so the floor cannot be
++    skipped by a caller that forgets to check `runs` first.
++    """
++    if direction not in DIRECTIONS:
++        raise ValueError(
++            f"direction must be one of {DIRECTIONS!r}, got {direction!r}"
++        )
++
++    runs = len(prior_runs)
++    result: dict[str, Any] = {
++        "confidence": None,
++        "verdict": None,
++        "runs": runs,
++        "mad": None,
++        "best_improvement": None,
++    }
++
++    if runs <= _MIN_RUNS:
++        result["verdict"] = "insufficient_runs"
++        result["reason"] = (
++            f"only {runs} prior run(s); the confidence rule needs at least "
++            f"{_MIN_RUNS} before it can estimate a noise floor"
++        )
++        return result
++
++    baseline = statistics.median(prior_runs)
++    if direction == "lower-is-better":
++        best_improvement = baseline - candidate
++    else:
++        best_improvement = candidate - baseline
++    result["best_improvement"] = best_improvement
++
++    mad = median_absolute_deviation(prior_runs)
++    result["mad"] = mad
++
++    if mad == 0:
++        result["verdict"] = "inconclusive"
++        result["reason"] = (
++            "prior runs are identical (MAD=0); there is no noise floor to "
++            "compare the candidate against"
++        )
++        return result
++
++    confidence = abs(best_improvement) / mad
++    result["confidence"] = confidence
++
++    if best_improvement <= 0:
++        if confidence >= _KEEP_THRESHOLD:
++            result["verdict"] = "inconclusive"
++            result["reason"] = (
++                "confidence is high but the candidate moved the metric the "
++                "wrong way; this is not an improvement to keep"
++            )
++        else:
++            result["verdict"] = "noise"
++        return result
++
++    if confidence >= _KEEP_THRESHOLD:
++        result["verdict"] = "keep"
++    elif confidence < _NOISE_THRESHOLD:
++        result["verdict"] = "noise"
++    else:
++        result["verdict"] = "inconclusive"
++    return result
++
++
++def _read_input(path: str | None) -> dict[str, Any]:
++    if path is None or path == "-":
++        text = sys.stdin.read()
++    else:
++        with open(path, "r", encoding="utf-8") as handle:
++            text = handle.read()
++    return json.loads(text)
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(
++        description=(
++            "Confidence gate for a benchmark-driven loop: reads prior run "
++            "metrics and a candidate metric as JSON, prints a verdict."
++        )
++    )
++    parser.add_argument(
++        "--input",
++        default=None,
++        help=(
++            'JSON file with {"prior_runs": [...], "candidate": N}. '
++            "Defaults to stdin; '-' also means stdin."
++        ),
++    )
++    parser.add_argument(
++        "--direction",
++        required=True,
++        choices=DIRECTIONS,
++        help="Whether a lower or a higher metric value is better.",
++    )
++    args = parser.parse_args(argv)
++
++    try:
++        payload = _read_input(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"confidence_gate: could not read input: {exc}", file=sys.stderr)
++        return USAGE_ERROR
++
++    if not isinstance(payload, dict):
++        print("confidence_gate: input JSON must be an object", file=sys.stderr)
++        return USAGE_ERROR
++
++    prior_runs = payload.get("prior_runs")
++    candidate = payload.get("candidate")
++    if not isinstance(prior_runs, list) or not all(
++        isinstance(v, (int, float)) and not isinstance(v, bool) for v in prior_runs
++    ):
++        print(
++            "confidence_gate: \"prior_runs\" must be a JSON array of numbers",
++            file=sys.stderr,
++        )
++        return USAGE_ERROR
++    if not isinstance(candidate, (int, float)) or isinstance(candidate, bool):
++        print('confidence_gate: "candidate" must be a number', file=sys.stderr)
++        return USAGE_ERROR
++
++    try:
++        result = evaluate(list(prior_runs), candidate, args.direction)
++    except ValueError as exc:
++        print(f"confidence_gate: {exc}", file=sys.stderr)
++        return USAGE_ERROR
++
++    print(json.dumps(result, indent=2, sort_keys=True))
++    return KEEP if result["verdict"] == "keep" else NOT_KEEP
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
