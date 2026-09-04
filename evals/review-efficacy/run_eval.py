@@ -109,6 +109,25 @@ def build_diff(repo: Path, base: str, head: str, paths: list[str]) -> str:
     return _git(repo, *args)
 
 
+_COAUTHOR = re.compile(r"^Co-Authored-By:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+
+
+def writer_provenance(repo: Path, head: str) -> str:
+    """The head commit's `Co-Authored-By` trailer, or a marker saying there is none.
+
+    The eval's headline claim is about a CLAUDE-authored diff. That claim needs
+    evidence per case, not a general statement about who works in this
+    repository. The trailer is the record this fleet already writes, so the
+    harness reads it rather than asks the case file to assert it.
+    """
+    try:
+        body = _git(repo, "log", "-1", "--format=%b", head)
+    except CaseError as exc:
+        return "unknown: %s" % exc
+    trailers = [m.group(1).strip() for m in _COAUTHOR.finditer(body)]
+    return "; ".join(trailers) if trailers else "none: the head commit has no Co-Authored-By trailer"
+
+
 def read_review_rules(repo: Path) -> tuple[str, str]:
     """The Code Review Rules section, and the sha256 of the whole rules file.
 
@@ -184,7 +203,13 @@ def number_diff(diff: str) -> str:
     out: list[str] = []
     new_line: int | None = None
     for line in diff.splitlines():
-        if line.startswith("@@"):
+        if line.startswith("\\"):
+            # `\ No newline at end of file` annotates the line above it. It is
+            # not a line of either file, so it takes no number and must not
+            # advance the counter. Numbering it shifts every added line after
+            # it by one, and a finding then cites the wrong line.
+            out.append(line)
+        elif line.startswith("@@"):
             match = re.search(r"\+(\d+)", line)
             new_line = int(match.group(1)) if match else None
             out.append(line)
@@ -399,15 +424,29 @@ def run_cases(
     rules, rules_digest = read_review_rules(repo)
     codex_model = resolve_codex_model()
     out_dir.mkdir(parents=True, exist_ok=True)
-    manifest: dict = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "repo_head": _git(repo, "rev-parse", "HEAD").strip(),
-        "rules_file": str(RULES_FILE).replace("\\", "/"),
-        "rules_sha256": rules_digest,
-        "diff_char_cap": DIFF_CHAR_CAP,
-        "conditions": {},
-        "cases": {},
-    }
+    # A re-run of ONE condition must not delete the other condition's records.
+    # An existing manifest is loaded and updated in place, so `--conditions
+    # codex` after a Claude pass keeps both. The run times are a list, so the
+    # dates of a split run stay visible instead of collapsing to the last one.
+    manifest_path = out_dir / "manifest.json"
+    manifest: dict = {}
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            manifest = {}
+    if not isinstance(manifest, dict):
+        manifest = {}
+    manifest.setdefault("generated_at", [])
+    if not isinstance(manifest["generated_at"], list):
+        manifest["generated_at"] = [manifest["generated_at"]]
+    manifest["generated_at"].append(datetime.now(timezone.utc).isoformat())
+    manifest["repo_head"] = _git(repo, "rev-parse", "HEAD").strip()
+    manifest["rules_file"] = str(RULES_FILE).replace("\\", "/")
+    manifest["rules_sha256"] = rules_digest
+    manifest["diff_char_cap"] = DIFF_CHAR_CAP
+    manifest.setdefault("conditions", {})
+    manifest.setdefault("cases", {})
     failures = 0
 
     with tempfile.TemporaryDirectory(prefix="review-efficacy-") as scratch:
@@ -417,7 +456,8 @@ def run_cases(
                 continue
             case_dir = out_dir / cid
             case_dir.mkdir(parents=True, exist_ok=True)
-            entry: dict = {
+            entry: dict = manifest["cases"].get(cid) or {}
+            entry.update({
                 "pr": case.get("pr"),
                 "base": case["base"],
                 "head": case["head"],
@@ -425,8 +465,10 @@ def run_cases(
                 "defect_class": case.get("defect_class"),
                 "defect_description": case.get("defect_description"),
                 "defect_location": case.get("defect_location"),
-                "conditions": {},
-            }
+                "writer_provenance": writer_provenance(repo, case["head"]),
+            })
+            entry.pop("error", None)
+            entry.setdefault("conditions", {})
             try:
                 raw = build_diff(repo, case["base"], case["head"], case.get("paths", []))
                 seeded = apply_mutation(raw, case["mutation"]["find"], case["mutation"]["replace"])
@@ -576,6 +618,19 @@ def report(run_dir: Path) -> int:
     for row in rows:
         print("| %s | #%s | %s | %s | %s |"
               % (row["id"], row["pr"], row["class"], row["claude"], row["codex"]))
+
+    # The headline claim is about a Claude-authored diff, so the population's
+    # provenance is reported next to the table, never assumed.
+    provenance = [manifest["cases"][cid].get("writer_provenance", "")
+                  for cid in sorted(manifest["cases"])]
+    claude_written = sum(1 for p in provenance if "claude" in str(p).lower())
+    print()
+    print("Writer provenance: %d of %d head commits carry a Claude "
+          "Co-Authored-By trailer." % (claude_written, len(provenance)))
+    if claude_written < len(provenance):
+        print("  WARNING: %d case(s) carry no Claude trailer. The population "
+              "is merged diffs of this repository, not Claude-authored diffs."
+              % (len(provenance) - claude_written))
 
     print()
     print("Model ids recorded for this run:")

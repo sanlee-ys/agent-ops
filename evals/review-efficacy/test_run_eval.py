@@ -88,6 +88,23 @@ class TestNumberDiff(unittest.TestCase):
         self.assertEqual(out[8], "     3 +other = 3")
         self.assertEqual(out[9], "     4  print(limit)")
 
+    def test_a_no_newline_marker_takes_no_number_and_does_not_advance(self):
+        """`\\ No newline at end of file` annotates the line above it. Numbering
+        it shifts every later added line by one, and a finding then cites the
+        wrong line."""
+        diff = "\n".join([
+            "--- a/m.py",
+            "+++ b/m.py",
+            "@@ -1,2 +1,2 @@",
+            " keep",
+            "-old",
+            "\\ No newline at end of file",
+            "+new",
+        ])
+        out = run_eval.number_diff(diff).splitlines()
+        self.assertEqual(out[5], "\\ No newline at end of file")
+        self.assertEqual(out[6], "     2 +new")
+
     def test_leaves_headers_unnumbered(self):
         out = run_eval.number_diff(DIFF).splitlines()
         self.assertEqual(out[2], "--- a/m.py")
@@ -147,6 +164,7 @@ def _case(ok_claude=True, ok_codex=True):
     return {
         "pr": 1,
         "defect_class": "x",
+        "writer_provenance": "Claude Fable 5 <noreply@anthropic.com>",
         "conditions": {
             "claude": {"ok": ok_claude},
             "codex": {"ok": ok_codex},
@@ -221,6 +239,21 @@ class TestReport(unittest.TestCase):
         _, out = self._report(cases, grades)
         self.assertIn("claude-sonnet-5", out)
         self.assertNotIn("WARNING", out)
+
+    def test_it_reports_writer_provenance(self):
+        cases = {"a": _case()}
+        grades = {"a": _grade(True, True)}
+        _, out = self._report(cases, grades)
+        self.assertIn("Writer provenance: 1 of 1", out)
+
+    def test_a_case_with_no_claude_trailer_is_warned_about(self):
+        """The headline claim is about a Claude-authored diff. A case with no
+        trailer narrows the population, and the report says so."""
+        case = _case()
+        case["writer_provenance"] = "none: the head commit has no Co-Authored-By trailer"
+        _, out = self._report({"a": case}, {"a": _grade(True, True)})
+        self.assertIn("WARNING", out)
+        self.assertIn("not Claude-authored diffs", out)
 
     def test_it_says_when_the_run_cannot_reach_significance(self):
         cases = {c: _case() for c in "ab"}
