@@ -44,9 +44,10 @@ PARTIAL_FAILURE = 1
 USAGE_ERROR = 2
 
 # The prompt carries the diff, so a very large diff has to be capped somewhere.
-# The cap is recorded per case in the manifest, and a truncated case is marked,
-# because output from a truncated producer is suspect
-# (conventions/truncated-producers-taint.md).
+# A case over the cap is a BUILD ERROR, not a truncated run. Truncation can cut
+# the seeded defect out of the prompt, and the reviewer would then be graded a
+# miss for a defect it never saw
+# (conventions/truncated-producers-taint.md). Narrow the case's `paths` instead.
 DIFF_CHAR_CAP = 45000
 
 RULES_FILE = Path("vendors") / "shared" / "AGENTS.md"
@@ -201,12 +202,20 @@ def number_diff(diff: str) -> str:
     return "\n".join(out)
 
 
-def build_prompt(rules: str, title: str, diff: str) -> tuple[str, bool]:
-    """(prompt, truncated). The cap is a property of the run, so it is recorded."""
-    truncated = len(diff) > DIFF_CHAR_CAP
-    if truncated:
-        diff = diff[:DIFF_CHAR_CAP] + "\n... (diff truncated at %d characters)" % DIFF_CHAR_CAP
-    return PROMPT_TEMPLATE.format(rules=rules, title=title, diff=diff), truncated
+def build_prompt(rules: str, title: str, diff: str) -> str:
+    """The prompt both conditions receive.
+
+    A diff over `DIFF_CHAR_CAP` raises. The alternative was truncation, and
+    truncation can cut the seeded defect out of the prompt. The reviewer would
+    then be graded a miss for a defect it never received, which is a false
+    result rather than a missing one.
+    """
+    if len(diff) > DIFF_CHAR_CAP:
+        raise CaseError(
+            "the diff is %d characters, over the %d cap; narrow the case's "
+            "paths rather than truncate it" % (len(diff), DIFF_CHAR_CAP)
+        )
+    return PROMPT_TEMPLATE.format(rules=rules, title=title, diff=diff)
 
 
 # --- Conditions --------------------------------------------------------------
@@ -241,6 +250,46 @@ def codex_command(workdir: str) -> list[str]:
     ]
 
 
+# The two conditions are isolated by DIFFERENT mechanisms, and the difference is
+# recorded rather than smoothed over. The Claude condition refuses its file and
+# shell tools outright, so it cannot read anything. The Codex condition runs in
+# an empty working directory under a read-only sandbox, so it cannot WRITE
+# anything and has no repository at hand, but a read outside that directory is
+# not blocked. README.md states this asymmetry. Both prompts say to review only
+# the diff, and both transcripts are saved, so a read would be visible.
+
+
+def resolve_codex_model() -> str:
+    """The model id from the Codex config, or a marker saying it was not read.
+
+    An honest result names the model. A hard-coded id in this file would go
+    stale the moment the lane's model changes, so the id is read at run time
+    from the same config the `codex` CLI reads.
+    """
+    path = Path.home() / ".codex" / "config.toml"
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return "unresolved: could not read the Codex config (%s)" % exc.__class__.__name__
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            break                                  # past the top-level table
+        match = re.match(r'^model\s*=\s*["\']([^"\']+)["\']', stripped)
+        if match:
+            return match.group(1)
+    return "unresolved: no top-level model key in the Codex config"
+
+
+def _as_text(value) -> str:
+    """`TimeoutExpired.stdout` is bytes or str or None, depending on the call."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
 def _run(cmd: list[str], prompt: str, workdir: str) -> dict:
     started = time.time()
     try:
@@ -255,12 +304,17 @@ def _run(cmd: list[str], prompt: str, workdir: str) -> dict:
             timeout=CONDITION_TIMEOUT,
             shell=False,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        # Keep whatever the command already printed. Discarding it would break
+        # the rule that every raw output reaches a file, and a partial
+        # transcript is often the only evidence of why the run hung.
         return {
             "ok": False,
             "error": "timeout after %ds" % CONDITION_TIMEOUT,
             "seconds": round(time.time() - started, 1),
-            "stdout": "", "stderr": "", "returncode": None,
+            "stdout": _as_text(exc.stdout),
+            "stderr": _as_text(exc.stderr),
+            "returncode": None,
         }
     except OSError as exc:
         return {
@@ -320,6 +374,7 @@ def run_cases(
     validate_only: bool,
 ) -> int:
     rules, rules_digest = read_review_rules(repo)
+    codex_model = resolve_codex_model()
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -353,7 +408,7 @@ def run_cases(
                 raw = build_diff(repo, case["base"], case["head"], case.get("paths", []))
                 seeded = apply_mutation(raw, case["mutation"]["find"], case["mutation"]["replace"])
                 numbered = number_diff(seeded)
-                prompt, truncated = build_prompt(rules, case.get("title", ""), numbered)
+                prompt = build_prompt(rules, case.get("title", ""), numbered)
             except (CaseError, KeyError) as exc:
                 entry["error"] = str(exc)
                 manifest["cases"][cid] = entry
@@ -362,13 +417,11 @@ def run_cases(
                 continue
 
             entry["diff_chars"] = len(numbered)
-            entry["diff_truncated"] = truncated
             (case_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
             (case_dir / "seeded.diff").write_text(seeded, encoding="utf-8")
 
             if validate_only:
-                print("ok    %-6s built (%d chars%s)"
-                      % (cid, len(numbered), ", TRUNCATED" if truncated else ""),
+                print("ok    %-6s built (%d chars)" % (cid, len(numbered)),
                       file=sys.stderr)
                 manifest["cases"][cid] = entry
                 continue
@@ -394,7 +447,8 @@ def run_cases(
                     record["model"] = model
                     manifest["conditions"].setdefault("claude", {})["model"] = model
                 else:
-                    manifest["conditions"].setdefault("codex", {})["model"] = "from ~/.codex/config.toml"
+                    record["model"] = codex_model
+                    manifest["conditions"].setdefault("codex", {})["model"] = codex_model
                 entry["conditions"][condition] = record
                 if not result["ok"]:
                     failures += 1
