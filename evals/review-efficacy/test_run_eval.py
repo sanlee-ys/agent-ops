@@ -249,6 +249,15 @@ class TestReport(unittest.TestCase):
         _, out = self._report(cases, grades)
         self.assertIn("Writer provenance: 1 of 1", out)
 
+    def test_a_head_only_record_is_reported_as_head_only(self):
+        """An older run stored the head commit's trailer as a string. The
+        report must not present that as the stronger full-range evidence."""
+        case = _case()
+        case["writer_provenance"] = "Claude Fable 5 <noreply@anthropic.com>"
+        _, out = self._report({"a": case}, {"a": _grade(True, True)})
+        self.assertIn("HEAD COMMIT ONLY: 1 of 1", out)
+        self.assertNotIn("WARNING", out)
+
     def test_a_partly_claude_case_narrows_the_population(self):
         """A pull request can end on a Claude commit and still carry a
         hand-written commit in the middle."""

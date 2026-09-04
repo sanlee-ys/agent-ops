@@ -687,19 +687,35 @@ def report(run_dir: Path) -> int:
 
     # The headline claim is about a Claude-authored diff, so the population's
     # provenance is reported next to the table, never assumed.
+    # Two record shapes exist. The current runner stores a dict covering every
+    # commit in base..head. An earlier one stored the head commit's trailer as
+    # a string. The report says WHICH evidence it has rather than treat the
+    # weaker one as the stronger one.
     provenance = [manifest["cases"][cid].get("writer_provenance")
                   for cid in sorted(manifest["cases"])]
+    full_range = [p for p in provenance if isinstance(p, dict)]
+    head_only = [p for p in provenance if isinstance(p, str)]
     fully_claude = sum(
-        1 for p in provenance
-        if isinstance(p, dict) and p.get("commits") and p["claude_commits"] == p["commits"]
+        1 for p in full_range
+        if p.get("commits") and p["claude_commits"] == p["commits"]
     )
+    head_claude = sum(1 for p in head_only if "claude" in p.lower())
     print()
-    print("Writer provenance: %d of %d cases have a Claude Co-Authored-By "
-          "trailer on EVERY commit in base..head." % (fully_claude, len(provenance)))
-    if fully_claude < len(provenance):
-        print("  WARNING: %d case(s) do not. For those, the population is "
-              "merged diffs of this repository, not Claude-authored diffs."
-              % (len(provenance) - fully_claude))
+    if full_range:
+        print("Writer provenance: %d of %d cases have a Claude Co-Authored-By "
+              "trailer on EVERY commit in base..head."
+              % (fully_claude, len(full_range)))
+    if head_only:
+        print("Writer provenance, HEAD COMMIT ONLY: %d of %d cases name Claude. "
+              "This run predates the full-range check, so a hand-written commit "
+              "inside the range would not show here."
+              % (head_claude, len(head_only)))
+    missing = len(provenance) - len(full_range) - len(head_only)
+    unproven = (len(full_range) - fully_claude) + (len(head_only) - head_claude) + missing
+    if unproven:
+        print("  WARNING: %d case(s) carry no Claude evidence. For those, the "
+              "population is merged diffs of this repository, not "
+              "Claude-authored diffs." % unproven)
 
     print()
     print("Model ids recorded for this run:")
