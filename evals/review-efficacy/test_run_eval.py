@@ -225,6 +225,34 @@ class TestClaudeReviewText(unittest.TestCase):
         self.assertIsNone(model)
 
 
+class TestResolveExecutable(unittest.TestCase):
+    def test_an_unknown_command_passes_through(self):
+        argv = ["definitely-not-a-real-command-xyz", "--flag"]
+        self.assertEqual(run_eval.resolve_executable(argv), argv)
+
+    def test_a_known_command_gets_an_absolute_path(self):
+        out = run_eval.resolve_executable([sys.executable, "-V"])
+        self.assertTrue(Path(out[0]).is_absolute())
+        self.assertEqual(out[1:], ["-V"])
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows shim behaviour")
+    def test_a_windows_shim_goes_through_the_interpreter(self):
+        """A .CMD shim cannot be started by CreateProcess. The first pilot run
+        lost all ten Codex conditions to exactly this."""
+        with tempfile.TemporaryDirectory() as tmp:
+            shim = Path(tmp) / "faketool.cmd"
+            shim.write_text("@echo off\n", encoding="utf-8")
+            real_which = run_eval.shutil.which
+            run_eval.shutil.which = lambda name: str(shim) if name == "faketool" else real_which(name)
+            try:
+                out = run_eval.resolve_executable(["faketool", "exec"])
+            finally:
+                run_eval.shutil.which = real_which
+        self.assertEqual(out[1], "/c")
+        self.assertEqual(out[2], str(shim))
+        self.assertEqual(out[3], "exec")
+
+
 class TestCodexModel(unittest.TestCase):
     def test_it_never_raises(self):
         """A missing or odd config is reported, never crashed on."""

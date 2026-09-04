@@ -32,6 +32,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -281,6 +282,27 @@ def resolve_codex_model() -> str:
     return "unresolved: no top-level model key in the Codex config"
 
 
+def resolve_executable(argv: list[str]) -> list[str]:
+    """`argv` with a launchable path in front.
+
+    On Windows a CLI installed through npm is a `.CMD` shim, and
+    `CreateProcess` cannot start a `.CMD` file. `subprocess.run` with
+    `shell=False` therefore raises FileNotFoundError for a command that works
+    in every shell, which reads as "the tool is missing" rather than "the tool
+    could not be started this way". Measured on 2026-09-04: the first pilot run
+    lost all ten Codex conditions to this.
+
+    The prompt travels on stdin, never in argv, so routing a shim through the
+    command interpreter adds no injection surface.
+    """
+    found = shutil.which(argv[0])
+    if found is None:
+        return argv                              # let the OSError name it
+    if os.name == "nt" and found.lower().endswith((".cmd", ".bat")):
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/c", found, *argv[1:]]
+    return [found, *argv[1:]]
+
+
 def _as_text(value) -> str:
     """`TimeoutExpired.stdout` is bytes or str or None, depending on the call."""
     if value is None:
@@ -292,9 +314,10 @@ def _as_text(value) -> str:
 
 def _run(cmd: list[str], prompt: str, workdir: str) -> dict:
     started = time.time()
+    launch = resolve_executable(cmd)
     try:
         proc = subprocess.run(
-            cmd,
+            launch,
             input=prompt,
             capture_output=True,
             text=True,
