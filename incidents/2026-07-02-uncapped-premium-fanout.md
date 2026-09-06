@@ -1,7 +1,7 @@
 # Postmortem: Uncapped premium-model fan-out burned a 5-hour window
 
 **Date:** 2026-07-02 | **Duration:** ~45 min | **Severity:** Cost (one full 5-hour usage window burned with no warning; nothing exposed, nothing broken — expensive and avoidable, not an outage)
-**Status:** Resolved (guard written; deployment gap found + closed on Windows)
+**Status:** Resolved; control retired 2026-08-30 (guard written; deployment gap found + closed on Windows; see the amendment at the end of this file)
 
 The full cost model, cost tables, and pre-flight protocol live in a private
 working copy; this file is the incident record, not a duplicate of that
@@ -69,3 +69,19 @@ A safety mechanism that lives in a repo but isn't verified as *installed* on
 every machine you actually work from isn't a safety mechanism yet — it's a
 draft. "I wrote the guard" and "the guard is active here" need to be checked
 as two separate facts, especially across a multi-machine setup.
+
+## Amendment (2026-09-06): the fan-out guard is retired
+
+The `fanout-guard` hook shipped as the fix for this incident. San retired it on
+2026-08-30. Two weeks of usage data showed that the fan-out runs never reached the
+weekly limit, so the cap ceremony was friction with no measured benefit. San unwired
+the hook from the live `settings.json` himself on that date. The dated ruling is in
+the machine-config repo, `claude/rules/budget-grants.md`.
+
+Hooks v1.4 removed the file and its `REQUIRED_GUARDS` entry on 2026-09-01. See
+[hooks/README.md](../hooks/README.md), section "v1.4 removes `fanout-guard`". The
+credential, tamper, secret-redaction, and published-history guards are not part of
+this retirement.
+
+The action items above stay as the record of what this incident produced. The
+control is gone, and the lesson about deployment verification stays valid.
