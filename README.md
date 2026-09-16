@@ -85,6 +85,9 @@ record is in [`incidents/`](incidents/).
   - [`review-efficacy/`](evals/review-efficacy/): does a Codex review of
     a Claude diff catch a defect Claude alone misses? Paired seeded
     defects, and a power floor the pilot does not clear.
+- [`demos/`](demos/): runnable talk kits that drive the guards offline
+  and print what they did, expected, and observed. Detail:
+  [`demos/talk-2026-09-30/README.md`](demos/talk-2026-09-30/README.md).
 - [`reference/`](reference/): worked designs for problems this fleet
   does not have yet. Not rules.
 - [`vendors/`](vendors/): per-vendor adapters. Root stays vendor-neutral.
