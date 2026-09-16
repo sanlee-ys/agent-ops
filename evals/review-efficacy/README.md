@@ -173,7 +173,7 @@ These come from telltale's honest-gauge rule and from
    backstop rather than the only control. The substitution is visible: a reader
    sees `~` and knows a path was there. Nothing else in an output is altered.
 
-## The harness has its own tests, and this repository's CI does not run them
+## The harness has its own tests, and this repository's CI runs them
 
 `test_run_eval.py` covers the four places that produce a wrong measurement: the
 seed validation, the line numbering, the exact McNemar statistic, and the
@@ -183,11 +183,12 @@ exclusion of a case that did not run or was not graded.
 uv run python -m unittest discover -s evals/review-efficacy -p "test_*.py" -v
 ```
 
-**CI does not run them.** `.github/workflows/ci.yml` discovers `tests/` only,
-and the lane that built this eval does not edit that file. Per the gate rule in
+**CI runs them (since 2026-09-04).** PR #137 added the step "Run the
+review-efficacy eval harness tests" to `.github/workflows/ci.yml`, so every push
+and pull request discovers this directory. Per the gate rule in
 [`delegation-policy.md`](../../delegation-policy.md), a check that cannot run is
-not a pass, so run the command above by hand until the CI job discovers this
-directory too.
+not a pass; the CI step closes that gap. Run the command above by hand before
+you push, as the fast local check.
 
 ## Run it
 

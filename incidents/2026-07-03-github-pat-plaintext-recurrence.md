@@ -80,6 +80,14 @@ plugin's credential could. This mirrors a note that this same migration had
 been attempted once before and never actually persisted — this time, verify
 registration and a real tool call after restart before considering it done.
 
+**Closed (2026-09-16).** San registered the stdio `github` server on
+2026-07-04 and a live `list_commits` call verified it the same day (the
+2026-07-04 incident in this directory names that server and its scopes). The
+server runs on the Windows PC only; `claude mcp list` on that PC shows
+`github ... ✔ Connected` on 2026-09-16. The Mac has no MCP servers and uses
+the `gh` CLI for all GitHub work (verified 2026-08-03 with `claude mcp list`
+on the Mac, which returned `No MCP servers configured`).
+
 ## Addendum: a third exposure, same day, closing the loop
 
 After a new PAT was generated and the scoped stdio GitHub server registered
