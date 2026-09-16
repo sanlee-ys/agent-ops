@@ -131,10 +131,14 @@ The secret was added on 2026-09-04. The first labeled PR was the live test.
 ## Guard wiring
 
 The current fleet configuration mirrors and wires the credential, staging,
-published-history, fan-out, formatting, and session hooks for Codex. This is
+published-history, formatting, and session hooks for Codex. This is
 machine-local implementation truth, not a reason to relax the read-only
 review boundary: independence depends on separating author and reviewer, not
 only on permission controls.
+
+Note (2026-09-16): the fan-out guard left this list because San retired it on
+2026-08-30 and hooks v1.4 removed the file on 2026-09-01 (see
+[hooks/README.md](../../hooks/README.md), section "v1.4 removes `fanout-guard`").
 
 The full four-vendor division-of-labor contract (allocation table,
 subscription measurement gate) is kept privately, with compact pointer
