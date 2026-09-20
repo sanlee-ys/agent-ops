@@ -323,6 +323,40 @@ Test suite: `tests/test_dead_rules_audit.py`. Fixtures are synthetic
 transcripts in a temporary directory, so the suite never reads the real session
 store.
 
+## handoff_check.py — is the HANDOFF still true?
+
+A HANDOFF State section restates facts that git and the forge hold exactly, and
+the merged set moves past the prose the same day. The decision and its limits
+are in [`conventions/handoff-check.md`](../conventions/handoff-check.md); this
+entry is how to run it.
+
+```
+uv run python scripts/handoff_check.py <repo-path>
+```
+
+Read the DRIFT rows and correct HANDOFF.md by hand. The tool prints both values,
+so the edit is mechanical. `--json` emits the same rows for a comparison to
+consume. Exit codes are the interface: 0 no drift, 1 one or more DRIFT rows, 2
+usage error.
+
+It reads only. It never rewrites HANDOFF.md, and it sends nothing anywhere.
+
+Two design points worth keeping:
+
+- **Absent is not zero, and a missing HANDOFF.md refuses.** A `gh` call that
+  fails reports UNMEASURED with the reason, never an empty set of open pull
+  requests. A repo with no HANDOFF.md exits 2 rather than 0, because a deleted
+  file must not report the same green as a correct one.
+- **A false DRIFT is the expensive error.** A check that reports a drift which
+  is not there trains the reader to skip the output. Every detector therefore
+  under-reports rather than guesses, and the convention page states where. The
+  sharpest case: the job cross-check keys on a job's own words, never on its
+  number, because a finished job legitimately hands one remaining step to the
+  owner.
+
+Test suite: `tests/test_handoff_check.py`. It replays recorded `git` and `gh`
+output through a fake `run`, so it needs no network, no forge, and no repo.
+
 ## redline-guard.py — the publication boundary, enforced
 
 This repo is public **and canonical** ([ADR-002](../decisions/ADR-002-public-first-canonicality.md)):

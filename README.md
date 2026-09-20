@@ -83,6 +83,8 @@ record is in [`incidents/`](incidents/).
     ask what a green signal measures
   - [`adr-citations.md`](conventions/adr-citations.md): cite a heading or
     anchor, never a line number
+  - [`handoff-check.md`](conventions/handoff-check.md): check the HANDOFF
+    claims a machine can derive. Never rewrite the file.
 - [`evals/`](evals/): measurements of the operating layer's own claims.
   - [`review-efficacy/`](evals/review-efficacy/): does a Codex review of
     a Claude diff catch a defect Claude alone misses? Paired seeded
@@ -144,6 +146,9 @@ record is in [`incidents/`](incidents/).
 - [`scripts/redline-guard.py`](scripts/redline-guard.py): pre-commit scan
   for credential shapes, private repo names, private memory links, and
   local paths. Banned terms ship as SHA-256 hashes.
+- [`scripts/handoff_check.py`](scripts/handoff_check.py): reads a repo's
+  HANDOFF.md, derives the same facts from `git` and `gh`, and prints each
+  claim as MATCH, DRIFT, or UNMEASURED. It never rewrites the file.
 
 ## Start here
 
