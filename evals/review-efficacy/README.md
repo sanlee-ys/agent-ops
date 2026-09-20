@@ -155,6 +155,11 @@ Discordance is the binding constraint, not the case count. At a discordance rate
 near one third, six discordant pairs need about 18 cases. **The pilot runs 10
 cases. The pilot is below the floor, and its p value is descriptive only.**
 
+**Measured 2026-09-20: 18 cases gave 5 discordant pairs, which is one short of
+the floor.** The harder-seeds run is the first run to put both lanes on 18
+cases, and its discordance rate is 5/18. So the estimate above is close and it
+is optimistic. **Size the next run past 18 cases, not at 18.**
+
 ## Honesty rules
 
 These come from telltale's honest-gauge rule and from
@@ -261,6 +266,6 @@ uv run python evals/review-efficacy/run_eval.py report --run evals/review-effica
 | `second_grader.py` | The second-grader harness: `build`, `commands`, `score`, `redact` |
 | `test_second_grader.py` | The second grader's own tests. CI runs them |
 | `RESULTS.md` | The pilot result, with its power statement, and the second grade |
-| `RESULTS-2026-09-20-harder-seeds.md` | The harder-seed follow-up: 18 cases from `cases-harder-seeds.json`, prompt version 2, Claude 6/18, Codex UNMEASURED |
+| `RESULTS-2026-09-20-harder-seeds.md` | The harder-seed follow-up: 18 cases from `cases-harder-seeds.json`, prompt version 2, Claude 6/18, Codex 7/18 after a same-day re-run on a pinned model |
 | `runs/<date>/` | Raw outputs, `manifest.json`, and `grades.json` |
 | `runs/<date>/second-grader/` | The second grade: prompts, replies, and `agreement.json` |
