@@ -733,7 +733,7 @@
         }
       },
       "defect_class": "missing-branch",
-      "defect_description": "The `--no-ignore-removal` flag is gone from the whole-tree table. It is the long synonym of `-u`, so `git add --no-ignore-removal` stages every tracked change and the guard allows it. Neither the docstring nor the pull request body names that flag.",
+      "defect_description": "The `--no-ignore-removal` flag is gone from the whole-tree table. git-add documents it as a long form of `-A`/`--all`, so `git add --no-ignore-removal` stages the whole tree and the guard allows it. Neither the docstring nor the pull request body names that flag.",
       "defect_location": "hooks/git-staging-guard.py, the _ADD_WHOLE_TREE table",
       "diff_chars": 9095,
       "head": "feb33c639f706037531979a0963ce86be1c168f1",

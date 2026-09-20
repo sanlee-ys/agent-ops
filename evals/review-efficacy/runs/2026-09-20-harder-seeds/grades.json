@@ -50,7 +50,7 @@
       "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
     },
     "h11": {
-      "claude": {"catch": false, "false_findings": 0, "note": "MISS, and the sharpest one in the run. The review lists eight findings about this file, including which flags slip past the add check, without noticing that the long synonym of -u is gone from the table. The review of h16, which is the same diff with a different seed, explicitly names --no-ignore-removal as present."},
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS, and the sharpest one in the run. The review lists eight findings about this file, including which flags slip past the add check, and it never reports that --no-ignore-removal is gone from the table. git-add documents --no-ignore-removal as a long form of -A/--all, not of -u. The review of h16, which is the same diff with a different seed, explicitly names --no-ignore-removal as present."},
       "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
     },
     "h12": {

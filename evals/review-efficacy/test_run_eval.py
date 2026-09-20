@@ -504,6 +504,30 @@ class TestRedactPublicationBoundary(unittest.TestCase):
                     "anything", self._repo(Path(tmp), guard=None))
         self.assertIn("publication boundary", str(ctx.exception))
 
+    def test_a_guard_that_loads_without_its_tables_raises(self):
+        """A rename inside the guard used to reach the scan as an empty table.
+
+        The text then passed unredacted with a zero count, which reads as
+        clean text rather than as an unscanned one. That is the fail-open
+        shape the function's contract denies, so every required name is
+        checked before the scan.
+        """
+        for symbol in run_eval.REQUIRED_GUARD_SYMBOLS:
+            with self.subTest(symbol=symbol):
+                # `sha` also sits inside `hashlib.sha256`, so the function is
+                # renamed at its definition rather than by a bare substring.
+                old = "def sha(" if symbol == "sha" else symbol
+                new = "def sha_RENAMED(" if symbol == "sha" \
+                    else symbol + "_RENAMED"
+                guard = _FAKE_GUARD.replace(old, new, 1)
+                self.assertNotEqual(guard, _FAKE_GUARD)
+                with tempfile.TemporaryDirectory() as tmp:
+                    with self.assertRaises(run_eval.CaseError) as ctx:
+                        run_eval.redact_publication_boundary(
+                            "see SecretName for the rest",
+                            self._repo(Path(tmp), guard=guard))
+                self.assertIn(symbol, str(ctx.exception))
+
 
 class TestResolveExecutable(unittest.TestCase):
     def test_an_unknown_command_passes_through(self):

@@ -463,6 +463,19 @@ def redact_local_paths(text: str, home: str | None = None) -> str:
 REDLINE_SCRIPT = Path("scripts") / "redline-guard.py"
 BOUNDARY_PLACEHOLDER = "[REDACTED: publication boundary]"
 
+# The guard symbols this harness reads to build its term list. A guard that
+# loads without one of these is a guard whose tables this harness cannot see,
+# and a scan against tables it cannot see finds nothing. That reads as "clean"
+# and it is not, so the names are required rather than defaulted.
+REQUIRED_GUARD_SYMBOLS = (
+    "LITERAL_PATTERNS",
+    "HASHED_ALWAYS",
+    "HASHED_REPO_CONTEXT",
+    "OWNER_SLUG",
+    "WORD",
+    "sha",
+)
+
 
 def _load_redline_guard(repo: Path):
     """The repository's own redline guard, loaded as a module.
@@ -498,7 +511,8 @@ def redact_publication_boundary(text: str, repo: Path) -> tuple[str, int]:
     count reaches `manifest.json`, so a case whose prompt differs from the one
     the production lane would send is countable rather than hidden.
 
-    FAIL CLOSED. A guard that cannot be loaded raises. Publishing text this
+    FAIL CLOSED. A guard that cannot be loaded raises, and so does a guard that
+    loads without the term tables this harness reads. Publishing text this
     harness could not scan is the one outcome worse than a failed build.
     """
     module = _load_redline_guard(repo)
@@ -509,24 +523,32 @@ def redact_publication_boundary(text: str, repo: Path) -> tuple[str, int]:
             "a run directory is committed whole, so the build stops rather "
             "than publish unscanned text." % REDLINE_SCRIPT
         )
+    missing = [name for name in REQUIRED_GUARD_SYMBOLS
+               if getattr(module, name, None) is None]
+    if missing:
+        # A rename inside the guard used to reach here as an empty table and
+        # a zero count, which is the fail-open shape this docstring denies.
+        raise CaseError(
+            "%s loaded without %s, so this harness cannot read the term "
+            "tables it scans against. An empty table finds nothing and reads "
+            "as clean, so the build stops rather than publish unscanned text."
+            % (REDLINE_SCRIPT, ", ".join(missing))
+        )
     spans: list[tuple[int, int]] = []
-    for _, pattern in getattr(module, "LITERAL_PATTERNS", []):
+    for _, pattern in module.LITERAL_PATTERNS:
         for match in pattern.finditer(text):
             spans.append((match.start(), match.end()))
-    hashed = set(getattr(module, "HASHED_ALWAYS", set()))
+    hashed = set(module.HASHED_ALWAYS)
     # A context term is redacted wherever it sits, not only near a repository
     # word. Over-redaction costs a placeholder; under-redaction costs the
     # boundary.
-    hashed |= set(getattr(module, "HASHED_REPO_CONTEXT", set()))
-    owner = getattr(module, "OWNER_SLUG", None)
-    if owner is not None:
-        for match in owner.finditer(text):
-            # The whole slug goes, never the name alone. A slug names the owner
-            # as well, and half a slug still identifies the repository.
-            if module.sha(match.group(1)) in hashed:
-                spans.append((match.start(), match.end()))
-    word = getattr(module, "WORD", re.compile(r"[A-Za-z0-9_]+"))
-    for match in word.finditer(text):
+    hashed |= set(module.HASHED_REPO_CONTEXT)
+    for match in module.OWNER_SLUG.finditer(text):
+        # The whole slug goes, never the name alone. A slug names the owner
+        # as well, and half a slug still identifies the repository.
+        if module.sha(match.group(1)) in hashed:
+            spans.append((match.start(), match.end()))
+    for match in module.WORD.finditer(text):
         if module.sha(match.group(0)) in hashed:
             spans.append((match.start(), match.end()))
     for term in _local_redline_terms(repo):
@@ -737,9 +759,15 @@ def run_cases(
                 raw = build_diff(repo, case["base"], case["head"], case.get("paths", []))
                 seeded = apply_mutation(raw, case["mutation"]["find"], case["mutation"]["replace"])
                 numbered = number_diff(seeded)
-                body, redactions = redact_publication_boundary(
+                body, body_hits = redact_publication_boundary(
                     case.get("body", "") or "", repo)
-                prompt = build_prompt(rules, case.get("title", ""), numbered,
+                # The TITLE is outside text too, and prompt version 2 sends it
+                # beside the body. Scanning one and not the other left the
+                # narrower half of the control undeclared.
+                title, title_hits = redact_publication_boundary(
+                    case.get("title", "") or "", repo)
+                redactions = body_hits + title_hits
+                prompt = build_prompt(rules, title, numbered,
                                       body, prompt_version)
             except (CaseError, KeyError) as exc:
                 entry["error"] = str(exc)
@@ -756,6 +784,13 @@ def run_cases(
             entry["body_redactions"] = (
                 int(case.get("body_redactions") or 0) + redactions
             )
+            # The two halves of that total, kept apart. A hand-written
+            # placeholder in the cases file and a term this pass caught are
+            # different evidence about the redactor, and one total hides which
+            # of the two a run actually exercised.
+            entry["redactions_from_cases_file"] = int(
+                case.get("body_redactions") or 0)
+            entry["redactions_at_runtime"] = redactions
             prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
             if validate_only:

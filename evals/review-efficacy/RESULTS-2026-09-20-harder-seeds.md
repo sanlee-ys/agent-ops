@@ -26,7 +26,7 @@ only with the section "What this cannot say" in hand.
 | | |
 | --- | --- |
 | Date | 2026-09-20 |
-| Cases | 18, from 12 merged pull requests of this repository |
+| Cases | 18, from 13 merged pull requests of this repository |
 | Defect classes | wrong-constant, missing-branch, narrow-invariant, six each |
 | Claude condition | `claude -p --model sonnet`, resolved id `claude-sonnet-5` |
 | Codex condition | `codex exec`, configured model `gpt-6-astra`, **every case failed** |
@@ -46,9 +46,22 @@ docstring, or a test that said the opposite. Both defects it missed did not.
 The pilot could not tell whether the reviewers were finding defects or finding
 contradictions.
 
-So every seed in this run is a defect that **nothing in the diff contradicts**.
-No comment, no docstring, no error message and no test in the same diff states
-the behaviour the seed breaks. The three classes come from `RESULTS.md`:
+So 17 of the 18 seeds are defects that **nothing in the diff contradicts**. No
+comment, no docstring, no error message and no test in those 17 diffs states
+the behaviour the seed breaks.
+
+**h18 is the one exception, and the case record names it.** The same diff adds
+a `_tokens` docstring that reads "Non-posix mode keeps Windows backslash paths
+intact". The h18 seed removes the backslash handling from the basename split in
+`_dangerous_target`. That docstring therefore states the behaviour the seed
+breaks, which is the property this run set out to remove. The `defect_description`
+for h18 in [`cases-harder-seeds.json`](cases-harder-seeds.json) cites that
+docstring, so the exception was in the record from the start and the summary
+sentence above it was wrong. h18 is graded a miss. **The catch rate is not
+inflated by this, and the property claim is.** Read the run as 17
+contradiction-free seeds plus one that is not.
+
+The three classes come from `RESULTS.md`:
 
 - **wrong-constant.** A value whose correctness is fixed by other code in the
   diff, and which no prose names. An exit code, an index, a loop step, a slice.
@@ -176,10 +189,11 @@ reviewer reading the seeded line and drawing a different conclusion.
   quote, which is the behaviour before the seed. It read the escape handling
   that was no longer there.
 
-**A removal is harder to see than a wrong value.** Five of the six
-missing-branch seeds are removals from a table, and five of the six were
-missed. A reader checks the entries that are present. Nothing in a diff points
-at an entry that is not.
+**A removal is harder to see than a wrong value.** All six missing-branch seeds
+remove one entry from a table, and five of the six were missed. The one catch,
+h12, is also a removal, so this run does not pair the two properties. It shows
+one rate on six removals and nothing else. A reader checks the entries that are
+present. Nothing in a diff points at an entry that is not.
 
 ## The pull request body is a confound, and it is counted
 
@@ -215,14 +229,25 @@ grader should re-grade these transcripts before anything is decided on them.
 ## The publication boundary changed six prompts
 
 This repository is public, and a run directory is committed whole. Three pull
-request bodies name a private repository. The harness redacts a body against
-`scripts/redline-guard.py`'s own term tables before it builds the prompt, and
-it writes a visible placeholder. `manifest.json` records the count per case.
+request bodies name a private repository. The harness scans a title and a body
+against `scripts/redline-guard.py`'s own term tables before it builds the
+prompt, and it writes a visible placeholder. `manifest.json` records the count
+per case.
 
 **Six cases carry one redaction each: h04, h05, h10, h11, h16, h17.** Their
 prompts therefore differ by one token from what the production review lane
 would send. Four of the six are misses and two are catches, and no redaction
 touches a seeded line.
+
+**Who wrote those six placeholders matters, so read it here.** All six are
+hand-written into [`cases-harder-seeds.json`](cases-harder-seeds.json): each of
+the six case bodies already holds the literal placeholder, and each already
+carries `body_redactions: 1`. `run_cases` adds the runtime count to that
+stored number, and the two numbers are equal for all 18 cases, so **the
+runtime redactor replaced nothing on this run**. It is covered by the harness
+tests against a synthetic guard module, and this run did not exercise it
+against real private text. A later run records the two halves apart, under
+`redactions_from_cases_file` and `redactions_at_runtime`.
 
 ## Limits, named
 
@@ -236,14 +261,18 @@ touches a seeded line.
 5. **Five of 18 cases have no Claude trailer on every commit in `base..head`:
    h01, h05, h07, h08 and h17.** For those five the population is merged diffs
    of this repository, not Claude-authored diffs. `report` prints the warning.
-6. **Three cases reuse one pull request and three others reuse two more.** h04,
-   h11 and h16 are one diff with three seeds; h05 and h17 are one diff; h07 and
-   h08 are one diff; h12 and h18 are one diff. The reviews are independent
-   invocations, and the diffs are not independent samples.
-7. **"No contradiction in the diff" is a hand judgement.** This lane read each
-   diff and decided. No mechanical check enforces it, and a reader who
-   disagrees about one case should say which one.
-8. **Six prompts carry a redaction.** See the section above.
+6. **Four pull requests each supply more than one case, so 18 cases come from
+   13 pull requests.** h04, h11 and h16 are one diff with three seeds; h05 and
+   h17 are one diff; h07 and h08 are one diff; h12 and h18 are one diff. The
+   reviews are independent invocations, and the diffs are not independent
+   samples.
+7. **"No contradiction in the diff" is a hand judgement, and it was wrong
+   once.** This lane read each diff and decided. No mechanical check enforces
+   it. A reviewer of this pull request named h18, and the section "What a
+   harder seed is" now carries that exception. A reader who disagrees about
+   another case should say which one.
+8. **Six prompts carry a redaction, and a hand wrote all six.** The runtime
+   redactor replaced nothing on this run. See the section above.
 9. **`manifest.repo_head` names the head at the LAST run invocation, and
    `generated_at` holds six entries.** The reviews ran in six invocations, and
    the outputs were committed between them. No prompt depends on the repository
