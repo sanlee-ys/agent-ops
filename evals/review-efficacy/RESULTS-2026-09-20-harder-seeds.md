@@ -8,11 +8,11 @@ sitting beside the defect in the same diff, and the catch rate fell to a third.
 case before it reached a model, so it is UNMEASURED here, and no paired
 statistic exists.
 
-**Later the same day the Codex condition ran on all 18 stored prompts, and it
-caught 7 of 18 against Claude's 6 of 18 on 5 discordant pairs, which is below
-the power floor; see "Codex condition, re-run 2026-09-20 with a pinned model"
-at the end of this file.** The paragraph above is the record of the first
-attempt and it stays as written.
+**Later the same day the Codex condition ran on all 18 stored prompts.** It
+caught 7 of 18 against Claude's 6 of 18. The 5 discordant pairs are below the
+power floor. The section "Codex condition, re-run 2026-09-20 with a pinned
+model" at the end of this file carries that result. The paragraph above is the
+record of the first attempt and it stays as written.
 
 Everything below comes from
 [`runs/2026-09-20-harder-seeds/`](runs/2026-09-20-harder-seeds/). Regenerate the
@@ -328,7 +328,7 @@ different thing: the harness supplied one, and the machine did not change.
 ## What changed in the invocation, and why
 
 Two properties of the Codex invocation are now fixed by the harness. Nothing
-else about the run changed.
+else about the invocation changed.
 
 1. **The model is pinned with `-m`.** Attempt 1 let the CLI read the model from
    the machine's Codex config. That config named `gpt-6-astra`, and
@@ -366,6 +366,14 @@ re-run, `git status` reported a modification to the 18 Codex transcripts and to
 `manifest.json`, and to no other file. `prompt.txt` and `seeded.diff` were
 rewritten with identical bytes, which is why they do not appear. The grading
 pass changed `grades.json` after that.
+
+**The manifest's case entries gained two keys.** The re-run wrote
+`redactions_from_cases_file` and `redactions_at_runtime` into every case entry.
+PR #145 added both keys to `run_eval.py`, and the stored first-run entries
+carry neither. The two records therefore differ by the split of a number they
+both carry. The totals are 6 hand redactions and 0 at run time, which is limit
+8 unchanged. The 18 Claude condition records are byte-identical, field by
+field.
 
 **Every pair is a pair.** `run --validate-only` rebuilt all 18 prompts before
 the re-run and reported `matches the stored prompt` for each one. `report`
@@ -485,10 +493,20 @@ Claude column, and it did not write the seeds. It applied the stored
 the Claude column: the diff to `grades.json` is 18 lines, one per case.
 `grades.json` records this under `codex_column_grader`.
 
-**The weakness is the pilot's weakness with one half removed.** The grader no
-longer wrote the seeds, so it does not know what a catch looks like from having
-built it. It is still a Claude Code lane scoring a Codex condition against a
-Claude one. **A second, independent grader should re-grade all 36 units before
+**The grader was NOT blind.** It read each case's Claude grade before it scored
+the same case for Codex. `grades.json` holds both columns in one entry, and 9
+of the 18 new Codex notes name the Claude result on the same prompt. The pilot
+set the opposite standard: `RESULTS.md` records that each second-grader call
+saw one review, and carried neither the first grade nor the lane name. **The
+margin here is one case out of 18, and three of the five discordant grades turn
+on how near a finding came to the seed.** An unblinded grader can move any one
+of those, so read the 7 against 6 as an unblinded comparison.
+
+**The weakness is the pilot's weakness with one half removed, and one new
+weakness added.** The grader no longer wrote the seeds, so it does not know
+what a catch looks like from having built it. It is still a Claude Code lane
+scoring a Codex condition against a Claude one, and it is now also unblinded.
+**A second, independent grader should re-grade all 36 units blind before
 anything is decided on them.** `second_grader.py` does exactly this for the
 pilot, and the same command shape runs against this directory.
 
@@ -498,6 +516,10 @@ pilot, and the same command shape runs against this directory.
 paired difference spans zero in both directions, and the run holds 5 discordant
 pairs against a floor of 6. The eval's question stays open, and it is now open
 with a measurement rather than with a missing condition.
+
+**It cannot be read as a blind comparison.** The lane that graded the Codex
+column had the Claude grade of the same case in front of it. The section "What
+the grader was" carries the detail.
 
 **It cannot say that the two lanes are the same.** An interval that contains
 zero is not evidence of no difference. It is evidence that 18 cases cannot
@@ -539,11 +561,19 @@ re-run changed, in the same way `RESULTS.md` names the pilot's stale claims.
    [`runs/2026-09-20-harder-seeds/codex-attempt-1-gpt-6-astra/`](runs/2026-09-20-harder-seeds/codex-attempt-1-gpt-6-astra/)
    with the attempt-1 manifest records beside them.
 
-Regenerate this section's table and paired statistics:
+Regenerate the per-case table, the two catch rates, the discordant counts and
+the exact McNemar p:
 
 ```
 uv run python evals/review-efficacy/run_eval.py report --run evals/review-efficacy/runs/2026-09-20-harder-seeds
 ```
+
+**That command prints no interval, and it prints none of this section's three
+tables.** `run_eval.py` carries no interval code. The Wilson intervals in the
+per-class table and the Newcombe interval on the paired difference ran in a
+scratch script. The 2x2 cell counts above are published so a reader can
+recompute both. The wall-time table reads the per-condition seconds in
+`manifest.json`.
 
 Check the stored evidence without running a reviewer:
 
