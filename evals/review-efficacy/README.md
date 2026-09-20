@@ -233,5 +233,6 @@ uv run python evals/review-efficacy/run_eval.py report --run evals/review-effica
 | `second_grader.py` | The second-grader harness: `build`, `commands`, `score`, `redact` |
 | `test_second_grader.py` | The second grader's own tests. CI runs them |
 | `RESULTS.md` | The pilot result, with its power statement, and the second grade |
+| `RESULTS-2026-09-20-harder-seeds.md` | The harder-seed follow-up: 18 cases from `cases-harder-seeds.json`, prompt version 2, Claude 6/18, Codex UNMEASURED |
 | `runs/<date>/` | Raw outputs, `manifest.json`, and `grades.json` |
 | `runs/<date>/second-grader/` | The second grade: prompts, replies, and `agreement.json` |

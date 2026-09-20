@@ -1,0 +1,756 @@
+diff --git a/scripts/handoff_check.py b/scripts/handoff_check.py
+new file mode 100644
+index 0000000..f5a4189
+--- /dev/null
++++ b/scripts/handoff_check.py
+@@ -0,0 +1,750 @@
++#!/usr/bin/env python3
++"""Check a repo's HANDOFF.md against the facts git and the forge already hold. v1.
++
++WHY THIS EXISTS. A HANDOFF State section is a hand-written snapshot of things
++that a machine already knows exactly: the open pull requests, the newest tag,
++the top CHANGELOG entry, the branch. On a busy day the merged set outruns the
++prose, and the file goes stale within hours. Nothing turns red when it does,
++because nothing tests prose. The next session then reads a confident sentence
++and trusts it.
++
++WHAT IT DOES. It reads HANDOFF.md, it derives the same facts from `git` and
++`gh`, and it prints one line per claim: MATCH, DRIFT, or UNMEASURED. It is a
++CHECK. It never edits HANDOFF.md, and it never edits any other file.
++
++THE SIX CHECKS. Five compare the HANDOFF against a system of record. One
++compares the clone against the remote, because a stale clone makes the other
++five untrustworthy:
++
++  open-prs        pull request numbers the State section calls open, against
++                  `gh pr list`.
++  branch          the branch the State section names, against the current
++                  branch.
++  main-vs-origin  local `main`, against `main` on the remote. SOURCE: the
++                  clone, not the HANDOFF. A difference here means the other
++                  checks read a tree that the HANDOFF does not describe.
++  latest-tag      the newest version the State section mentions, against the
++                  newest tag on the remote. The check is ONE-DIRECTIONAL: it
++                  fires only when the remote is ahead of the prose. A HANDOFF
++                  that discusses an older tag is correct, not stale.
++  changelog-top   the top released CHANGELOG version, against the State text.
++                  This catches a release that shipped before anyone pushed the
++                  tag.
++  job-consistency a numbered job that the "Next jobs" section marks DONE, and
++                  the "Owner-only actions pending" section still lists. SOURCE:
++                  the HANDOFF against itself. This is the failure that motivated
++                  the tool.
++
++ABSENT IS NOT ZERO. This is the rule the whole report rests on. A `gh` call that
++fails reports UNMEASURED with the reason. It never reports an empty set of open
++pull requests. A claim the State section does not make reports UNMEASURED, never
++MATCH. An unrun check is not a pass, and the output must never let the two look
++alike. `conventions/agent-trigger-authorization.md` carries the same rule for
++the guard layer.
++
++THE REMOTE IS THE AUTHORITY. Branches and tags come from `git ls-remote`, never
++from `git branch -r` or a local tag list. A remote-tracking ref is a local
++cache. It lists a branch that the remote deleted an hour ago, and a check built
++to catch a stale claim must not read from a cache that can carry one.
++`scripts/reconcile.py` makes the same choice for the same reason.
++
++A MISSING HANDOFF.md REFUSES. It exits 2. It does not exit 0. A repo whose
++HANDOFF someone deleted must not look like a repo whose HANDOFF is correct.
++
++Output: a human table on stdout, and the same data as JSON with `--json`.
++
++Exit codes are the interface: 0 no drift, 1 one or more DRIFT rows, 2 usage
++error.
++"""
++from __future__ import annotations
++
++import argparse
++import json
++import re
++import subprocess
++import sys
++from pathlib import Path
++
++MATCH = "MATCH"
++DRIFT = "DRIFT"
++UNMEASURED = "UNMEASURED"
++
++CHECKS = (
++    "open-prs",
++    "branch",
++    "main-vs-origin",
++    "latest-tag",
++    "changelog-top",
++    "job-consistency",
++)
++
++# Each check names where its claim comes from. The reader must be able to tell
++# a claim about the HANDOFF from a claim about the clone.
++CHECK_SOURCE = {
++    "open-prs": "handoff",
++    "branch": "handoff",
++    "main-vs-origin": "clone",
++    "latest-tag": "handoff",
++    "changelog-top": "handoff",
++    "job-consistency": "handoff",
++}
++
++_TIMEOUT = 30
++
++# --- Claim detectors ---------------------------------------------------------
++
++# A pull request reference. The State section writes them as `#147`.
++_PR_REF = re.compile(r"#(\d+)")
++
++# How far after a `#NNN` the word "open" still describes that number. The
++# window also stops early, and `_WINDOW_STOP` says where. Together they attach
++# the word in "#137-#154, less #139, and #147, still open" to #147 alone.
++_OPEN_WINDOW = 60
++_OPEN_WORD = re.compile(r"\bopen\b", re.IGNORECASE)
++
++# Where the window ends early. The next `#` starts another number's claim, a
++# period followed by a space ends the sentence, and a new bullet ends the
++# thought. Without the last two, a number at the end of one bullet reaches the
++# word "open" in the NEXT bullet, and the check reports a claim nobody made.
++# A period inside `4.37.3` is followed by a digit, so it stops nothing.
++_WINDOW_STOP = re.compile(r"#|\.(?=[\s)]|$)|\n\s*[-*]")
++
++# "branch `tool/handoff-check`" or "on branch `x`". The name is in backticks,
++# because that is how every HANDOFF in this fleet writes an identifier.
++_BRANCH_CLAIM = re.compile(
++    r"\bbranch(?:\s+is)?\s*:?\s*`([^`\n]+)`", re.IGNORECASE
++)
++
++# A semantic version, with or without the leading `v`. This reads a token that
++# the caller already knows is a version: a tag name, or a CHANGELOG label.
++_VERSION = re.compile(r"\bv?(\d+)\.(\d+)\.(\d+)\b")
++
++# A version in PROSE. The leading `v` is required here, and that requirement is
++# load-bearing. A HANDOFF writes its own release as `v3.2.0` and a dependency
++# bump as `4.37.3`. Without the `v`, a routine Dependabot line reads as the
++# newest release of this repo, and it is usually the highest number on the page.
++# That is a SILENT failure: the tag check reports MATCH and the drift stays.
++_PROSE_VERSION = re.compile(r"\bv(\d+)\.(\d+)\.(\d+)\b")
++
++# A CHANGELOG release heading: `## [3.2.1] - 2026-08-03`.
++_CHANGELOG_HEADING = re.compile(r"^##\s+\[([^\]]+)\]")
++
++# A numbered job in a "Next jobs" list: `1. **...`.
++_JOB_ITEM = re.compile(r"^(\d+)\.\s+(.*)$")
++
++# The marks a finished job carries. A strikethrough, or the literal word.
++_JOB_DONE = re.compile(r"~~|\bDONE\b")
++
++# A top-level bullet in the owner-only list.
++_BULLET = re.compile(r"^[-*]\s+(.*)$")
++
++# Words that separate one job from another. A short word and a common word
++# separate nothing, so both are dropped before the comparison.
++_MIN_WORD = 4
++_MIN_OVERLAP = 2
++_STOPWORDS = {
++    "that", "this", "with", "from", "into", "than", "then", "they", "them",
++    "their", "what", "when", "which", "while", "there", "here", "been",
++    "have", "will", "would", "should", "about", "after", "before", "still",
++    "also", "only", "each", "both", "some", "such", "very", "much", "more",
++    "most", "many", "other", "another", "same", "just", "like", "over",
++    "under", "again", "once", "does", "done", "made", "make", "take",
++    "owner", "pending", "actions", "next", "jobs", "step", "steps", "left",
++}
++
++# `git ls-remote --tags` prints "<sha>\trefs/tags/<name>". The `^{}` suffix
++# marks the commit an annotated tag points at. Both spellings name one tag.
++_LS_REMOTE_TAG = re.compile(r"^([0-9a-f]{7,40})\s+refs/tags/(.+?)(?:\^\{\})?$")
++
++# `git ls-remote origin <ref>` prints "<sha>\t<ref>".
++_LS_REMOTE_HEAD = re.compile(r"^([0-9a-f]{7,40})\s+(\S+)$")
++
++
++def split_sections(text: str) -> dict:
++    """Map each `##` heading to its body.
++
++    The key is the heading text, lowercased and stripped of markdown emphasis.
++    A `###` heading stays inside its parent body, because a State section often
++    carries sub-headings and they are part of the same claim.
++    """
++    sections: dict = {}
++    current = None
++    buffer: list = []
++    for line in (text or "").split("\n"):
++        if line.startswith("## ") and not line.startswith("### "):
++            if current is not None:
++                sections[current] = "\n".join(buffer)
++            current = line[3:].strip().strip("*_ ").lower()
++            buffer = []
++            continue
++        if current is not None:
++            buffer.append(line)
++    if current is not None:
++        sections[current] = "\n".join(buffer)
++    return sections
++
++
++def find_section(sections: dict, prefix: str) -> str | None:
++    """The body of the first section whose heading starts with `prefix`.
++
++    A prefix match, because a heading carries a tail that varies: "Next jobs,
++    in order (each its own branch)". An exact match would miss it.
++    """
++    for heading, body in sections.items():
++        if heading.startswith(prefix):
++            return body
++    return None
++
++
++def claimed_open_prs(text: str) -> set:
++    """Pull request numbers that the text calls open.
++
++    The word must fall within `_OPEN_WINDOW` characters after the number, and
++    the window stops at the next `#`. A narrow window is deliberate. A sentence
++    that lists ten merged pull requests and one open one must attach the word to
++    the one it describes, not to the ten it does not.
++
++    This detector UNDER-reports on purpose. English attaches the word in ways no
++    window catches, as in "both open: #208 and #209". `check_open_prs` therefore
++    never asks whether this set equals the forge. It asks only whether every
++    number IN it is still open, which an under-report can never get wrong.
++    """
++    found = set()
++    for match in _PR_REF.finditer(text or ""):
++        tail = (text or "")[match.end():match.end() + _OPEN_WINDOW]
++        stop = _WINDOW_STOP.search(tail)
++        if stop:
++            tail = tail[:stop.start()]
++        if _OPEN_WORD.search(tail):
++            found.add(int(match.group(1)))
++    return found
++
++
++def mentioned_prs(text: str) -> set:
++    """Every pull request number the text names, in any role.
++
++    The other half of the comparison, and it reads no English at all. A number
++    is present or it is not. That is what makes the second direction of
++    `check_open_prs` immune to the attribution problem above.
++    """
++    return {int(match.group(1)) for match in _PR_REF.finditer(text or "")}
++
++
++def claimed_branch(text: str) -> str | None:
++    """The branch name the text states, or None when it states none."""
++    match = _BRANCH_CLAIM.search(text or "")
++    return match.group(1).strip() if match else None
++
++
++def parse_version(token: str) -> tuple | None:
++    """A version token as a comparable tuple, or None when it is not one."""
++    match = _VERSION.search(token or "")
++    if not match:
++        return None
++    return tuple(int(part) for part in match.groups())
++
++
++def prose_versions(text: str) -> list:
++    """Every `vX.Y.Z` the prose states, as comparable tuples."""
++    return [
++        tuple(int(part) for part in match.groups())
++        for match in _PROSE_VERSION.finditer(text or "")
++    ]
++
++
++def highest_version(text: str) -> tuple | None:
++    """The highest release version the prose states, as a tuple.
++
++    The HANDOFF names several versions. The highest one is the newest release
++    that the writer knew about, so it is the only one that can go stale.
++    """
++    versions = prose_versions(text)
++    return max(versions) if versions else None
++
++
++def format_version(version: tuple | None) -> str:
++    return "v" + ".".join(str(part) for part in version) if version else ""
++
++
++def parse_changelog_top(text: str) -> str | None:
++    """The top RELEASED version heading in a CHANGELOG.
++
++    `[Unreleased]` is skipped. It names no version, so it can never disagree
++    with the HANDOFF about one.
++    """
++    for line in (text or "").split("\n"):
++        match = _CHANGELOG_HEADING.match(line.strip())
++        if not match:
++            continue
++        label = match.group(1).strip()
++        if label.lower() == "unreleased":
++            continue
++        if parse_version(label):
++            return label
++    return None
++
++
++def action_name(text: str) -> str:
++    """The first sentence of a job or a bullet, with version tokens removed.
++
++    The version comes out FIRST, and the order matters. A version token holds
++    periods, so a cut at the first period would otherwise stop inside `v3.2.0`.
++    A version also separates nothing: every job in one release cycle names the
++    same one.
++    """
++    cleaned = _PROSE_VERSION.sub(" ", text or "")
++    cleaned = _VERSION.sub(" ", cleaned)
++    return cleaned.split(".", 1)[0]
++
++
++def significant_words(text: str) -> set:
++    """The distinctive words of an action name, lowercased."""
++    words = re.split(r"[^a-z0-9]+", (text or "").lower())
++    return {
++        word for word in words
++        if len(word) >= _MIN_WORD and word not in _STOPWORDS
++        and not word.isdigit()
++    }
++
++
++def done_jobs(text: str) -> dict:
++    """Numbered jobs that the text marks DONE, mapped to their action names.
++
++    The mark must be on the job's OWN first line. A later line in the same job
++    often describes a different job's outcome, and that must not close this one.
++    """
++    found = {}
++    for line in (text or "").split("\n"):
++        match = _JOB_ITEM.match(line.strip())
++        if match and _JOB_DONE.search(match.group(2)):
++            found[int(match.group(1))] = action_name(match.group(2)).strip()
++    return found
++
++
++def bullet_actions(text: str) -> list:
++    """The action name of every top-level bullet in a section."""
++    actions = []
++    for line in (text or "").split("\n"):
++        match = _BULLET.match(line.strip())
++        if match:
++            actions.append(action_name(match.group(1)).strip())
++    return actions
++
++
++def restated_jobs(jobs_text: str, owner_text: str) -> list:
++    """Jobs marked DONE that the owner-only list still describes as pending.
++
++    THE SIGNAL IS THE JOB'S OWN WORDS, not its number. A number reference alone
++    is a false positive: a finished job legitimately hands one remaining step to
++    the owner, and that step cites the job it came from. The failure this finds
++    is narrower. The owner-only list repeats the job's OWN action in the job's
++    own words, so the same work reads as done in one section and pending in the
++    other.
++
++    The threshold is `_MIN_OVERLAP` shared distinctive words. That is a
++    deliberate floor, and it carries a real limit: a job whose title holds fewer
++    than two distinctive words can never be matched. `conventions/handoff-check.md`
++    states that limit.
++    """
++    stale = []
++    bullets = [(action, significant_words(action))
++               for action in bullet_actions(owner_text)]
++    for number, title in sorted(done_jobs(jobs_text).items()):
++        title_words = significant_words(title)
++        for action, action_words in bullets:
++            shared = title_words & action_words
++            if len(shared) >= _MIN_OVERLAP:
++                stale.append({
++                    "job": number,
++                    "title": _tidy(title),
++                    "owner_entry": _tidy(action),
++                    "shared": sorted(shared),
++                })
++                break
++    return stale
++
++
++def _tidy(text: str) -> str:
++    """One line, with markdown emphasis removed."""
++    return " ".join((text or "").replace("~~", "").replace("**", "")
++                    .replace("`", "").split())
++
++
++# --- Record parsers ----------------------------------------------------------
++# Every parser below takes TEXT, not a subprocess. That is what lets the suite
++# cover them with recorded output, with no network and no repo.
++
++
++def parse_gh_pr_list(payload: str) -> set:
++    """Open pull request numbers from `gh pr list --json number`.
++
++    A payload that does not parse raises. It must never read as an empty set,
++    because an empty set is a real answer that this tool acts on.
++    """
++    data = json.loads(payload)
++    if not isinstance(data, list):
++        raise ValueError("gh pr list did not return a JSON list")
++    return {int(entry["number"]) for entry in data if "number" in entry}
++
++
++def parse_ls_remote_tags(text: str) -> list:
++    """Tag names from `git ls-remote --tags`, sorted by version.
++
++    An annotated tag prints twice. The `^{}` spelling names the commit, so both
++    lines are one tag and the set removes the duplicate. A tag that carries no
++    semantic version is dropped, because the comparison cannot order it.
++    """
++    names = set()
++    for line in (text or "").splitlines():
++        match = _LS_REMOTE_TAG.match(line.strip())
++        if match and parse_version(match.group(2)):
++            names.add(match.group(2))
++    return sorted(names, key=lambda name: parse_version(name) or (0, 0, 0))
++
++
++def parse_ls_remote_head(text: str, ref: str) -> str | None:
++    """The SHA that `ref` points at on the remote, or None when it is absent."""
++    for line in (text or "").splitlines():
++        match = _LS_REMOTE_HEAD.match(line.strip())
++        if match and match.group(2) == ref:
++            return match.group(1)
++    return None
++
++
++# --- The systems of record ---------------------------------------------------
++
++
++class CommandError(RuntimeError):
++    """A command failed. The reason is named, and it is never swallowed."""
++
++
++def run(args: list, cwd: Path) -> str:
++    """Run a read-only command and return stdout.
++
++    Every command this tool runs reads. It runs none that writes.
++    """
++    try:
++        result = subprocess.run(
++            args, cwd=str(cwd), capture_output=True, text=True,
++            timeout=_TIMEOUT,
++        )
++    except FileNotFoundError as exc:
++        raise CommandError("%s is not installed" % args[0]) from exc
++    except subprocess.TimeoutExpired as exc:
++        raise CommandError("%s timed out after %ds" % (args[0], _TIMEOUT)) from exc
++    if result.returncode != 0:
++        detail = (result.stderr or result.stdout or "").strip().split("\n")
++        raise CommandError("%s exited %d: %s" % (
++            args[0], result.returncode, detail[0] if detail else "no output"))
++    return result.stdout
++
++
++def result_row(check: str, status: str, claimed="", derived="", reason="") -> dict:
++    return {
++        "check": check,
++        "source": CHECK_SOURCE[check],
++        "status": status,
++        "claimed": claimed,
++        "derived": derived,
++        "reason": reason,
++    }
++
++
++def check_open_prs(state: str, repo: Path) -> dict:
++    """Compare the State section against `gh pr list`, in two directions.
++
++    Each direction is a separate question, and only the second one reads
++    English:
++
++      stale-open   a pull request the State CALLS open that the forge does not
++                   list. The prose is wrong about a number it names.
++      unmentioned  a pull request the forge lists as open that the State names
++                   NOWHERE. The prose predates it.
++
++    The second direction needs no attribution at all. A number is on the page
++    or it is not, so the detector's under-report cannot produce a false DRIFT
++    there.
++    """
++    claimed = claimed_open_prs(state)
++    named = mentioned_prs(state)
++    try:
++        payload = run(["gh", "pr", "list", "--json", "number"], repo)
++        actual = parse_gh_pr_list(payload)
++    except (CommandError, ValueError, KeyError, TypeError) as exc:
++        return result_row(
++            "open-prs", UNMEASURED,
++            claimed=_numbers(claimed),
++            reason="gh did not answer: %s. An unread forge is not an empty "
++                   "one." % exc,
++        )
++    stale_open = claimed - actual
++    unmentioned = actual - named
++    shown_claimed = "open per State: " + _numbers(claimed)
++    shown_actual = "open per gh: " + _numbers(actual)
++
++    if not stale_open and not unmentioned:
++        if not named and not actual:
++            return result_row(
++                "open-prs", UNMEASURED,
++                reason="neither the State section nor the forge names a pull "
++                       "request",
++            )
++        return result_row("open-prs", MATCH, shown_claimed, shown_actual)
++
++    reasons = []
++    if stale_open:
++        reasons.append("The State calls %s open. The forge does not"
++                       % _numbers(stale_open))
++    if unmentioned:
++        reasons.append("The forge lists %s open. The State never names them"
++                       % _numbers(unmentioned))
++    return result_row("open-prs", DRIFT, shown_claimed, shown_actual,
++                      reason=". ".join(reasons))
++
++
++def check_branch(state: str, repo: Path) -> dict:
++    claimed = claimed_branch(state)
++    try:
++        actual = run(["git", "branch", "--show-current"], repo).strip()
++    except CommandError as exc:
++        return result_row("branch", UNMEASURED, claimed=claimed or "",
++                          reason="git did not answer: %s" % exc)
++    if not claimed:
++        return result_row("branch", UNMEASURED, derived=actual,
++                          reason="the State section names no branch")
++    if claimed == actual:
++        return result_row("branch", MATCH, claimed, actual)
++    return result_row("branch", DRIFT, claimed, actual)
++
++
++def check_main_vs_origin(repo: Path) -> dict:
++    """Compare local `main` against `main` on the remote.
++
++    The remote answers through `git ls-remote`. A remote-tracking ref is a local
++    cache, and it goes stale the moment another machine moves the remote.
++    """
++    try:
++        local = run(["git", "rev-parse", "main"], repo).strip()
++    except CommandError as exc:
++        return result_row("main-vs-origin", UNMEASURED,
++                          reason="this clone has no local `main`: %s" % exc)
++    try:
++        text = run(["git", "ls-remote", "origin", "refs/heads/main"], repo)
++    except CommandError as exc:
++        return result_row("main-vs-origin", UNMEASURED, claimed=local[:9],
++                          reason="the remote did not answer: %s" % exc)
++    remote = parse_ls_remote_head(text, "refs/heads/main")
++    if not remote:
++        return result_row("main-vs-origin", UNMEASURED, claimed=local[:9],
++                          reason="the remote has no `main`")
++    if local == remote:
++        return result_row("main-vs-origin", MATCH, local[:9], remote[:9])
++    return result_row(
++        "main-vs-origin", DRIFT, "local main " + local[:9],
++        "remote main " + remote[:9],
++        reason="the other checks read a tree that the remote does not carry",
++    )
++
++
++def check_latest_tag(state: str, repo: Path) -> dict:
++    """Compare the newest version in State against the newest tag on the remote.
++
++    The check is one-directional. It fires only when the remote is AHEAD. A
++    HANDOFF that mentions an older tag is a correct record of an older day, and
++    a check that called that a drift would fire on every honest file.
++    """
++    claimed = highest_version(state)
++    try:
++        text = run(["git", "ls-remote", "--tags", "origin"], repo)
++    except CommandError as exc:
++        return result_row("latest-tag", UNMEASURED,
++                          claimed=format_version(claimed),
++                          reason="the remote did not answer: %s. An unread "
++                                 "remote is not an untagged one." % exc)
++    tags = parse_ls_remote_tags(text)
++    if not tags:
++        return result_row("latest-tag", UNMEASURED,
++                          claimed=format_version(claimed),
++                          reason="the remote carries no version tag")
++    newest = tags[0]
++    if claimed is None:
++        return result_row("latest-tag", UNMEASURED, derived=newest,
++                          reason="the State section names no version")
++    if (parse_version(newest) or (0, 0, 0)) > claimed:
++        return result_row("latest-tag", DRIFT, format_version(claimed), newest,
++                          reason="the remote is tagged past the newest version "
++                                 "the State section names")
++    return result_row("latest-tag", MATCH, format_version(claimed), newest)
++
++
++def check_changelog_top(state: str, repo: Path) -> dict:
++    """Ask whether State mentions the top released CHANGELOG version.
++
++    This catches a release that shipped before anyone pushed its tag, which the
++    tag check alone cannot see.
++    """
++    path = repo / "CHANGELOG.md"
++    if not path.is_file():
++        return result_row("changelog-top", UNMEASURED,
++                          reason="this repo has no CHANGELOG.md")
++    try:
++        text = path.read_text(encoding="utf-8", errors="replace")
++    except OSError as exc:
++        return result_row("changelog-top", UNMEASURED,
++                          reason="CHANGELOG.md did not open: %s" % exc)
++    top = parse_changelog_top(text)
++    if not top:
++        return result_row("changelog-top", UNMEASURED,
++                          reason="CHANGELOG.md carries no released version "
++                                 "heading")
++    version = parse_version(top)
++    if version in prose_versions(state):
++        return result_row("changelog-top", MATCH, top, top)
++    return result_row("changelog-top", DRIFT, "not mentioned", top,
++                      reason="the State section never names the top released "
++                             "CHANGELOG version")
++
++
++def check_job_consistency(sections: dict) -> dict:
++    """Find a job that one section closes and another still lists as pending.
++
++    This is the failure that motivated the tool. It reads the HANDOFF against
++    itself, so it needs no system of record.
++    """
++    jobs = find_section(sections, "next jobs")
++    owner = find_section(sections, "owner-only")
++    if jobs is None or owner is None:
++        missing = "Next jobs" if jobs is None else "Owner-only actions pending"
++        return result_row("job-consistency", UNMEASURED,
++                          reason="this HANDOFF has no %s section" % missing)
++    stale = restated_jobs(jobs, owner)
++    if not stale:
++        return result_row(
++            "job-consistency", MATCH,
++            derived="%d job(s) marked DONE" % len(done_jobs(jobs)),
++            reason="the owner-only list restates none of them",
++        )
++    entry = stale[0]
++    return result_row(
++        "job-consistency", DRIFT,
++        claimed="Owner-only pending: %s" % entry["owner_entry"],
++        derived="job %d DONE in Next jobs: %s" % (entry["job"], entry["title"]),
++        reason="one piece of work carries two answers in one file. Shared "
++               "words: %s" % ", ".join(entry["shared"]),
++    )
++
++
++def _numbers(values) -> str:
++    return ", ".join(str(value) for value in sorted(values)) if values else "none"
++
++
++# --- Driver ------------------------------------------------------------------
++
++
++def check_repo(repo: Path) -> dict:
++    """Run every check against one repo and return the report.
++
++    The caller has already confirmed that HANDOFF.md exists. A missing file is
++    a refusal, and it never reaches here.
++    """
++    text = (repo / "HANDOFF.md").read_text(encoding="utf-8", errors="replace")
++    sections = split_sections(text)
++    state = find_section(sections, "state")
++
++    if state is None:
++        # Four checks read the State section and report that it is absent. The
++        # other two do not depend on it, so they still run. A check that COULD
++        # have answered must not report that it could not.
++        no_state = "HANDOFF.md has no State section"
++        rows = [
++            result_row("open-prs", UNMEASURED, reason=no_state),
++            result_row("branch", UNMEASURED, reason=no_state),
++            check_main_vs_origin(repo),
++            result_row("latest-tag", UNMEASURED, reason=no_state),
++            result_row("changelog-top", UNMEASURED, reason=no_state),
++            check_job_consistency(sections),
++        ]
++    else:
++        rows = [
++            check_open_prs(state, repo),
++            check_branch(state, repo),
++            check_main_vs_origin(repo),
++            check_latest_tag(state, repo),
++            check_changelog_top(state, repo),
++            check_job_consistency(sections),
++        ]
++
++    return {
++        "repo": str(repo),
++        "handoff": str(repo / "HANDOFF.md"),
++        "checks": rows,
++        "drift": sum(1 for row in rows if row["status"] == DRIFT),
++        "unmeasured": sum(1 for row in rows if row["status"] == UNMEASURED),
++    }
++
++
++def format_report(result: dict) -> str:
++    lines = [
++        "handoff check  %s" % result["handoff"],
++        "",
++    ]
++    for row in result["checks"]:
++        lines.append("%-10s %-16s (%s)" % (
++            row["status"], row["check"], row["source"]))
++        if row["status"] == DRIFT:
++            lines.append("    claimed  %s" % (row["claimed"] or "nothing"))
++            lines.append("    derived  %s" % (row["derived"] or "nothing"))
++            if row["reason"]:
++                lines.append("    %s" % row["reason"])
++        elif row["status"] == MATCH:
++            lines.append("    both     %s" % (row["derived"] or row["claimed"]))
++        else:
++            lines.append("    why      %s" % row["reason"])
++            if row["derived"]:
++                lines.append("    derived  %s" % row["derived"])
++        lines.append("")
++    lines.append("%d DRIFT, %d UNMEASURED, %d MATCH." % (
++        result["drift"], result["unmeasured"],
++        len(result["checks"]) - result["drift"] - result["unmeasured"]))
++    lines.append("An UNMEASURED row is not a pass. It is a check that could "
++                 "not run.")
++    lines.append("This tool never edits HANDOFF.md. See "
++                 "conventions/handoff-check.md.")
++    return "\n".join(lines)
++
++
++def main(argv: list | None = None) -> int:
++    parser = argparse.ArgumentParser(
++        prog="handoff_check.py",
++        description="Check HANDOFF.md against git and the forge. Reads only; "
++                    "writes nothing.",
++    )
++    parser.add_argument("repo", metavar="REPO",
++                        help="path to the repo whose HANDOFF.md to check")
++    parser.add_argument("--json", action="store_true",
++                        help="emit JSON instead of the table")
++    args = parser.parse_args(argv)
++
++    repo = Path(args.repo).expanduser()
++    if not repo.is_dir():
++        parser.error("repo path does not exist: %s" % repo)
++        return 2
++    if not (repo / "HANDOFF.md").is_file():
++        # A refusal, never a pass. A repo whose HANDOFF someone deleted must
++        # not report the same green as a repo whose HANDOFF is correct.
++        sys.stderr.write(
++            "handoff_check: %s has no HANDOFF.md. Nothing was checked, and "
++            "that is not a pass.\n" % repo)
++        return 2
++
++    result = check_repo(repo)
++    if args.json:
++        json.dump(result, sys.stdout, indent=2)
++        sys.stdout.write("\n")
++    else:
++        sys.stdout.write(format_report(result) + "\n")
++    return 1 if result["drift"] else 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())

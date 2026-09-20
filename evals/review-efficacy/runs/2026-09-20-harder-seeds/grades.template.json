@@ -1,0 +1,18 @@
+{
+  "cases": {
+    "h01": {
+      "claude": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      },
+      "codex": {
+        "catch": null,
+        "false_findings": null,
+        "note": ""
+      }
+    }
+  },
+  "graded_at": "FILL IN: ISO date",
+  "grader": "FILL IN: who graded this run"
+}

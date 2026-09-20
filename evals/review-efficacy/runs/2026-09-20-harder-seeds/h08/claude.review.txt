@@ -1,0 +1,12 @@
+The diff is a single new file, and the fail-open paths in `main()` and `_translate()` weaken the adapter's "fail closed" claim.
+
+- ask-user: The PR body and title cover `vendors/cursor/hooks/hooks.json` and `tests/test_cursor_guard_adapter.py` (225 lines), but neither file is in the diff. Only `cursor-guard-adapter.py` appears. Scope fidelity: this diff drops two of the three promised files. The fail-closed behaviour has no test in this diff and the wiring config is absent, so confirm both files are in the PR.
+- ask-user: In `main()` (lines 244-256), a stdin read failure, a JSON parse failure or a non-dict payload calls `allow()` with no guard run. A truncated or garbled payload for a real tool call is therefore allowed unchecked. The docstring calls this a "pass through", but it contradicts the stated goal of denying when a check could not run. Decide whether malformed input should deny.
+- ask-user: In `_translate()` (lines 128-140), several shapes return `None`, and `None` leads to `allow(payload)` with no guard run:
+  - a payload with no `toolName`, `tool_name`, `name` or `tool` key. Cursor's per-event hooks may send a bare `{"command": ..., "cwd": ...}` (unverified, since `hooks.json` is not in the diff);
+  - a shell tool whose command is not a non-empty string, such as a list-valued `command` or an unlisted key name.
+
+  Each shape lets a shell command bypass every redline guard. Either deny on an unrecognised shape, or show that the wired events always send a recognised shape.
+- ask-user: The non-shell path (lines 147-152) skips `git-staging-guard` and `published-history-guard`. It relies on `credential-guard` treating the `cursor:<name>` namespace correctly through a "generic path-field scan". The diff cannot show that this scan exists. Without a test, file-write tools like `WriteFile` and `EditFile` may reach `credential-guard` unjudged.
+- ask-user: `deny()` (line 205) emits `{"decision": "deny", ...}`, but `allow()` emits `{"permission": "allow"}` for `cursor_version` payloads. The schemas are inconsistent. Exit code 2 probably blocks anyway, but the stdout deny verdict may not match what cursor-agent parses.
+- ask-user: The timeout is 45s per guard, so three guards can take up to 135s in the worst case. If the hook's own timeout in `hooks.json` is shorter, cursor-agent may kill the adapter. That outcome depends on the runner's default, which may be fail-open. Set a total deadline below the hook timeout.

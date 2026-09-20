@@ -1,0 +1,18 @@
+Summary: the guard is well thought out, but it has false positives on the prose it claims to pass, several easy bypasses, and no tests in the diff even though the PR body describes 25.
+
+- ask-user: The PR body says "25 cases, both halves", but the diff adds only `hooks/git-staging-guard.py`, with no test file. The prose and fails-open guarantees have no visible proof. Were the tests left out of this PR by mistake? If so, add them.
+- ask-user: The prose guarantee fails for quoted text that contains a separator. `_SPLIT` (line 67) runs on the raw text before `shlex`, so quotes cannot protect the content.
+  - `git commit -m "note: git status && git add -A is bad"` is split at `&&`. The second segment then repairs to `git add -A""` and blocks (lines 88 and 186).
+  - The same happens with `;`, `|`, or a newline inside a quoted `-m` or `echo`. A multi-line `-m "..."` that has a line starting with `git add -u` is also blocked.
+  - The fix is to split on separators only outside quotes, for example with `shlex` in punctuation mode. This changes the design, so it needs your decision.
+- ask-user: The PowerShell here-string `@'...'@` is not stripped. The hook accepts `PowerShell` as a tool (line 176), and your rules recommend here-strings for commit messages. A body line that starts with `git add -u` (or `git add -A`) is blocked, which is the failure the hook says it avoids.
+- ask-user: These forms bypass the guard:
+  - `git add -- .` slips through because lines 121–122 drop everything after `--`, including a `.` pathspec. `git add ./`, `git add *` and `git add :/` also pass.
+  - Combined flags such as `git add -vA` and `git add -Av` pass, because only exact tokens are matched (line 126).
+  - An env-var or wrapper prefix (`FOO=1 git add -A`, `sudo git ...`, `(git add -A)`, `{ git add -A; }`, `if x; then git add -A`) passes, because only `tokens[0]` is checked.
+  - `cat <<EOF > f && git add -A` passes, because the heredoc regex strips the rest of the opening line (line 63).
+  - Each of these needs a decision on how strict the guard should be.
+- ask-user: Two false positives block valid commands. `git commit -uall` (an untracked-files option) matches the combined-short-flag test (lines 138–144) because it is all letters and contains `a`. `git add -u src/` and `git add -A path` are scoped to a path but are blocked anyway. This may be intended strictness, or it may not.
+- ask-user: The override is weaker than documented. The docstring says to "prefix the command", but line 183 passes any command that contains `STAGE-ALL-OK` anywhere. That includes inside a commit message, a heredoc, or a later segment, so a message that quotes the token disables the guard. Require it in command position, or confirm that the substring match is intended.
+- auto-fix: Fail-open is incomplete. Valid JSON that is not an object (`null`, a list) or `"tool_input": null` raises `AttributeError` at lines 176 and 179. Add an `isinstance(dict)` check and default `tool_input` to `{}`. This matches the stated intent that a broken hook must not wedge tool calls.
+- Scope fidelity: nothing requested is dropped. The diff adds `--no-ignore-removal` to the blocked list and the `git.exe` lead-token match, and neither is in the PR description. The settings.json wiring and the provisioning are mentioned but are not in this diff.

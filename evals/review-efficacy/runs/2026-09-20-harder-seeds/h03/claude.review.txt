@@ -1,0 +1,12 @@
+Summary: the two fixes work for the reported cases, but the recursive classifier adds three bypasses of the credential guard. The diff also contains no tests, although the PR body cites them.
+
+- ask-user: `_sub_units` skips the character after a backslash (`i += 2`), and `_balanced` ignores quotes. Both hide command units from the classifier.
+  - PowerShell treats `\` as a path separator, not an escape. So `Write-Output "C:\$(Get-Content ~/.ssh/id_rsa)"` skips `\$`, finds no unit inside the quotes, and judges the whole segment by its safe leading command. The old `_SUBSTITUTION` regex denied this.
+  - `_balanced` counts raw parens, so `echo "$(echo ")" ; cat ~/.ssh/id_rsa)"` closes the unit at the quoted `)`. The `; cat ...` then falls in the outer text (inside quotes, so the splitter leaves it alone). The leading `echo` is safe, so the segment is allowed while `cat` runs.
+  - Question for the author: should the fix be shell-aware (bash and PowerShell escapes, quote-aware `_balanced`), or should this fall back to deny when a `$(` or backtick appears anywhere and the parse is uncertain? The PR says the unbalanced case runs "to end of segment, the conservative direction". That does not hold for quoted parens.
+
+- auto-fix: The `_depth < 8` guard fails open. At depth 8 the nested body is not classified, and the outer command is then judged as cleared. A reader nested nine or more levels deep (`echo $(echo $(... $(cat ~/.ssh/id_rsa)))`) is never seen. At the limit, return `True` (deny) instead of skipping.
+
+- ask-user: The diff has no test files, but the PR body cites `TestNestedMetadataFalsePositive`, `TestPublicKeyNotASecret`, and 127 passing tests. From this diff alone I cannot check that the new tests exist. If they are in the branch, confirm they cover the three bypass shapes above (backslash before `$(`, quoted paren inside a unit, deep nesting). The "differential probe" and the decoy-key smoke test are described but not shown.
+
+- Scope fidelity: the diff does what the PR asks (nested metadata ops, `.pub` exemption, version bump and docs). It adds nothing unrequested. It does drop the blanket `_SUBSTITUTION` deny for `tar`, `git`, and safe commands. The PR describes that as intended, and it is only safe if the parser fixes above hold.
