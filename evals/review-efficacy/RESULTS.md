@@ -259,3 +259,139 @@ different experiment, and this pilot's evidence is the prompts it stored.
 The verification that this pilot's evidence is intact is one command:
 `run --validate-only` rebuilds every case and reports `matches the stored
 prompt` for all ten.
+
+# Second grader, 2026-09-20
+
+**The second grader agrees with the first on every catch judgement. Cohen's
+kappa on `catch` is 1.0 over 20 units.** The two graders differ on one count
+of false findings, and that one difference changes a number in the pilot's
+metrics table above.
+
+The pilot asked for this. Its grader was the Claude Code lane that built the
+eval, and the section "What the grader was" says a second grader must re-grade
+the same transcripts before the eval decides anything. This is that re-grade.
+
+## How the second grade was taken
+
+| | |
+| --- | --- |
+| Date | 2026-09-20 |
+| Grader | `codex exec`, model `gpt-5.6-sol` |
+| Units | 20: ten cases times two conditions |
+| Isolation | `--sandbox read-only`, and `--cd` an empty scratch directory |
+| Replies that parsed | 20 of 20. None `UNPARSED` |
+| First-grader files changed | none |
+| Evidence | [`runs/2026-09-04/second-grader/`](runs/2026-09-04/second-grader/) |
+
+**Each unit was one call, and each call was blind twice over.** The prompt
+carried the three grading rules word for word from
+[`grades.json`](runs/2026-09-04/grades.json), the seeded defect, the diff the
+reviewer saw, and one review. It carried neither the first grade nor the name
+of the lane that wrote the review. A call saw one review and never the pair,
+so the grader could not score one condition against the other.
+
+**The sandbox points at an empty directory, not at the repository.** A
+read-only sandbox rooted at the repository can read `grades.json` and
+`cases.json`, which hold the first grade and the answer key. That is the same
+isolation rule the pilot's own Codex condition used, applied to the grader.
+
+Re-run the agreement report:
+
+```
+uv run python evals/review-efficacy/second_grader.py score --run evals/review-efficacy/runs/2026-09-04 --second evals/review-efficacy/runs/2026-09-04/second-grader
+```
+
+Check that the stored prompts are the ones the grading rules produce. This
+rebuilds all 20 prompts and compares the sha256. It needs no network:
+
+```
+uv run python evals/review-efficacy/second_grader.py build --run evals/review-efficacy/runs/2026-09-04 --out evals/review-efficacy/runs/2026-09-04/second-grader --check
+```
+
+## The agreement
+
+| field | agreement | statistic |
+| --- | --- | --- |
+| `catch` | 20 of 20 | Cohen's kappa **1.0** (observed 1.0, expected 0.68) |
+| `false_findings` | 19 of 20 | plain agreement **0.95** |
+
+Every catch and every miss in the pilot table is confirmed. Both reviewers
+caught c01 to c05, c07, c09 and c10. Both missed c06 and c08. The second
+grader reached each of those 20 judgements on its own.
+
+## The one disagreement, both verdicts side by side
+
+**Case c04, the Claude review, the count of false findings.**
+
+| grader | `false_findings` | the reason, as the grader wrote it |
+| --- | --- | --- |
+| first | 0 | "Names the [0]-versus-[1] split and calls it the PR's own bug reintroduced on the source side." |
+| second | 1 | "The review precisely identifies the seeded split-index bug and its resulting loss of the attached source path. Its final finding is false because the changelog explicitly says “dest/src flag value,” rather than describing only the destination fix." |
+
+**The second grader is right on the fact, and a reader can check it.** The
+review's third finding says the changelog describes only the dest-flag fix.
+Line 16 of [`runs/2026-09-04/c04/seeded.diff`](runs/2026-09-04/c04/seeded.diff)
+names both sides: `2.13 (2026-08-19): an =-attached dest/src flag value`. The
+first grader did not check that line.
+
+**What the rules do not settle is whether it counts.** That third finding
+carries the label `ask-user` and it is phrased as a request: "Confirm this
+additional, currently-broken change was intentional scope". Grading rule 2
+counts "a finding that asserts a defect the code does not have". A question is
+not plainly an assertion. **The two graders split on a gap in the rule, not on
+the code.** The next run must say how a finding phrased as a question is
+scored, and that belongs beside the two prompt-fidelity gaps the pilot already
+left for the next run.
+
+## What this does to the pilot's conclusion
+
+**The headline does not move. One number in the metrics table does.**
+
+1. **The catch counts stand.** Eight of ten for each reviewer, zero discordant
+   pairs, and the exact McNemar test undefined. An independent grader
+   reproduced every cell.
+2. **Grader bias no longer explains the identical catch counts.** That was the
+   open worry in "What the grader was". It is now measured, and it is not what
+   happened.
+3. **The false-findings row is contested.** The pilot reports 0 false findings
+   for both reviewers. The second grader reports 1 for the Claude condition, on
+   c04. Read that cell as 0 or as 1, by the grader you follow, until the rule
+   gap above is closed.
+4. **Every other limit stands untouched.** Zero discordant pairs, the power
+   floor, seeded defects instead of real ones, one repository, one day, and the
+   scoring of the seeded defect alone. A second grader tests the grade. It adds
+   no cases and it changes no part of the design.
+
+**A kappa of 1.0 does not mean the grade is correct.** It means two graders who
+read the same three rules reached the same answer on all 20 units. A blind spot
+that both graders share would look exactly like this result. The c04 split is
+the evidence for that reading: it is the one place where a grader read the diff
+more closely, and disagreement found it, not agreement.
+
+**The second grader is not disinterested either.** It is from the Codex family,
+which is one of the two conditions it graded. That is the mirror of the
+weakness this re-grade was meant to close. So read the kappa as removing one
+explanation, not as proving the grade. A third grader from a family outside
+both conditions would close the remaining half.
+
+## Two stale claims in the pilot section above
+
+Both are left in place. This section does not rewrite the pilot's record.
+
+1. **Limit 9 is stale.** It says the harness's tests do not run in this
+   repository's CI. Commit `396b197` (pull request #137) added the step "Run
+   the review-efficacy eval harness tests" to
+   [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+   [`README.md`](README.md)'s file table carries the same stale claim. The
+   tests added with this section run in that step.
+2. **The last command of the pilot section needs an argument.** `run
+   --validate-only` with no `--out` builds a new dated run directory and
+   reports `no stored prompt` for all ten cases. To verify this pilot's stored
+   evidence, name the run directory:
+
+```
+uv run python evals/review-efficacy/run_eval.py run --validate-only --out evals/review-efficacy/runs/2026-09-04
+```
+
+   That form was run on 2026-09-20 and reported `matches the stored prompt` for
+   all ten cases.
