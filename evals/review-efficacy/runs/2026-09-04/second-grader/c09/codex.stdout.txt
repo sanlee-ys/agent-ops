@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the seeded off-by-one and the required `< 3` correction. Its additional command-classification finding is real, and the missing-tests finding is not false under the grading rules."}

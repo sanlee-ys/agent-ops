@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review identifies the weakened first assertion in test_combined_short_flags_on_add and correctly explains that assertIsNotNone can pass for an ALLOW verdict. It asserts no nonexistent defects."}

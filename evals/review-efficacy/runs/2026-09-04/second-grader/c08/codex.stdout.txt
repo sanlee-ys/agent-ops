@@ -1,0 +1,1 @@
+{"catch":false,"false_findings":0,"note":"The review reports no findings and therefore misses the unanchored _REMOTE_URL pattern, which wrongly exempts strings that merely contain an HTTP(S) URL. It also asserts no nonexistent defects."}

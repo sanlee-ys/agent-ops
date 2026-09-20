@@ -1,0 +1,227 @@
+{
+  "catch": {
+    "agreements": 20,
+    "cohens_kappa": 1.0,
+    "disagreements": [],
+    "expected_agreement": 0.6800000000000002,
+    "observed_agreement": 1.0
+  },
+  "false_findings": {
+    "agreements": 19,
+    "disagreements": [
+      {
+        "case": "c04",
+        "condition": "claude",
+        "first_grader": 0,
+        "second_grader": 1,
+        "second_note": "The review precisely identifies the seeded split-index bug and its resulting loss of the attached source path. Its final finding is false because the changelog explicitly says \u201cdest/src flag value,\u201d rather than describing only the destination fix."
+      }
+    ],
+    "plain_agreement": 0.95
+  },
+  "rows": [
+    {
+      "case": "c01",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names line 278, the inverted subcommand, and both new tests it breaks. Second finding asks for a merge -n test: a real coverage gap.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the inverted subcommand condition in the no_verify set and correctly explains both resulting wrong behaviors. It asserts no nonexistent defects."
+    },
+    {
+      "case": "c01",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same defect, one sentence, and names both failing tests.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the inverted subcommand condition in the no_verify set and correctly states both resulting wrong behaviors. It asserts no nonexistent defects."
+    },
+    {
+      "case": "c02",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the runs <= _MIN_RUNS off-by-one and the self-contradicting error message. Four further findings, all real properties.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the seeded off-by-one at the minimum-runs check and explains that exactly three runs are wrongly rejected. Its comments about missing tests and absent loop integration concern files excluded or absent from the narrowed diff and therefore do not count as false findings."
+    },
+    {
+      "case": "c02",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same off-by-one, plus the noise-versus-inconclusive gap Claude also raised.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review explicitly identifies the seeded `<=` off-by-one and the incorrect rejection of exactly three runs. Its other threshold finding is supported by the documented verdict ranges, and the missing-tests finding is not false under the excluded-file rule."
+    },
+    {
+      "case": "c03",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the weakened assertIsNotNone and contrasts it with the sibling assertions.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review identifies the weakened first assertion in test_combined_short_flags_on_add and correctly explains that assertIsNotNone can pass for an ALLOW verdict. It asserts no nonexistent defects."
+    },
+    {
+      "case": "c03",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same, and states that the assertion passes for ALLOW.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review identifies the weakened first assertion in test_combined_short_flags_on_add and correctly explains that assertIsNotNone passes for both ALLOW and BLOCK. Its proposed assertEqual(..., BLOCK) directly restores coverage of the seeded bypass."
+    },
+    {
+      "case": "c04",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the [0]-versus-[1] split and calls it the PR's own bug reintroduced on the source side.",
+      "second_catch": true,
+      "second_false_findings": 1,
+      "second_note": "The review precisely identifies the seeded split-index bug and its resulting loss of the attached source path. Its final finding is false because the changelog explicitly says \u201cdest/src flag value,\u201d rather than describing only the destination fix."
+    },
+    {
+      "case": "c04",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same, plus the missing attached-source test.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the seeded source-flag bug: using split index [0] appends the flag name instead of the attached value, and correctly says it should use [1]. It makes no false defect claims."
+    },
+    {
+      "case": "c05",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the unchecked None and traces the TypeError past the RepoError handler.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the unchecked None comparison in filter_merged_since and the resulting TypeError. Its other observations are test/scope gaps rather than assertions of nonexistent code defects."
+    },
+    {
+      "case": "c05",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same, plus two real defects Claude missed: the porcelain status strip erases staged-versus-unstaged, and both gh queries cap at 100.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the unchecked None comparison in filter_merged_since and the resulting TypeError. Its other findings describe real limitations, while the missing-tests observation is not false under the grading rules."
+    },
+    {
+      "case": "c06",
+      "condition": "claude",
+      "first_catch": false,
+      "first_false_findings": 0,
+      "first_note": "Reported no findings in scope. The weakened assertIsNotNone in test_each_guard_removed_individually went unseen.",
+      "second_catch": false,
+      "second_false_findings": 0,
+      "second_note": "The review explicitly reported no test weaknesses and therefore missed the seeded weakened assertion in test_each_guard_removed_individually. It made no affirmative defect finding, so there are no false findings."
+    },
+    {
+      "case": "c06",
+      "condition": "codex",
+      "first_catch": false,
+      "first_false_findings": 0,
+      "first_note": "Reported no findings in scope. Same miss.",
+      "second_catch": false,
+      "second_false_findings": 0,
+      "second_note": "The review overlooks the weakened assertion: assertIsNotNone only proves that output was produced, not that removing each guard caused a block. It makes no affirmative defect claim, so there are no false findings."
+    },
+    {
+      "case": "c07",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the duplicate dict key, the silent last-wins semantics, and the scope mismatch.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the duplicate fanout-guard key in REQUIRED_GUARDS and explains that the later value silently changes its required event from PreToolUse to PostToolUse. It asserts no defect absent from the code."
+    },
+    {
+      "case": "c07",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same, and labels it auto-fix with the exact repair.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the duplicate fanout-guard key in REQUIRED_GUARDS and explains that it overwrites PreToolUse with PostToolUse. It asserts no nonexistent defect."
+    },
+    {
+      "case": "c08",
+      "condition": "claude",
+      "first_catch": false,
+      "first_false_findings": 0,
+      "first_note": "Missed the dropped ^ anchor. Its first finding even describes the pattern as matching values that START with http, which is the pre-seed behaviour. Both findings are real properties of the unmutated code.",
+      "second_catch": false,
+      "second_false_findings": 0,
+      "second_note": "The review does not identify the missing start anchor or the resulting exemption for local-path strings containing an embedded http(s) URL. Both review findings describe real properties of the code, so neither is false."
+    },
+    {
+      "case": "c08",
+      "condition": "codex",
+      "first_catch": false,
+      "first_false_findings": 0,
+      "first_note": "Reported no findings in scope.",
+      "second_catch": false,
+      "second_false_findings": 0,
+      "second_note": "The review reports no findings and therefore misses the unanchored _REMOTE_URL pattern, which wrongly exempts strings that merely contain an HTTP(S) URL. It also asserts no nonexistent defects."
+    },
+    {
+      "case": "c09",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the < 2 off-by-one against the docstring, plus the dead ('-c','-c') tuple, both real.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the seeded `< 2` versus `< 3` threshold error in `is_compound_inspection`. Its other findings describe real code properties, while the missing-tests observation is explicitly excluded from false-finding counts."
+    },
+    {
+      "case": "c09",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same off-by-one, plus the over-broad namespace match.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the seeded off-by-one and the required `< 3` correction. Its additional command-classification finding is real, and the missing-tests finding is not false under the grading rules."
+    },
+    {
+      "case": "c10",
+      "condition": "claude",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Names the endswith-versus-startswith inversion and that kimi-coding now fails its own runbook end state.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the seeded suffix-versus-prefix inversion and its failure on `kimi-coding`. The other items are clarification and test-coverage gaps, not assertions of nonexistent code defects; missing excluded tests do not count as false."
+    },
+    {
+      "case": "c10",
+      "condition": "codex",
+      "first_catch": true,
+      "first_false_findings": 0,
+      "first_note": "Same, in two sentences.",
+      "second_catch": true,
+      "second_false_findings": 0,
+      "second_note": "The review precisely identifies the seeded endswith/startswith inversion in _provider_reason and its rejection of \"kimi-coding\". The missing-tests observation is not false under the grading rule for excluded test files."
+    }
+  ],
+  "units_expected": 20,
+  "units_scored": 20,
+  "unparsed": []
+}

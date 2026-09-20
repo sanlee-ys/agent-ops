@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review explicitly identifies the seeded `<=` off-by-one and the incorrect rejection of exactly three runs. Its other threshold finding is supported by the documented verdict ranges, and the missing-tests finding is not false under the excluded-file rule."}
