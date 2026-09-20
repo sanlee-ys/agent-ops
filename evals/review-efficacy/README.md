@@ -86,7 +86,7 @@ case count, which is where this eval starts.
 | | Condition A | Condition B |
 | --- | --- | --- |
 | Reviewer | `claude -p` | `codex exec` |
-| Model | Sonnet, the tier the fleet uses for review | the id the harness reads from the Codex config at run time |
+| Model | Sonnet, the tier the fleet uses for review | pinned with `-m`, `--codex-model` sets it |
 | Rules | the `## Code Review Rules` section of [`vendors/shared/AGENTS.md`](../../vendors/shared/AGENTS.md) | the same text, read from the same file |
 | Isolation | file and shell tools refused | an empty working directory, read-only sandbox |
 
@@ -108,9 +108,24 @@ re-run of one condition rewrites `prompt.txt`, so the runner records the
 prompt's sha256 per condition and `report` excludes a case whose two hashes
 differ.
 
-**Both models resolve at run time and reach `manifest.json`.** A model id
-written into this file would go stale the moment a lane changes model, and the
-result would then name the wrong model.
+**Both models reach `manifest.json`, and the Codex model is PINNED (decided
+2026-09-20).** The Claude condition passes `--model` and the harness reads the
+resolved id back out of the reply. The Codex condition passes `-m`.
+
+The pin replaced an earlier rule that read the id from the machine's Codex
+config at run time. **A model that a machine is configured to use is a machine
+setting, and an experiment cannot depend on one.** On 2026-09-20 the installed
+CLI refused the configured id, and all 18 Codex conditions of the harder-seeds
+run failed before they reached a model. A run must be able to name the model it
+wants, and a refused id must cost one flag rather than a whole condition.
+
+The harness still reads the config id and records it beside the pinned one
+under `conditions.codex.config_model`. A result therefore names the model it
+measured, and a reader can see when the machine disagreed with the run.
+
+**The prompt always travels on stdin.** Both conditions receive it that way.
+A Windows command line stops at 32767 characters, and the harder-seeds run
+builds a 47934-byte prompt for case h06.
 
 **One asymmetry stays, and it is deliberate.** Each vendor still loads its own
 standing instruction file. This eval measures the lanes as the fleet runs them,
@@ -212,6 +227,19 @@ Run both conditions:
 ```
 uv run python evals/review-efficacy/run_eval.py run
 ```
+
+Re-run ONE condition into an existing run directory, which is what a model
+change needs. `run_cases` loads the stored `manifest.json` and updates it in
+place, so the other condition's records and transcripts stay as they were, and
+`generated_at` grows by one entry:
+
+```
+uv run python evals/review-efficacy/run_eval.py run --conditions codex --out evals/review-efficacy/runs/<date>
+```
+
+A split re-run rewrites `prompt.txt`, so check the run first with
+`--validate-only` and pair the two conditions only when `report` shows no
+prompt-hash mismatch.
 
 Grade the run. Copy `runs/<date>/grades.template.json` to
 `runs/<date>/grades.json`, then fill in `catch` and `false_findings` for each
