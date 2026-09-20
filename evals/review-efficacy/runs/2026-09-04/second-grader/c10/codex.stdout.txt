@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the seeded endswith/startswith inversion in _provider_reason and its rejection of \"kimi-coding\". The missing-tests observation is not false under the grading rule for excluded test files."}

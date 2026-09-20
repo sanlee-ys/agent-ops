@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the seeded off-by-one at the minimum-runs check and explains that exactly three runs are wrongly rejected. Its comments about missing tests and absent loop integration concern files excluded or absent from the narrowed diff and therefore do not count as false findings."}

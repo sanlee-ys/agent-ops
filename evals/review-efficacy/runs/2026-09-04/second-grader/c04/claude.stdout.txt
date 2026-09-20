@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":1,"note":"The review precisely identifies the seeded split-index bug and its resulting loss of the attached source path. Its final finding is false because the changelog explicitly says “dest/src flag value,” rather than describing only the destination fix."}

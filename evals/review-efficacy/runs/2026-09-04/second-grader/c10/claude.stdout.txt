@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the seeded suffix-versus-prefix inversion and its failure on `kimi-coding`. The other items are clarification and test-coverage gaps, not assertions of nonexistent code defects; missing excluded tests do not count as false."}

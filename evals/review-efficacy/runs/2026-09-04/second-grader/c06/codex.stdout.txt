@@ -1,0 +1,1 @@
+{"catch":false,"false_findings":0,"note":"The review overlooks the weakened assertion: assertIsNotNone only proves that output was produced, not that removing each guard caused a block. It makes no affirmative defect claim, so there are no false findings."}

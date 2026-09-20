@@ -103,15 +103,20 @@ def repo_relative(path: pathlib.Path) -> str:
     return path.as_posix()
 
 
+WORKDIR_LINE = re.compile(r"^workdir:.*$", re.MULTILINE)
+
+
 def redact_home(text: str) -> str:
-    """Replace the user's home directory with `~`.
+    """Remove every local path from a stored stderr file.
 
     This repository is public and a pre-commit check refuses a local user path
     (`scripts/redline-guard.py`). The `codex exec` banner prints its working
-    directory on stderr, so the stored stderr must carry `~` instead.
+    directory on stderr. The directory is a throwaway empty scratch directory,
+    so its name carries no information a reader needs, and the machine's own
+    user name is not publishable. The whole line becomes a placeholder.
     """
+    out = WORKDIR_LINE.sub("workdir: <empty-scratch-dir>", text)
     home = os.path.expanduser("~")
-    out = text
     for form in (home, home.replace("\\", "/"), home.replace("/", "\\")):
         if form and form not in ("~", ""):
             out = out.replace(form, "~")
@@ -434,14 +439,24 @@ def cmd_score(args) -> int:
 
 
 def cmd_redact(args) -> int:
-    """Rewrite a stored stderr file with the home directory replaced by `~`."""
+    """Remove the local paths from every stored stderr file.
+
+    The step is idempotent. It accepts a raw capture (`*.stderr.raw.txt`) and
+    an already redacted file, so a reader can run it twice with no effect.
+    """
+    out_dir = pathlib.Path(args.out)
     changed = 0
-    for path in sorted(pathlib.Path(args.out).rglob("*.stderr.raw.txt")):
-        text = read_text(path)
+    for path in sorted(out_dir.rglob("*.stderr.raw.txt")):
         target = path.with_name(path.name.replace(".stderr.raw.txt", ".stderr.txt"))
-        target.write_text(redact_home(text), encoding="utf-8")
+        target.write_text(redact_home(read_text(path)), encoding="utf-8")
         path.unlink()
         changed += 1
+    for path in sorted(out_dir.rglob("*.stderr.txt")):
+        text = read_text(path)
+        redacted = redact_home(text)
+        if redacted != text:
+            path.write_text(redacted, encoding="utf-8")
+            changed += 1
     print("redacted %d stderr files" % changed)
     return 0
 

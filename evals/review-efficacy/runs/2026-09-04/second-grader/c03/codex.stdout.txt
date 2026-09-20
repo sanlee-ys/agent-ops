@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review identifies the weakened first assertion in test_combined_short_flags_on_add and correctly explains that assertIsNotNone passes for both ALLOW and BLOCK. Its proposed assertEqual(..., BLOCK) directly restores coverage of the seeded bypass."}
