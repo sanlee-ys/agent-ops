@@ -229,6 +229,9 @@ uv run python evals/review-efficacy/run_eval.py report --run evals/review-effica
 | --- | --- |
 | `cases.json` | The cases: pull request, revisions, paths, defect class, seed |
 | `run_eval.py` | The harness. Read it for the mechanics |
-| `test_run_eval.py` | The harness's own tests. Not in CI. Run them by hand |
-| `RESULTS.md` | The pilot result, with its power statement |
+| `test_run_eval.py` | The harness's own tests. CI runs them (since 2026-09-04) |
+| `second_grader.py` | The second-grader harness: `build`, `commands`, `score`, `redact` |
+| `test_second_grader.py` | The second grader's own tests. CI runs them |
+| `RESULTS.md` | The pilot result, with its power statement, and the second grade |
 | `runs/<date>/` | Raw outputs, `manifest.json`, and `grades.json` |
+| `runs/<date>/second-grader/` | The second grade: prompts, replies, and `agreement.json` |

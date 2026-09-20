@@ -319,9 +319,13 @@ def cohens_kappa(pairs):
     return (po - pe) / (1 - pe), po, pe
 
 
-def cmd_score(args) -> int:
-    run_dir = pathlib.Path(args.run)
-    out_dir = pathlib.Path(args.second)
+def build_report(run_dir: pathlib.Path, out_dir: pathlib.Path) -> dict:
+    """Compute the agreement report from the stored first grade and replies.
+
+    This function reads and never writes. `cmd_score` writes what it returns,
+    and a test recomputes the stored `agreement.json` through it. A hand edit
+    to that file therefore fails a test instead of passing unseen.
+    """
     grades = json.loads(read_text(run_dir / "grades.json"))
 
     rows = []
@@ -405,11 +409,25 @@ def cmd_score(args) -> int:
         },
         "rows": rows,
     }
+    return report
+
+
+def report_text(report: dict) -> str:
+    """Serialize a report exactly as `cmd_score` stores it."""
+    return json.dumps(report, indent=2, sort_keys=True) + "\n"
+
+
+def cmd_score(args) -> int:
+    run_dir = pathlib.Path(args.run)
+    out_dir = pathlib.Path(args.second)
+    report = build_report(run_dir, out_dir)
+    rows = report["rows"]
+    unparsed = report["unparsed"]
+    kappa = report["catch"]["cohens_kappa"]
+    ff_agree = report["false_findings"]["agreements"]
 
     target = out_dir / "agreement.json"
-    target.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    target.write_text(report_text(report), encoding="utf-8")
 
     print("units scored: %d of %d" % (len(rows), report["units_expected"]))
     if unparsed:

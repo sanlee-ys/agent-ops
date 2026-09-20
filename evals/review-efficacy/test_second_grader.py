@@ -24,6 +24,11 @@ HERE = pathlib.Path(__file__).resolve().parent
 RUN = HERE / "runs" / "2026-09-04"
 SECOND = RUN / "second-grader"
 
+# Ten cases times two conditions. Every test that walks the stored evidence
+# asserts this count. A loop over a glob that matches nothing passes silently,
+# so the count is what makes the loop a check.
+UNITS = 20
+
 
 class TestParseVerdict(unittest.TestCase):
     def test_plain_object(self) -> None:
@@ -126,12 +131,18 @@ class TestRedaction(unittest.TestCase):
 
     def test_no_stored_stderr_carries_a_local_user_path(self) -> None:
         # The same pattern `scripts/redline-guard.py` refuses at commit time.
+        # The count assertion is the guard on the guard: a loop over a glob
+        # that matches nothing passes, and this check must fail instead when
+        # the evidence it reads is gone.
+        seen = 0
         for path in sorted(SECOND.rglob("*.stderr.txt")):
             text = path.read_text(encoding="utf-8")
             self.assertIsNone(
                 re.search(r"(?:[Cc]:[\\/]+|/c/)Users[\\/]+\w+", text),
                 "%s carries a local user path" % path.name,
             )
+            seen += 1
+        self.assertEqual(seen, UNITS)
 
 
 class TestPromptContent(unittest.TestCase):
@@ -179,12 +190,65 @@ class TestStoredPromptsMatchTheRules(unittest.TestCase):
                 "%s/%s does not match the rebuilt prompt" % (case_id, condition),
             )
             seen += 1
-        self.assertEqual(seen, 20)
+        self.assertEqual(seen, UNITS)
 
     def test_every_unit_has_a_parsable_reply(self) -> None:
+        seen = 0
         for path in sorted(SECOND.rglob("*.stdout.txt")):
             verdict, reason = sg.parse_verdict(path.read_text(encoding="utf-8"))
             self.assertIsNotNone(verdict, "%s: %s" % (path.name, reason))
+            seen += 1
+        self.assertEqual(seen, UNITS)
+
+
+class TestStoredAgreementMatchesTheStoredReplies(unittest.TestCase):
+    """The headline numbers must be recomputable from the evidence.
+
+    `parse_verdict` and `cohens_kappa` are tested in isolation above, and the
+    prompts are tested for fidelity. Neither covers `agreement.json` itself,
+    which is the file the pull request and `RESULTS.md` quote. This test
+    rebuilds that file from `grades.json` and the 20 stored replies, so a hand
+    edit or a drift fails here.
+    """
+
+    def setUp(self) -> None:
+        self.stored = json.loads(
+            (SECOND / "agreement.json").read_text(encoding="utf-8")
+        )
+        self.rebuilt = sg.build_report(RUN, SECOND)
+
+    def test_the_whole_report_rebuilds(self) -> None:
+        self.assertEqual(
+            sg.report_text(self.rebuilt),
+            (SECOND / "agreement.json").read_text(encoding="utf-8"),
+        )
+
+    def test_the_quoted_headline_numbers_are_the_rebuilt_ones(self) -> None:
+        # Named one by one, so a failure says which claim moved.
+        self.assertEqual(self.rebuilt["units_expected"], UNITS)
+        self.assertEqual(self.rebuilt["units_scored"], UNITS)
+        self.assertEqual(self.rebuilt["unparsed"], [])
+        self.assertEqual(self.rebuilt["catch"]["agreements"], UNITS)
+        self.assertEqual(self.rebuilt["catch"]["cohens_kappa"], 1.0)
+        self.assertEqual(self.rebuilt["catch"]["observed_agreement"], 1.0)
+        self.assertEqual(self.rebuilt["catch"]["disagreements"], [])
+        self.assertEqual(self.rebuilt["false_findings"]["agreements"], UNITS - 1)
+        self.assertEqual(self.rebuilt["false_findings"]["plain_agreement"], 0.95)
+
+    def test_the_one_disagreement_is_c04_claude(self) -> None:
+        disagreements = self.rebuilt["false_findings"]["disagreements"]
+        self.assertEqual(len(disagreements), 1)
+        self.assertEqual(disagreements[0]["case"], "c04")
+        self.assertEqual(disagreements[0]["condition"], "claude")
+        self.assertEqual(disagreements[0]["first_grader"], 0)
+        self.assertEqual(disagreements[0]["second_grader"], 1)
+
+    def test_build_report_writes_nothing(self) -> None:
+        # The stored file must survive a rebuild. `cmd_score` writes it; this
+        # function must not, or the test above would compare a file to itself.
+        before = (SECOND / "agreement.json").read_bytes()
+        sg.build_report(RUN, SECOND)
+        self.assertEqual((SECOND / "agreement.json").read_bytes(), before)
 
 
 class TestFirstGraderFilesAreUntouched(unittest.TestCase):
