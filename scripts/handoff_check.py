@@ -96,9 +96,9 @@ _TIMEOUT = 30
 # A pull request reference. The State section writes them as `#147`.
 _PR_REF = re.compile(r"#(\d+)")
 
-# How far after a `#NNN` the word "open" still describes that number. The window
-# stops at the next `#`, so a list like "#137-#154, less #139, and #147, still
-# open" attaches the word to #147 alone.
+# How far after a `#NNN` the word "open" still describes that number. The
+# window also stops early, and `_WINDOW_STOP` says where. Together they attach
+# the word in "#137-#154, less #139, and #147, still open" to #147 alone.
 _OPEN_WINDOW = 60
 _OPEN_WORD = re.compile(r"\bopen\b", re.IGNORECASE)
 
