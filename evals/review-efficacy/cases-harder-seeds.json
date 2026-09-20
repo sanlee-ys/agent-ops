@@ -1,0 +1,367 @@
+{
+  "repo": "sanlee-ys/agent-ops",
+  "prompt_version": 2,
+  "note": "The harder-seed follow-up to the 2026-09-04 pilot. Every seed is a defect that NOTHING in the diff contradicts: no comment, no docstring, no error message and no test in the same diff states the behaviour the seed breaks. The pilot caught every defect that had such a contradiction beside it and missed both that did not, so this run removes the contradiction. Prompt version 2 also sends the whole rules file and the pull request body, as the production review workflow does. A changed prompt is a different experiment: these cases are not comparable to runs/2026-09-04. `body_states_intent` records the cases where the pull request BODY states the behaviour the seed breaks, which the diff does not. Fetch the pull request head refs before a run: git fetch origin \"+refs/pull/*/head:refs/remotes/origin/pr/*\".",
+  "cases": [
+    {
+      "id": "h01",
+      "pr": 108,
+      "title": "feat(pi): park-check all copies; guard user_bash",
+      "body": "Two residuals that do not need Kimi.\n\n- check-park.py now hashes fleet-guard.ts, fleet-resources.ts, and instructions/AGENTS.md against the deployed copies.\n- fleet-guard.ts sends Pi user_bash (!command) through the same adapter. A deny returns exit 2 and does not run the shell line.\n\nVerification: tests.test_pi_park 12 tests, all pass. No live pi -p run.",
+      "body_redactions": 0,
+      "base": "3936513b16b7d35f3134bd488db74b0e2758c6ef",
+      "head": "f63143b2e1977ee10159d22779ef6ddd7898c647",
+      "paths": [
+        "vendors/pi/scripts/check-park.py"
+      ],
+      "defect_class": "wrong-constant",
+      "defect_location": "vendors/pi/scripts/check-park.py, main, the RESOURCES COPY DRIFT call",
+      "defect_description": "The resources check receives the wrong canonical constant. It compares the canonical fleet-guard.ts against the DEPLOYED fleet-resources.ts, so the check reports drift on every correct deployment and can never report a real fleet-resources.ts drift. No comment in the diff names the constant. The pull request body does state that fleet-resources.ts is hashed against its deployed copy.",
+      "body_states_intent": true,
+      "mutation": {
+        "find": "_RESOURCES_NAME, _CANONICAL_RESOURCES, deployed_resources, reporter",
+        "replace": "_RESOURCES_NAME, _CANONICAL_GUARD, deployed_resources, reporter"
+      }
+    },
+    {
+      "id": "h02",
+      "pr": 87,
+      "title": "credential-guard 2.11: single-quoted prose is literal",
+      "body": "Fixes the false positive I hit while landing [#86](https://github.com/sanlee-ys/agent-ops/pull/86).\n\n## What was wrong\n\nThe v2.1 prose exemption voids itself on any `$` or backtick in the value. That is right for a **double-quoted** value, where both substitute \u2014 and wrong for a **single-quoted** one, where neither does, in POSIX shells and in PowerShell alike.\n\nA Markdown PR body is mostly backticks, so this was refused as a credential read:\n\n```\ngh pr create --body '... `~/.claude/settings.json` ...'\n```\n\n**The block is not the damage \u2014 the workaround is.** I did not stop and ask; I switched to `--body-file` and carried on. That is the exact failure [`security/posture.md`](https://github.com/sanlee-ys/agent-ops/blob/main/security/posture.md) limit #5 predicted in writing (\"a guard nobody can use gets routed around\"), and it is worse than a plain nuisance here: `--body-file` genuinely reads the named file, so the guard pushed traffic *from* a shape it can analyse *to* one it must default-deny.\n\n## The fix, and why it is narrow\n\nQuote-aware literalness, not a looser pattern. Single quotes **only**, and only when the value is not nested inside a double-quoted region \u2014 because there it is not literal at all:\n\n```\nbash -c \"gh pr create --body '$(cat ~/.env)'\"\n```\n\nThe outer quotes substitute before the inner single quotes are ever interpreted, so the secret is published. `_inside_double_quotes` draws that line, and anything it cannot classify falls through to the existing check. The same test now gates `PROSE_FLAG_CRED_VAR`, since `--body '$ANTHROPIC_API_KEY'` publishes the literal name, not the key.\n\n## Verified both directions, before shipping\n\nPer the standing decoy discipline \u2014 the measured matrix, not an argument that the code looks right:\n\n| Must stay blocked | Result |\n|---|---|\n| `bash -c`, `sh -c`, `powershell -c` nesting (4 shapes) | BLOCK |\n| `--body \"$(cat ~/.env)\"`, backtick-cat, `\"$ANTHROPIC_API_KEY\"` | BLOCK |\n| `--body-file` / `-F`, unquoted value | BLOCK |\n| real reads (`cat ~/.claude/settings.json`) | BLOCK |\n\n| Now correctly allowed | Result |\n|---|---|\n| single-quoted Markdown backticks | allow |\n| single-quoted `$5`, literal `$(cat \u2026)` text, literal `$VAR` | allow |\n| plain prose, both quote styles (unchanged) | allow |\n\nSuite **124 \u2192 129 passed**; vendor adapters **79 passed, 8 subtests**.\n\n## Also in here\n\nRe-copies canon into `vendors/claude/plugin/hooks/`, which that plugin's README requires (\"edit canon, then re-copy\") and which the 2.10 change skipped \u2014 the copy was sitting at **2.9**. That is limit #6's drift class, caught only because this fix had to touch the file. The other four plugin copies were already in sync.\n\n## Deployment note\n\nOn Windows the live hook is a regular file **copy**, so this is not active on that machine until `setup-windows.ps1` re-runs \u2014 already queued in the machine-config repo's parity file. macOS symlinks pick it up on pull. Until then the false positive persists locally, which is cosmetic: single-quoted prose keeps getting blocked, and nothing unsafe is newly allowed.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "d564a559fb1e3741645c606bf58c491e33247513",
+      "head": "3e95d75ceb3fbd13ddb234d80589a8d8bfa6757e",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "defect_class": "wrong-constant",
+      "defect_location": "security/credential-guard.py, _inside_double_quotes, the backslash branch",
+      "defect_description": "The backslash branch advances by one character instead of two, so the escaped character is scanned again. An escaped quote then toggles the quote state, and _is_literal_quoted reads a nested single-quoted value as literal. Nothing in the diff names the step size.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "            i += 2",
+        "replace": "            i += 1"
+      }
+    },
+    {
+      "id": "h03",
+      "pr": 26,
+      "title": "Guard: a metadata op is safe wherever it sits; `.pub` is not a key (v2.3)",
+      "body": "Fixes a confirmed false positive in the credential guard's v2 path-based\ndefault-deny \u2014 and a self-contradicting one:\n\n```\n\"ed25519: $(Test-Path $HOME\\.ssh\\id_ed25519.pub)\"\n  -> blocked, advising \"use a metadata command (ls / stat / Test-Path)\"\n```\n\nTwo independent defects produced that contradiction.\n\n## 1. The metadata exemption was positional\n\nv2 classified a segment by its **leading** command. Bare `Test-Path <path>`\nreached the safe allowlist; wrapped in a substitution, the leading token is a\nquoted string, which is not a safe command, so the segment fell to\ndefault-deny. A probe confirmed the split before any code changed \u2014 the bare\nform already passed, so the exemption existed and was simply unreachable here.\nThe same shape blocked `if (Test-Path ~/.ssh/id_rsa)`.\n\nv2.3 classifies each **nested command unit** on its own terms (`$( )`,\nbackticks, `<( )`, bare `( )` groups) and then judges the outer command with\nthose units blanked. The mere presence of `$(` is no longer disqualifying; the\nsubstitution gets read instead.\n\nTwo properties keep the recursion from becoming a laundering hole:\n\n| Shape | Why it still blocks |\n| --- | --- |\n| `cat $(echo ~/.ssh/id_rsa)` | Clearing a unit must not hide the path from a reader that **receives** it. Only a unit whose output is a bare value (`Test-Path`, `test`) stops the outer command being scrutinised; `echo`/`ls`/a bare quoted path hand the path text onward. |\n| `\"$(Test-Path ~/.ssh/id_rsa; cat ~/.ssh/id_rsa)\"` | A unit body is a command **list** and is re-split before classifying. |\n\nThe second was **found by an adversarial pass on this fix before it shipped** \u2014\nthe first draft judged that body on `Test-Path` alone and let the chained\nreader ride in behind it. The top-level splitter can't catch it: it leaves\nseparators inside quotes alone, which is exactly where the shape lives.\n\nA paren inside a *quoted* string stays literal text and is not treated as a\nunit, so an interpreter one-liner is not torn into fragments that each look\nharmless.\n\n## 2. `.pub` matched the private-key pattern\n\nA `.pub` file is the *public* half of a keypair \u2014 printed, pasted into GitHub,\nappended to `authorized_keys` as a matter of routine. Blocking it is a pure\nfalse positive, and the kind that teaches reaching for `MASK-OK` on a\nnon-secret. Unlike `.pem` (ambiguous between a cert and a key, hence the\n`key`/`priv` guard on `PUBLIC_CERT`), `.pub` is unambiguous by convention, so\n`deploy-key.pub` is exempt too.\n\nThe pattern now matches the whole trailing suffix so the exemption still judges\na **complete** basename: `id_rsa.pub.bak` does not qualify. That is the\nanchoring discipline `PUBLIC_CERT` learned in red-team round 2 \u2014 the first\ndraft got this wrong and two of my own tests caught it.\n\n## Verification\n\n- `TestNestedMetadataFalsePositive` / `TestPublicKeyNotASecret`: the repro plus\n  the nested/group/`[bool]`/`if` forms and the required metadata set allowed;\n  content reads, both laundering shapes, and every private half still blocked.\n- Differentially probed against the pre-change baseline, so every\n  `BLOCK -> ALLOW` transition is an intended one and nothing loosened silently.\n- 127 tests pass repo-wide (includes #25's `Env:` cases, rebased onto it).\n- Live deploy at `~/.claude/hooks/` re-synced from canonical and smoke-tested\n  against a **decoy** keypair rather than the real key, since a regression here\n  would print an actual private key: private read blocked, `.pub` read allowed,\n  nested `Test-Path` allowed. Decoy deleted.\n\nCompanion to #25 \u2014 same day, same file, disjoint rules. That one covered the\nenv-dump half of the report; this is the path half.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "1d48f433536a040aacf23ed07450764bf1552caf",
+      "head": "c777ef4130b7e15b541827b9cf530b305dba4c0f",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "defect_class": "wrong-constant",
+      "defect_location": "security/credential-guard.py, _sub_units, the substitution branch",
+      "defect_description": "The scan for the matching parenthesis starts one character too early. For `$(` it starts on the opening parenthesis, so _balanced counts that parenthesis again and runs to the end of the segment. Every substitution then swallows the rest of the command, and the outer text is blanked away. Nothing in the diff names the offset.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "j, body = _balanced(seg, i + 2)",
+        "replace": "j, body = _balanced(seg, i + 1)"
+      }
+    },
+    {
+      "id": "h04",
+      "pr": 18,
+      "title": "feat: a PreToolUse guard against whole-tree git staging",
+      "body": "Blocks `git add -A`, `git add -u`, `git add .` and `git commit -a`, with a `STAGE-ALL-OK` per-command override.\n\n## Why a hook and not a rule\n\n`operating-model.md` already said to stage explicit paths. On 2026-07-18/19 that rule failed **twice in a single session** \u2014 the second time *after* the first was already a known lesson in the same conversation, sweeping six files of another session's in-flight work onto a default branch.\n\nThat is what a reflex looks like from the outside, and a reflex is not fixed by writing the rule down more firmly. This repo's whole argument is that a rule without a mechanical backstop drifts silently; this is that argument applied to the repo's own operating model.\n\n## The constraint that shaped the implementation\n\n**The guard must not block prose.** The commit messages, PR bodies and postmortems describing these incidents quote `git add -u` verbatim \u2014 a guard that cannot document itself gets disabled rather than obeyed. `credential-guard` v1 hit this exact wall by blocking its own commit message for quoting an example.\n\nSo it strips heredoc bodies, tokenizes with `shlex` so quoted text collapses into a single token, and only counts a flag in real command position. Grepping for `-A` would have been four lines and unusable.\n\n## Tests\n\n25 cases, both halves:\n\n- **Blocked:** every whole-tree shape, including `git -C <repo> add -u`, `-am`, and the offence buried in a later segment of `add && commit && push`.\n- **Allowed:** explicit paths, `--amend` (long-form, contains an `a` \u2014 a sloppy matcher blocks it), `git add -p`, `git stash -u`, `git clean -A`, non-git commands, non-shell tools.\n- **Prose:** four cases lifted from the actual commit messages written the day it was built \u2014 a flag inside `-m`, inside `echo`, inside a commit heredoc, inside a `gh pr create` body heredoc.\n- **Fails open** on an unparseable payload; a broken hook must not wedge every tool call.\n\n## Verified live\n\nWired into `settings.json` and exercised in-session \u2014 `git -C <repo> add -u` blocked with the guidance message, explicit-path staging unaffected. Provisioning for both platforms is in [REDACTED: publication boundary] (canonical stays here, same as `credential-guard`).\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)",
+      "body_redactions": 1,
+      "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
+      "head": "feb33c639f706037531979a0963ce86be1c168f1",
+      "paths": [
+        "hooks/git-staging-guard.py"
+      ],
+      "defect_class": "wrong-constant",
+      "defect_location": "hooks/git-staging-guard.py, main, the block path",
+      "defect_description": "The block path exits 1 instead of 2. A PreToolUse hook blocks a tool call with exit code 2 only; exit 1 is a hook error that the harness ignores. The guard therefore writes its message and allows the command. Nothing in the diff names the exit code.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "            sys.exit(2)",
+        "replace": "            sys.exit(1)"
+      }
+    },
+    {
+      "id": "h05",
+      "pr": 88,
+      "title": "config-change-guard v1.1: check what the name promised",
+      "body": "## The problem\n\n`config-change-guard.py` v1.0 checked `disableAllHooks`, plus a substring search\nfor four guard names over the serialized `hooks` blob. Both directions were\nnarrower than the name \"config tamper guard\" implies \u2014 and the gap was not\nacademic. A settings file could keep all four guard names, pass v1.0 cleanly,\nand still hand the session unrestricted power.\n\n## What v1.1 blocks that v1.0 called an intact chain\n\n| Escalation | v1.0 | v1.1 |\n| --- | --- | --- |\n| `permissions.defaultMode: \"bypassPermissions\"` | allowed \u2014 `permissions` was never read | **blocked** |\n| `permissions.allow: [\"Bash\"]` / `Bash(*)` / `Bash(:*)` / `Bash(*:*)` | allowed | **blocked** |\n| `env: {ANTHROPIC_BASE_URL: \u2026}` \u2014 model traffic redirected | allowed | **blocked** |\n| guard moved to `PostToolUse` (runs after the call; cannot refuse) | allowed \u2014 name still in the blob | **blocked** |\n| guard given `\"matcher\": \"\"` (matches nothing) | allowed | **blocked** |\n| command repointed at `credential-guard-disabled.py` | allowed \u2014 that string *contains* `credential-guard` | **blocked** |\n\nThe first three are new checks. The last three fall out of replacing the\nsubstring search with a **structural** one: each guard must appear under its\nexpected event, with a non-empty matcher, and a command naming the exact\n`<guard>.py` file. Every check is additive \u2014 nothing v1.0 refused is now allowed.\n\n## The usability half is the load-bearing half\n\nThis guard sits on the one file a false positive cannot be repaired from: a\nwrong block bricks the config, and the repair is itself a config change the\nguard blocks again. So every new check fires only on an unambiguously dangerous\nvalue, never a merely unusual one. Pinned as **allowed**, beside the escalations:\n\n- prefixed allow rules \u2014 `Bash(git status)`, `Bash(gh pr view *)`, `Bash(rm -rf:*)`\n  \u2014 ordinary allowlist maintenance, and narrowing those is `/doctor`'s job\n- a benign `env` block (`EDITOR`, `TZ`, \u2026); an `env` block per se is normal\n- `plan` / `acceptEdits` / `default` / `auto` \u2014 user preferences, not tampering\n- an **absent** `matcher` key, which means \"all tools\" in Claude Code \u2014 only an\n  explicitly empty matcher is the neutering shape\n- bare non-shell tool names (`Read`, `Grep`, `Glob`, `Agent`)\n- a missing or malformed `permissions` key, and junk in the `hooks` tree\n\n## Verification\n\n- `tests/test_config_change_guard.py`: **22 \u2192 36 cases, all green.**\n- Full repo suite: **440/440 green** (`python -m unittest discover -s tests`).\n- Both copies `py_compile` clean; `scripts/githooks/pre-commit` (redline guard) exit 0.\n- **The false-block case that actually matters:** fed a `user_settings`\n  `ConfigChange` payload pointing at the real canonical `settings.json` that\n  provisions these machines \u2192 **ALLOWED** (empty stdout, exit 0).\n\n## Still UNMEASURED \u2014 unchanged by this PR, and stated plainly\n\nWhether `ConfigChange` fires when a *tool* edits a settings file, and whether\n`{\"decision\": \"block\"}` actually vetoes the change, remain unobserved. A third\nattempt to measure closed off today: standing up a scratch probe rig (headless\nchild session + `--settings` wiring a log-only probe) was refused by\n`credential-guard` at the *parent* session, because composing the command\nrequires naming a Claude config path. **That block was correct and was not\nworked around**; the probe log was confirmed never created, so no data exists.\n\n`hooks/README.md` now carries all three closures. Per `security/posture.md`\nlimit 7 an unmeasured claim does not count \u2014 so a green suite here means \"would\nrefuse the right things if it ran\", not \"is enforcing anything\".\n\n## Notes\n\n- `vendors/claude/plugin/hooks/config-change-guard.py` is a derived copy;\n  re-copied from canon per that README's edit-canon-then-re-copy rule, and\n  verified byte-identical.\n- Canonical home was already settled at `hooks/config-change-guard.py` by\n  ADR-013 + the `sync-claude-hooks` registry ([REDACTED: publication boundary] #106); this PR conforms to\n  it rather than proposing anywhere new.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 1,
+      "base": "ed40227ef0ee7ac3250d7da803a382ed91ec2f61",
+      "head": "1f7491235724ec7225e5697fd5d6f4f1bcb62047",
+      "paths": [
+        "hooks/config-change-guard.py"
+      ],
+      "defect_class": "wrong-constant",
+      "defect_location": "hooks/config-change-guard.py, _rule_is_unrestricted_shell, the body test",
+      "defect_description": "The closing parenthesis is no longer removed before the comparison. `partition` leaves it on the body, so `Bash(*)` yields `*)`, which is in no entry of _UNRESTRICTED_BODIES. Every parenthesised unrestricted rule passes the check. Nothing in the diff names the slice. The pull request body does list those rules as blocked.",
+      "body_states_intent": true,
+      "mutation": {
+        "find": "    return body[:-1].strip() in _UNRESTRICTED_BODIES",
+        "replace": "    return body.strip() in _UNRESTRICTED_BODIES"
+      }
+    },
+    {
+      "id": "h06",
+      "pr": 143,
+      "title": "scripts: check HANDOFF.md against git and the forge",
+      "body": "## What this adds\n\nA check for a class of drift that nothing catches today. A HANDOFF State\nsection restates facts that `git` and the forge hold exactly: the open pull\nrequests, the newest tag, the top CHANGELOG entry, the branch. The merged set\nmoves past the prose the same day, and nothing turns red when it does.\n\n- `scripts/handoff_check.py` reads a repo's HANDOFF.md, derives the same facts,\n  and prints each claim as MATCH, DRIFT, or UNMEASURED. Six checks. Stdlib\n  only.\n- `tests/test_handoff_check.py`, 63 tests. Recorded `git` and `gh` output\n  through a fake `run`, so the suite needs no network, no forge, and no repo.\n- `conventions/handoff-check.md` records the decision, the three rules the\n  report rests on, six honest limits, and both runs from 2026-09-20.\n- One README row for the convention and one for the script, plus the scripts\n  index and the CLAUDE.md conventions list.\n\n## Why a check, not a generator\n\nTwo build paths were open. Generate the State section from `gh` and the\nCHANGELOG, or read it and report what disagrees. This takes the second.\n\nA generated State section carries only the facts the generator knows. The\njudgement around them is the part that helps the next session: which pull\nrequest matters, what a number means, what to do first. A generator deletes\nthat prose or leaves it beside a machine block that nobody trusts. A check\nleaves the writer in charge and refuses to let one class of claim go quiet.\n\nThe tool never edits HANDOFF.md. `TestNeverWrites` compares the file bytes\nbefore and after a full run.\n\n## Three rules the report rests on\n\n- **Absent is not zero.** A `gh` call that fails reports UNMEASURED with the\n  reason, never an empty set of open pull requests. A missing HANDOFF.md exits\n  2, because a deleted file must not report the same green as a correct one.\n- **The remote is the authority.** Branches and tags come from `git ls-remote`,\n  never from a remote-tracking ref, which is a local cache that can carry the\n  stale claim the check exists to catch. `reconcile.py` made the same call.\n- **A false DRIFT is the expensive error.** A check that reports a drift which\n  is not there trains the reader to skip the output. Every detector\n  under-reports rather than guesses, and the convention page states where.\n\n## Measured against the motivating case\n\n`defense-news-classifier`, HANDOFF dated 2026-08-02. Exit code 1, five DRIFT\nrows and one UNMEASURED. The row that produced this work:\n\n```\nDRIFT      job-consistency  (handoff)\n    claimed  Owner-only pending: Running the higher-power re-run (job 3)\n    derived  job 3 DONE in Next jobs: The higher-power re-run\n    one piece of work carries two answers in one file. Shared words: higher, power\n```\n\nThat check keys on the job's own words, never on the job number. A finished job\nlegitimately hands one remaining step to the owner, and that step cites the job\nit came from. Job 1 in the same file does exactly that, and the check stays\nquiet on it. Both cases are pinned by tests.\n\nA run against a real file also found a silent defect that review had missed: a\ndependency bump written as `4.37.3` was reading as the newest release of the\nrepo, which is usually the highest number on the page. The tag check reported a\nfalse MATCH and the drift stayed. A version in prose now needs the leading `v`.\n\nThe classifier repo was read-only in this lane. Nothing here edits its HANDOFF.\n\n## Verification\n\n- `python -m unittest discover -s tests -p \"test_*.py\"`: green.\n- Both runs in the convention page are real output from this branch, with\n  local paths shown `~`-style per the publication boundary.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "e6a8c4566624e0a55b4e0afac3f717a55dc1857e",
+      "head": "2db544bb50c8b03cfc0554af2446abebb7583a17",
+      "paths": [
+        "scripts/handoff_check.py"
+      ],
+      "defect_class": "wrong-constant",
+      "defect_location": "scripts/handoff_check.py, check_latest_tag, the newest-tag index",
+      "defect_description": "The tag list is indexed at the front instead of the back. parse_ls_remote_tags returns the tags sorted by version, so index 0 is the OLDEST tag. The drift check then compares the claim against the oldest tag and reports MATCH while the remote is tagged past the claim, which is the silent failure this check exists to catch. Nothing in the diff names the index.",
+      "body_states_intent": true,
+      "mutation": {
+        "find": "    newest = tags[-1]",
+        "replace": "    newest = tags[0]"
+      }
+    },
+    {
+      "id": "h07",
+      "pr": 96,
+      "title": "feat(cursor): fail-closed Cursor guard adapter and reference config",
+      "body": "## What\n\nRecovers an orphaned commit found unpushed on a local `main` (authored 2026-08-10 evening, session unknown). The commit was moved to this branch unchanged; nothing was rewritten.\n\n- `vendors/cursor/hooks/cursor-guard-adapter.py` \u2014 fail-closed guard adapter for the cursor-agent lane.\n- `vendors/cursor/hooks/hooks.json` \u2014 reference config.\n- `tests/test_cursor_guard_adapter.py` \u2014 225 lines of tests.\n\n## Context\n\nThis likely closes the \"edits ungated\" gap recorded when the telltale cursor seat was re-founded on ACP (telltale #138). The Cursor subscription is cancelled effective 2026-09-02, but per the Grok Build precedent the guard obligation follows the installed harness, not the routing lane.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)",
+      "body_redactions": 0,
+      "base": "0ed3fee67f0428a861bb8e141d61e549e7874f89",
+      "head": "df319193115d9ca785a72ba4f39609e3c4edec09",
+      "paths": [
+        "vendors/cursor/hooks/cursor-guard-adapter.py"
+      ],
+      "defect_class": "missing-branch",
+      "defect_location": "vendors/cursor/hooks/cursor-guard-adapter.py, the _COMMAND_KEYS table",
+      "defect_description": "The `cmd` key is gone from the command-key table. A shell payload that carries its command under `cmd` yields no command, _translate returns None, and the adapter passes the call through with no guard run at all. No comment or test in the diff names the key.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "_COMMAND_KEYS = (\"command\", \"commandline\", \"cmd\", \"script\")",
+        "replace": "_COMMAND_KEYS = (\"command\", \"commandline\", \"script\")"
+      }
+    },
+    {
+      "id": "h08",
+      "pr": 96,
+      "title": "feat(cursor): fail-closed Cursor guard adapter and reference config",
+      "body": "## What\n\nRecovers an orphaned commit found unpushed on a local `main` (authored 2026-08-10 evening, session unknown). The commit was moved to this branch unchanged; nothing was rewritten.\n\n- `vendors/cursor/hooks/cursor-guard-adapter.py` \u2014 fail-closed guard adapter for the cursor-agent lane.\n- `vendors/cursor/hooks/hooks.json` \u2014 reference config.\n- `tests/test_cursor_guard_adapter.py` \u2014 225 lines of tests.\n\n## Context\n\nThis likely closes the \"edits ungated\" gap recorded when the telltale cursor seat was re-founded on ACP (telltale #138). The Cursor subscription is cancelled effective 2026-09-02, but per the Grok Build precedent the guard obligation follows the installed harness, not the routing lane.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)",
+      "body_redactions": 0,
+      "base": "0ed3fee67f0428a861bb8e141d61e549e7874f89",
+      "head": "df319193115d9ca785a72ba4f39609e3c4edec09",
+      "paths": [
+        "vendors/cursor/hooks/cursor-guard-adapter.py"
+      ],
+      "defect_class": "missing-branch",
+      "defect_location": "vendors/cursor/hooks/cursor-guard-adapter.py, the _SHELL_TOOLS table",
+      "defect_description": "The `run_terminal_cmd` tool name is gone from the shell-tool table. A call under that name is no longer translated to a Bash payload, so both shell-only guards are skipped for it and the command never reaches git-staging-guard or published-history-guard. No comment or test in the diff names the tool.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "    \"shell\", \"bash\", \"powershell\", \"run_terminal_command\", \"run_terminal_cmd\",",
+        "replace": "    \"shell\", \"bash\", \"powershell\", \"run_terminal_command\","
+      }
+    },
+    {
+      "id": "h09",
+      "pr": 25,
+      "title": "Guard: `Env:` PSDrive is a dump, `$env:NAME` in a path is not (v2.2)",
+      "body": "## The false positive\n\nThis benign command was blocked with the env-dump message:\n\n```\nGet-ChildItem \"$env:USERPROFILE\\.ssh\" -Filter *.pub -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name\n```\n\nThe rule was `\\bGet-ChildItem\\b[^|]*\\bEnv:` \u2014 **any** `Get-ChildItem` followed\nanywhere in the segment by the text `Env:`. But PowerShell spells two different\nthings `env:`:\n\n| Form | What it is | Should be |\n| --- | --- | --- |\n| `Get-ChildItem Env:` | the **Env: PSDrive** enumerated as a path argument \u2014 every variable, values included | blocked (dump) |\n| `Get-ChildItem \"$env:USERPROFILE\\.ssh\"` | a **variable dereference** used to build a path; lists a directory, touches no value | allowed |\n| `Get-ChildItem Env:GITHUB_TOKEN` | one **named** variable printed \u2014 not a dump, still a credential print | blocked (targeted read) |\n| `Get-ChildItem Env:PATH` | one named non-credential variable | allowed |\n\nOnly the first row is an environment dump. Rows 2 and 4 were being blocked.\n\n## The fix\n\nAnchor **both ends** of the token, so `Env:` only matches as the PSDrive root in\nthe path-argument position:\n\n- it must **follow** whitespace (after the cmdlet and any `-Flag`s), optionally\n  quoted, and never a `$` \u2014 that alone kills `\"$env:USERPROFILE\\.ssh\"`, and it's\n  why the sibling `(dir|ls|gci)\\s+env:` alternatives never had this bug (they\n  already required the whitespace). They fold into the one rule now.\n- it must **end** there, bar a `\\`/`/` root separator and a `*` wildcard \u2014 so\n  `Env:PATH` is a targeted read rather than a dump.\n\n## The half of this fix that isn't the fix\n\nNarrowing \"dump\" to the bare drive root moves `Env:NAME` out of the dump rule \u2014\nand the over-broad rule had been *incidentally* catching real credential reads\nthrough it (`Get-ChildItem Env:GITHUB_TOKEN`, `ls Env:GH_TOKEN`, `dir\nEnv:GH_TOKEN` were all blocked only because of the very breadth being removed).\nSo `CRED_VAR_READ` is widened to the listing cmdlets alongside the\n`Get-Item`/`Get-Content` forms it already had.\n\nWithout that second edit this PR would have shipped a hole while removing a\nfalse positive. That's the general shape worth remembering: **a tightening has\nto be checked for the true positives it was catching by accident.**\n\n## Regression cases, both directions\n\n`TestEnvDriveFalsePositive`, following the suite's existing discipline of\npinning a blocked case *and* an allowed case per change:\n\n- **must allow** (8): the exact repro, `Get-ChildItem \"$env:USERPROFILE\\.ssh\"`,\n  `Get-ChildItem $env:TEMP`, `Test-Path $env:APPDATA\\foo`, `gci\n  $env:LOCALAPPDATA`, `-Path \"$env:ProgramData\\logs\"`, \u2026\n- **must block** (11): `Get-ChildItem Env:`, `gci env:`, `ls Env:\\`,\n  `Get-ChildItem -Path Env:`, `Get-ChildItem \"Env:\"`, `Env:\\*`, `dir env:`,\n  `Get-Item Env:*`, `(Get-ChildItem Env:).Count`, `-Force Env:`, piped form\n- **must still block** (5): targeted credential reads via the listing cmdlets\n- **must still allow**: `Env:PATH` via both `Get-Item` and `Get-ChildItem`\n\n## Bash-side audit\n\nChecked whether the same class exists for `env` / `printenv` / `set` /\n`declare -p` \u2014 i.e. whether a path or argument containing the literal word `env`\ncan trip them. **It can't:** those rules are whole-segment anchored\n(`^\\s*env\\s*$`) or flag-bearing (`declare\\s+-\\w*p`), so `.venv/`, `env/`,\n`--env-file`, `python -m venv env`, `/usr/bin/env`, `conda env list` and\n`docker run --env` never matched. Verified empirically against the guard, and\npinned as tests so a future widening of those rules has to fail a test on\npurpose rather than silently reintroduce this class.\n\n## Notes\n\n- `hook-version` 2.1 \u2192 2.2 (same v2 architecture, corrected behaviour), so every\n  deployed copy is stale until re-synced \u2014 per `security/README.md`.\n- Full suite green: 120 tests.\n- One adjacent finding left alone deliberately: `Get-Variable PATH` (positional\n  name, no `-Name` flag) is blocked by `\\bGet-Variable\\b(?![^|]*-Name)`, which is\n  arguably the same \"can't tell a dump from a targeted read\" shape. Unlike\n  `Env:`, narrowing it would open a real gap \u2014 the `Variable:` drive holds shell\n  variables the name-based `CRED_VAR_READ` can't screen (`$k = $env:SECRET;\n  Get-Variable k`). That's a posture call, not a bug fix, so it's filed\n  separately rather than decided here.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "cf9b1c26df5e1ccb75de3b51442236a1052daddb",
+      "head": "73f69702f9061436c975f18b8609e855d2e58e05",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "defect_class": "missing-branch",
+      "defect_location": "security/credential-guard.py, the CRED_VAR_READ listing cmdlets",
+      "defect_description": "The `gci` alias is gone from the listing cmdlets in CRED_VAR_READ. The same alias is still in _PS_ENV_DRIVE, which this change narrows to the drive ROOT, so `gci Env:GITHUB_TOKEN` now matches neither rule and the targeted credential read is allowed. No comment or test in the diff names that alias in this position.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "    + r\"|(?:Get-Item|Get-Content|Get-ChildItem|gi|gc|gci|dir|ls)\\s+\"",
+        "replace": "    + r\"|(?:Get-Item|Get-Content|Get-ChildItem|gi|gc|dir|ls)\\s+\""
+      }
+    },
+    {
+      "id": "h10",
+      "pr": 37,
+      "title": "Guard the invariant: published commits don't get dropped from main",
+      "body": "## What happened\n\nOn 2026-07-26 two sessions worked one direct-to-main repo in the same clone. Session B reset past a commit Session A had already pushed, recommitted its own work, and force-pushed over the top. Session A's commit was recovered only because it was still in the reflog. Nothing announced the loss \u2014 it surfaced when a later edit could not find its own text.\n\n## What the permission layer actually did\n\nChecked before designing anything, because if the `ask` rules simply failed, the fix would be to repair them and stop. They did not simply fail:\n\n1. **The reset was correctly allowed.** `git -C <repo> reset --soft de133f2` returned in 2.2s \u2014 no human read a prompt. Nor should one have: a soft reset destroys nothing locally, the operative gate is the auto-mode classifier (which denies resets under `[Irreversible Local Destruction]`), and the session had tagged a backup first.\n2. **The force-push was not covered.** The `ask` list carried `--force` and `-f` in four shapes each, and **no** entry for `--force-with-lease`, so it fell through to the `git push` allow rule. A real gap \u2014 closed in the companion [REDACTED: publication boundary] PR.\n3. **The lease protected nothing.** It compares the remote-*tracking* ref, and a background fetch had refreshed it, so the lease passed.\n\n**The finding that drove the design:** closing gap 2 alone would not have prevented this, because finding 1 stands. The reset was the *safe* verb. The dangerous fact \u2014 *the range you are discarding holds a commit you did not write, and it is already on the remote* \u2014 is in the repository, not the command string, so no prefix rule and no classifier reading the command can reach it.\n\n## The guard\n\n`hooks/published-history-guard.py` \u2014 a stateful `PreToolUse` hook that asks git, at the moment of the call, what the command would actually destroy. Blocks a history-rewriting push or a backward `reset` on `main` **only when** published commits sit in the discarded range.\n\n- **Both shapes, and the reset is the real fix** \u2014 it would have fired 49 seconds before the destructive push, before the session built two more commits on a doomed base.\n- **`ls-remote`, never the tracking ref** \u2014 the tracking ref is what defeated `--force-with-lease`.\n- **`main` only** \u2014 guarding feature branches would fire constantly for no risk, and a guard that cries wolf gets routed around.\n- **Fails open, with one stated exception**: having identified a rewrite of `main`, it blocks if it *cannot verify* what would be destroyed.\n- Override `REWRITE-MAIN-OK`, per-command, for deliberate rewrites like the de-identification squash.\n\n## Options weighed (ADR-007)\n\n- **(a) `pre-push` git hook** \u2014 fires three minutes too late, no propagation path for `pre-push` across the fleet. Worth revisiting as defence-in-depth.\n- **(b) Server-side branch protection \u2014 DISQUALIFIED, not rejected.** Rulesets and branch protection are **paid features for private repos**; the API returns `403 Upgrade to GitHub Pro`. Available on exactly the repos that already have a PR gate, unavailable on the private direct-to-main ones that need it. Also a poor fit for legitimate rewrites, which would require toggling protection off and back on.\n- **(c) A written rule alone** \u2014 necessary but insufficient; `git-staging-guard.py` exists because a behavioural rule failed twice in two days.\n\n## Verification\n\n26 new checks against **real** repositories (a bare remote plus clones playing Session A and Session B), suite green at 166. Verified by mutation, not just by passing:\n\n| Mutation | Checks that fail |\n|---|---|\n| Both checks neutered | 10 |\n| `_remote_head` regressed to the tracking ref | 7 |\n\nTwo defects surfaced by running it against the reconstruction, both of which made it fail **open** on the shape it exists to catch:\n\n- posix-mode `shlex` ate backslashes, mangling Windows `-C` paths so the repo never resolved;\n- a clone that hadn't fetched since the remote moved answered every ancestry question \"unknown\" \u2014 the *normal* state for the session being guarded.\n\nNeither was visible by reading the code.\n\n## Also here\n\n- `conventions/parallel-sessions.md` gains the divergence-recovery rule: **rebase onto `main`, never reset back to where you started.** The compressed shared block is deliberately left alone \u2014 editing it drifts every public consumer at once and reddens the drift check until each is swept, which is separate work.\n- README entry and a CI syntax-check line.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)",
+      "body_redactions": 1,
+      "base": "9cb086230565f02d765bf4f89920ac9760252216",
+      "head": "2e4243ebe8b595ad7d921b9d3066be47035c00ab",
+      "paths": [
+        "hooks/published-history-guard.py"
+      ],
+      "defect_class": "missing-branch",
+      "defect_location": "hooks/published-history-guard.py, the _PUSH_VALUE_FLAGS table",
+      "defect_description": "The `--exec` flag is gone from the value-flag table. Its value is then read as the first positional, so `git push --exec <path> origin main` takes <path> as the remote and `origin` as the branch. The guard asks the wrong branch about the rewrite and lets the push through. No comment or test in the diff names the flag.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "_PUSH_VALUE_FLAGS = {\"--repo\", \"-o\", \"--push-option\", \"--exec\", \"--receive-pack\"}",
+        "replace": "_PUSH_VALUE_FLAGS = {\"--repo\", \"-o\", \"--push-option\", \"--receive-pack\"}"
+      }
+    },
+    {
+      "id": "h11",
+      "pr": 18,
+      "title": "feat: a PreToolUse guard against whole-tree git staging",
+      "body": "Blocks `git add -A`, `git add -u`, `git add .` and `git commit -a`, with a `STAGE-ALL-OK` per-command override.\n\n## Why a hook and not a rule\n\n`operating-model.md` already said to stage explicit paths. On 2026-07-18/19 that rule failed **twice in a single session** \u2014 the second time *after* the first was already a known lesson in the same conversation, sweeping six files of another session's in-flight work onto a default branch.\n\nThat is what a reflex looks like from the outside, and a reflex is not fixed by writing the rule down more firmly. This repo's whole argument is that a rule without a mechanical backstop drifts silently; this is that argument applied to the repo's own operating model.\n\n## The constraint that shaped the implementation\n\n**The guard must not block prose.** The commit messages, PR bodies and postmortems describing these incidents quote `git add -u` verbatim \u2014 a guard that cannot document itself gets disabled rather than obeyed. `credential-guard` v1 hit this exact wall by blocking its own commit message for quoting an example.\n\nSo it strips heredoc bodies, tokenizes with `shlex` so quoted text collapses into a single token, and only counts a flag in real command position. Grepping for `-A` would have been four lines and unusable.\n\n## Tests\n\n25 cases, both halves:\n\n- **Blocked:** every whole-tree shape, including `git -C <repo> add -u`, `-am`, and the offence buried in a later segment of `add && commit && push`.\n- **Allowed:** explicit paths, `--amend` (long-form, contains an `a` \u2014 a sloppy matcher blocks it), `git add -p`, `git stash -u`, `git clean -A`, non-git commands, non-shell tools.\n- **Prose:** four cases lifted from the actual commit messages written the day it was built \u2014 a flag inside `-m`, inside `echo`, inside a commit heredoc, inside a `gh pr create` body heredoc.\n- **Fails open** on an unparseable payload; a broken hook must not wedge every tool call.\n\n## Verified live\n\nWired into `settings.json` and exercised in-session \u2014 `git -C <repo> add -u` blocked with the guidance message, explicit-path staging unaffected. Provisioning for both platforms is in [REDACTED: publication boundary] (canonical stays here, same as `credential-guard`).\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)",
+      "body_redactions": 1,
+      "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
+      "head": "feb33c639f706037531979a0963ce86be1c168f1",
+      "paths": [
+        "hooks/git-staging-guard.py"
+      ],
+      "defect_class": "missing-branch",
+      "defect_location": "hooks/git-staging-guard.py, the _ADD_WHOLE_TREE table",
+      "defect_description": "The `--no-ignore-removal` flag is gone from the whole-tree table. It is the long synonym of `-u`, so `git add --no-ignore-removal` stages every tracked change and the guard allows it. Neither the docstring nor the pull request body names that flag.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "_ADD_WHOLE_TREE = {\"-A\", \"--all\", \"-u\", \"--update\", \"--no-ignore-removal\"}",
+        "replace": "_ADD_WHOLE_TREE = {\"-A\", \"--all\", \"-u\", \"--update\"}"
+      }
+    },
+    {
+      "id": "h12",
+      "pr": 100,
+      "title": "feat(guards): blast \u00d7 reversibility scoring, redact-and-allow, exit-2 backstop (ADR-015)",
+      "body": "Ports three designs from the public secguard project (Apache-2.0 + Commons Clause) into the guard chain. The designs are ported; the code is original Python. Design record: `decisions/ADR-015-blast-reversibility-scoring-and-redaction.md`.\n\n## What this adds\n\n1. **`hooks/destructive-command-guard.py`** \u2014 blast \u00d7 reversibility scoring for locally destructive commands. Each rule id declares `(blast 0-4, reversibility 0-4)`; `risk = blast + (4 - reversibility)` buckets into allow / warn / confirm / block. The headline split: `git reset --soft` scores (0, 4) and passes; `git reset --hard` scores (1, 0) and asks. This closes the local-destruction half of the 2026-07-26 classifier gap (ADR-007 covers the published-history half and is not duplicated). Overrides: `RISK-OK` per command; `guard-scoring.json` per rule, per cell, or per score.\n2. **exit(2) backstop** \u2014 a block-bucket verdict prints the deny JSON, writes the reason to stderr, and exits 2, which the harness honours even in `bypassPermissions` mode. The three existing redline guards already did this; ADR-015 records it as policy.\n3. **`security/secret-redaction-guard.py`** \u2014 redact-and-allow for secret VALUES. It recursively walks `tool_input`, replaces each match with `[REDACTED:<rule_id>]`, and returns allow with `hookSpecificOutput.updatedInput` plus a reason naming the count and types. The codex target denies instead (its contract cannot rewrite input and ignores `ask`).\n\nBoth guards carry a shadow mode (`AGENT_OPS_GUARD_SHADOW` logs `would <action>` and enforces nothing) and asymmetric fail-open (an unparseable segment allows unless it names a destructive trigger keyword; then it escalates to confirm).\n\n## Verification\n\n- 57 new tests drive both guards with real PreToolUse JSON payloads on stdin; full suite green at 610 (`python -m unittest discover -s tests`).\n- Pinned: the 25-cell matrix snapshot, both monotonicity invariants, the soft/hard reset split, override token, shadow truthy/falsy values, all three config override layers plus the bad-config path, redaction idempotency, the codex deny path, and clean-prose negatives.\n- Not verified: neither guard is wired on a live machine. The machine-config deploy step must add both files before anything enforces. Live-harness acceptance of `updatedInput` is a doc claim until measured (stated in ADR-015).\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "a948b112a36a9c00e265b2b3e4c7c9083f3e88db",
+      "head": "576f07493d63650842ed93a27ebc5cc6965d0d6e",
+      "paths": [
+        "hooks/destructive-command-guard.py"
+      ],
+      "defect_class": "missing-branch",
+      "defect_location": "hooks/destructive-command-guard.py, the _DANGEROUS_EXACT table",
+      "defect_description": "The bare `~` target is gone from the dangerous-path table. `rm -rf ~` then scores as rm.recursive (0, 1) rather than rm.dangerous_path (3, 0), so a recursive delete of the home directory warns instead of blocks. No comment or test in the diff names that target.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "_DANGEROUS_EXACT = {\"/\", \"~\", \"~/\", \"$HOME\", \"${HOME}\", \"%USERPROFILE%\",",
+        "replace": "_DANGEROUS_EXACT = {\"/\", \"~/\", \"$HOME\", \"${HOME}\", \"%USERPROFILE%\","
+      }
+    },
+    {
+      "id": "h13",
+      "pr": 49,
+      "title": "Build the generic stale-generated-file CI gate (ADR-003 backlog item)",
+      "body": "The named ADR-003 backlog item, built: a reusable CI gate for repos that commit\nbuild output next to its source. Rebuild from source, `git diff` the declared\noutputs, fail on drift. Generalizes learning-notes' repo-local `generated-files`\njob \u2014 deterministic, no judgment calls, no model in the loop.\n\nPer-repo variables (build commands, watched paths) live in the consumer's\n`.generated-drift.toml`; consumers wire one job against the `workflow_call`\nwrapper. Exit codes are the interface and are deliberately distinct: `0` clean,\n`1` drift (rebuild and commit), `2` operator/config error. That split matters \u2014\na watched path already dirty before any build ran makes drift unattributable,\nso it fails as operator error rather than pretending to be a drift finding.\n\nOrthogonal to `shared-block-drift.yml` already on `main`: that one checks this\nrepo's own convention blocks against their mirrors; this one checks any\nconsumer repo's build output against its source.\n\nRecovered from the abandoned `claude/in-flight-items-xuoe93` branch (original\ncommit `2d6f61e`, 2026-07-10) during the weekly hygiene sweep. Cherry-picked\nonto current `main` rather than merged \u2014 the branch was ~25 commits behind and\ncarried a second unrelated concern, which landed separately in #48. Two\nconflicts resolved by hand, both additive: `CLAUDE.md` and `scripts/README.md`\nhad each grown a new section on `main` since, so both sides are kept.\n\n**Verification:** `tests/test_generated_drift.py` 8/8 pass and the full suite\nexits 0 locally; `sync-shared-blocks.py --check` reports all blocks in sync,\nconfirming the `CLAUDE.md` resolution landed outside the marker regions.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "fb8854c434d10407614000b7b118bc79a3d51267",
+      "head": "e21a567734a17956b10194ae50f308bc2df73cad",
+      "paths": [
+        "scripts/check-generated-drift.py"
+      ],
+      "defect_class": "narrow-invariant",
+      "defect_location": "scripts/check-generated-drift.py, main, the build invocation",
+      "defect_description": "The build command is split on whitespace and run without a shell. That works for every example the diff shows (`python build_site.py`), and it breaks any build command holding a quoted argument, a pipe, a redirection or an environment prefix. The config format documents a free string, so the narrowed invariant is invisible until a consumer writes one.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "            proc = subprocess.run(cmd, shell=True, cwd=root)",
+        "replace": "            proc = subprocess.run(cmd.split(), cwd=root)"
+      }
+    },
+    {
+      "id": "h14",
+      "pr": 27,
+      "title": "Guard: naming one variable is a read, not a dump (v2.4)",
+      "body": "Follow-up to #25, which fixed the `Env:` PSDrive false positive and left this\none filed rather than decided, on the grounds that narrowing it was a posture\ncall rather than a mechanical fix. This decides it.\n\n## What the rule actually did\n\nThe v2 rule was `\\bGet-Variable\\b(?![^|]*-Name)` \u2014 *\"no `-Name` anywhere in the\nsegment, so it must be a dump.\"* Measured against real commands rather than read\noff the regex, it was wrong in **three directions at once**:\n\n| Command | v2 | Correct |\n| --- | --- | --- |\n| `Get-Variable PATH` | blocked | allow \u2014 names one variable, positionally |\n| `git checkout -b fix/get-variable-fp` | blocked | allow \u2014 it's a branch name |\n| `rg 'Get-Variable' security/` | blocked | allow \u2014 you couldn't grep for the rule's own name |\n| `Get-Variable -Name *` | **allowed** | block \u2014 `-Name` was an unconditional escape hatch, so a wildcard dump walked straight through it |\n| `gv` | **allowed** | block \u2014 the alias was never named |\n\nRows 2 and 3 are the same root cause as the `Env:` bug in #25: matching literal\ntext *anywhere* in the segment instead of in a command position. This one\nannounced itself \u2014 the guard blocked the `git worktree add -b\nfix/get-variable-targeted-read` that was creating the branch to fix it.\n\n## The posture question, and why it resolves cleanly\n\nThe concern on file was that narrowing row 1 loses protection the name-based\n`CRED_VAR_READ` screen can't replace:\n\n```powershell\n$k = $env:ANTHROPIC_API_KEY   # secret is now in a variable called `k`\nGet-Variable k                # ...and `k` looks nothing like a credential\n```\n\nBlocking every unnamed `Get-Variable` did catch that. **But it was never buying\nthe protection it appeared to** \u2014 `Get-Variable -Name k`, the same read more\nidiomatically spelled, was already allowed. The rule caught laundering only when\nthe caller happened to use positional syntax, which is a coin flip, not a\ncontrol. Verified both ways before deciding.\n\nSo: narrow. Variable laundering *is* copy-then-read laundering (`cp secret x;\ncat x`) one container down, and that's already explicitly out of scope for\nexactly this reason \u2014 the threat model is non-adversarial agent mistakes, and an\nagent that assigns a secret to `$k` and prints `$k` isn't the failure this hook\nexists to stop. This makes an existing boundary consistent rather than moving\nit. It's now listed with the other bounded-out shapes in the README and asserted\nas **allowed** in `TestBoundedOutOfScope`, following the suite's convention that\na deliberate non-block is a test so a well-meaning future \"fix\" fails on\npurpose.\n\nBecause rows 4 and 5 close at the same time, this removes two false positives\n**and** two real gaps. It isn't a safety-for-convenience trade.\n\n## Implementation\n\nThe rule is now the natural one: **a dump is an invocation that names no\nspecific variable, or names a wildcard.** That's a token walk\n(`_get_variable_is_dump`) rather than a lookahead, so `-Scope Global` (a flag\nconsuming its value) and `-ValueOnly PATH` (a switch plus a name) are read\ncorrectly \u2014 a regex can't distinguish those without enumerating the flag table\nanyway, and the walk makes the intent legible.\n\n`Variable:` also gets the drive-root treatment `Env:` got in v2.2; they share\n`_PS_DRIVE_DUMP` now. `Get-ChildItem Variable:` blocks (it didn't before \u2014 only\n`dir`/`ls` were named), `ls Variable:PATH` is a targeted read, and\n`ls Variable:ANTHROPIC_API_KEY` still blocks on the credential-name screen \u2014\nthe same guard rail the `Env:` tightening needed.\n\n## Tests\n\n`TestGetVariableTargetedRead`, both directions, plus a class asserting the v2.2\n`Env:` contract is untouched by the `_PS_ENV_DRIVE` \u2192 `_PS_DRIVE_DUMP`\ngeneralisation. 133 tests, green.\n\n## Version\n\n**2.4.** v2.3 (#26) landed while this was in review, so this has been rebased on\ntop of it and the numbering is contiguous: 2.2 -> 2.3 -> 2.4. The two changes\ntouch different functions; the only textual conflicts were the version header,\nthe README section list, and adjacent test classes, all resolved by keeping both\nsides. Full suite green at 133 tests with both changes in, and the v2.2 `Env:`\ncontract is re-asserted under `test_env_drive_behaviour_unchanged_by_the_generalisation`\nsince `_PS_ENV_DRIVE` became `_PS_DRIVE_DUMP` here.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "68e64c706375f1c2a86dfb88dce07ea5dec8d845",
+      "head": "4451e2bf138e91bdfebdc0cdca39c1799c3dabfb",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "defect_class": "narrow-invariant",
+      "defect_location": "security/credential-guard.py, _is_wildcard_name",
+      "defect_description": "The `?` wildcard test is gone. The invariant left behind is that a globbing name holds a `*`, which is true of every example the diff shows. PowerShell also globs with `?`, so `Get-Variable ??` enumerates many variables and is read as a targeted read. The docstring names only the `*` forms.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "    return not name or \"*\" in name or \"?\" in name",
+        "replace": "    return not name or \"*\" in name"
+      }
+    },
+    {
+      "id": "h15",
+      "pr": 28,
+      "title": "Guard: an anchored dump rule needs a segment to anchor to (v2.5)",
+      "body": "`env` was blocked. `echo $(env)` was not \u2014 and it runs the same full dump. Also\nallowed: `\"$(env)\"`, `echo $(printenv)`, `x=$(env)`, ``echo `env` ``.\n\nPre-existing gap: older than #25 and #26, confirmed on the pre-v2.2 baseline.\nFiled from the #26 session as a background task rather than folded into it.\n\n## The cause is not a rule that is too narrow\n\nThe bare-dump alternatives are anchored to a whole segment (`^\\s*env\\s*$`,\n`^\\s*printenv\\s*$`, `^\\s*set\\s*$`), and that anchoring is **load-bearing** \u2014 it\nis the only reason `.venv/bin`, `--env-file`, `conda env list`, `/usr/bin/env`\nand `env -u VAR cmd` don't match (pinned since #25). Loosening it would trade\nthis gap for that entire family of false positives.\n\nThe cause is that `main()` only ever handed those rules the **top-level**\nsegment, so a dump one container down never got the anchor's attention. A\nsubstitution body is a command in its own right, so it is now offered to them as\na segment \u2014 recursively, and re-split first, because a body is a command *list*.\nThis reuses the unit machinery #26 added.\n\n## Two narrower calls inside that\n\n- **Only the env-dump rule gets the extra pass.** `CRED_VAR_READ` and\n  `MCP_GET_PATTERN` are un-anchored, so their search already sees inside a\n  substitution. Running `CRED_VAR_READ` per unit would *newly break*\n  `[bool]($env:API_KEY)` \u2014 its standalone-statement alternatives describe a\n  statement that emits a value, and a unit body's value is consumed by the\n  expression around it. The parenthesised spelling of the guard's own\n  recommended existence check must not become a block. (My chip proposed running\n  all three; that turned out to be wrong.)\n- **The `git commit -m` prose skip does not extend to unit bodies.** It exempts\n  a *message*; a substitution body is executed code whatever encloses it. So\n  `git commit -m \"document $(env) in the runbook\"` blocks \u2014 double quotes run it\n  \u2014 while the single-quoted spelling stays allowed.\n\n## Half the fix is in the splitter\n\n`_split_segments` cut on `;`/`|`/`&` without regard for parens, so\n`echo $(cd /tmp; env)` arrived as `echo $(cd /tmp` and `env)` \u2014 and\n`^\\s*env\\s*$` cannot match `env)`. **A fragment defeats an anchored rule as\nthoroughly as never being shown the text.**\n\nSegments now hold parentheses together. Nested units are re-split from their\nbodies anyway, so no coverage is lost. An unbalanced `(` stops splitting for the\nrest of the command \u2014 safe rather than blinding, since the trailing text still\nlands in a unit body (`_balanced` runs an unterminated group to end of segment)\nand both callers re-split it. I attacked that directly: `echo ( ; cat ~/.env`,\n`echo ( ; env`, `echo ( | cat \u2026`, a stray `)`, and a quoted\n`echo \"(\" ; cat ~/.env` all block.\n\n## Adjacent surfaces\n\nThe chip asked whether `_GIT_ALIAS_EXEC` and the `| xargs` pre-check share the\nnesting gap. They don't \u2014 both search un-anchored, so\n`echo $(git -c alias.x='!printenv KEY' x)` and `echo $(echo ~/.env | xargs cat)`\nwere already caught. Pinned rather than assumed.\n\n## Verification\n\n- `TestNestedEnvDump`, both directions: ten nested dump forms blocked, the\n  whole-word false-positive set still allowed, the `[bool]` casts still allowed,\n  prose-vs-executed distinguished, and the splitter attacked.\n- Differentially probed against `main`, so every `ALLOW \u2192 BLOCK` transition is an\n  intended one and nothing newly false-positives.\n- 133 tests pass.\n- Live deploy re-synced and smoke-tested through the real hook: `echo $(env)`\n  blocked; `env -u UV_ENV_FILE uv run \u2026`, `echo $(ls \u2026)` and\n  `[bool]($env:ANTHROPIC_API_KEY)` all still pass.\n\n## Version number\n\nThis is **2.5, not 2.4** \u2014 #27 has 2.4 in flight. The header is a drift\ntripwire, so two files must never claim the same number; a skipped minor is\ncosmetic, a duplicated one defeats the mechanism. Same rule #27 applied when it\nskipped my 2.3.\n\nNote for whoever merges second: #27 is cut from before #26, so it and this\nbranch will collide on the header block and the README section order. The code\nchanges are disjoint.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "4c8509e7b90b5803bffe480e0708e6275060ed58",
+      "head": "eabf9d4df565dea43e926d338615196ef5fe034b",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "defect_class": "narrow-invariant",
+      "defect_location": "security/credential-guard.py, _split_segments, the closing paren branch",
+      "defect_description": "The depth counter is no longer clamped at zero. The invariant left behind is that parentheses are balanced, which holds for every shape the diff discusses. An unmatched `)` drives the depth negative, the `elif depth:` branch then swallows every later separator, and a chained dump such as `echo hi) ; env` is never split into the segment the anchored rule needs. The pull request body does name a stray `)` among the shapes it attacked.",
+      "body_states_intent": true,
+      "mutation": {
+        "find": "            depth = max(0, depth - 1)",
+        "replace": "            depth = depth - 1"
+      }
+    },
+    {
+      "id": "h16",
+      "pr": 18,
+      "title": "feat: a PreToolUse guard against whole-tree git staging",
+      "body": "Blocks `git add -A`, `git add -u`, `git add .` and `git commit -a`, with a `STAGE-ALL-OK` per-command override.\n\n## Why a hook and not a rule\n\n`operating-model.md` already said to stage explicit paths. On 2026-07-18/19 that rule failed **twice in a single session** \u2014 the second time *after* the first was already a known lesson in the same conversation, sweeping six files of another session's in-flight work onto a default branch.\n\nThat is what a reflex looks like from the outside, and a reflex is not fixed by writing the rule down more firmly. This repo's whole argument is that a rule without a mechanical backstop drifts silently; this is that argument applied to the repo's own operating model.\n\n## The constraint that shaped the implementation\n\n**The guard must not block prose.** The commit messages, PR bodies and postmortems describing these incidents quote `git add -u` verbatim \u2014 a guard that cannot document itself gets disabled rather than obeyed. `credential-guard` v1 hit this exact wall by blocking its own commit message for quoting an example.\n\nSo it strips heredoc bodies, tokenizes with `shlex` so quoted text collapses into a single token, and only counts a flag in real command position. Grepping for `-A` would have been four lines and unusable.\n\n## Tests\n\n25 cases, both halves:\n\n- **Blocked:** every whole-tree shape, including `git -C <repo> add -u`, `-am`, and the offence buried in a later segment of `add && commit && push`.\n- **Allowed:** explicit paths, `--amend` (long-form, contains an `a` \u2014 a sloppy matcher blocks it), `git add -p`, `git stash -u`, `git clean -A`, non-git commands, non-shell tools.\n- **Prose:** four cases lifted from the actual commit messages written the day it was built \u2014 a flag inside `-m`, inside `echo`, inside a commit heredoc, inside a `gh pr create` body heredoc.\n- **Fails open** on an unparseable payload; a broken hook must not wedge every tool call.\n\n## Verified live\n\nWired into `settings.json` and exercised in-session \u2014 `git -C <repo> add -u` blocked with the guidance message, explicit-path staging unaffected. Provisioning for both platforms is in [REDACTED: publication boundary] (canonical stays here, same as `credential-guard`).\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)",
+      "body_redactions": 1,
+      "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
+      "head": "feb33c639f706037531979a0963ce86be1c168f1",
+      "paths": [
+        "hooks/git-staging-guard.py"
+      ],
+      "defect_class": "narrow-invariant",
+      "defect_location": "hooks/git-staging-guard.py, _git_invocation, the leading-command split",
+      "defect_description": "The backslash split is gone from the leading-command basename. The invariant left behind is that a program path uses forward slashes, which holds for every example the diff shows. A Windows path such as `C:\\Program Files\\Git\\git.exe` then fails the git test, and every whole-tree staging command spelled with an absolute Windows path is allowed. This guard runs on Windows.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "    lead = tokens[0].rsplit(\"/\", 1)[-1].rsplit(\"\\\\\", 1)[-1]",
+        "replace": "    lead = tokens[0].rsplit(\"/\", 1)[-1]"
+      }
+    },
+    {
+      "id": "h17",
+      "pr": 88,
+      "title": "config-change-guard v1.1: check what the name promised",
+      "body": "## The problem\n\n`config-change-guard.py` v1.0 checked `disableAllHooks`, plus a substring search\nfor four guard names over the serialized `hooks` blob. Both directions were\nnarrower than the name \"config tamper guard\" implies \u2014 and the gap was not\nacademic. A settings file could keep all four guard names, pass v1.0 cleanly,\nand still hand the session unrestricted power.\n\n## What v1.1 blocks that v1.0 called an intact chain\n\n| Escalation | v1.0 | v1.1 |\n| --- | --- | --- |\n| `permissions.defaultMode: \"bypassPermissions\"` | allowed \u2014 `permissions` was never read | **blocked** |\n| `permissions.allow: [\"Bash\"]` / `Bash(*)` / `Bash(:*)` / `Bash(*:*)` | allowed | **blocked** |\n| `env: {ANTHROPIC_BASE_URL: \u2026}` \u2014 model traffic redirected | allowed | **blocked** |\n| guard moved to `PostToolUse` (runs after the call; cannot refuse) | allowed \u2014 name still in the blob | **blocked** |\n| guard given `\"matcher\": \"\"` (matches nothing) | allowed | **blocked** |\n| command repointed at `credential-guard-disabled.py` | allowed \u2014 that string *contains* `credential-guard` | **blocked** |\n\nThe first three are new checks. The last three fall out of replacing the\nsubstring search with a **structural** one: each guard must appear under its\nexpected event, with a non-empty matcher, and a command naming the exact\n`<guard>.py` file. Every check is additive \u2014 nothing v1.0 refused is now allowed.\n\n## The usability half is the load-bearing half\n\nThis guard sits on the one file a false positive cannot be repaired from: a\nwrong block bricks the config, and the repair is itself a config change the\nguard blocks again. So every new check fires only on an unambiguously dangerous\nvalue, never a merely unusual one. Pinned as **allowed**, beside the escalations:\n\n- prefixed allow rules \u2014 `Bash(git status)`, `Bash(gh pr view *)`, `Bash(rm -rf:*)`\n  \u2014 ordinary allowlist maintenance, and narrowing those is `/doctor`'s job\n- a benign `env` block (`EDITOR`, `TZ`, \u2026); an `env` block per se is normal\n- `plan` / `acceptEdits` / `default` / `auto` \u2014 user preferences, not tampering\n- an **absent** `matcher` key, which means \"all tools\" in Claude Code \u2014 only an\n  explicitly empty matcher is the neutering shape\n- bare non-shell tool names (`Read`, `Grep`, `Glob`, `Agent`)\n- a missing or malformed `permissions` key, and junk in the `hooks` tree\n\n## Verification\n\n- `tests/test_config_change_guard.py`: **22 \u2192 36 cases, all green.**\n- Full repo suite: **440/440 green** (`python -m unittest discover -s tests`).\n- Both copies `py_compile` clean; `scripts/githooks/pre-commit` (redline guard) exit 0.\n- **The false-block case that actually matters:** fed a `user_settings`\n  `ConfigChange` payload pointing at the real canonical `settings.json` that\n  provisions these machines \u2192 **ALLOWED** (empty stdout, exit 0).\n\n## Still UNMEASURED \u2014 unchanged by this PR, and stated plainly\n\nWhether `ConfigChange` fires when a *tool* edits a settings file, and whether\n`{\"decision\": \"block\"}` actually vetoes the change, remain unobserved. A third\nattempt to measure closed off today: standing up a scratch probe rig (headless\nchild session + `--settings` wiring a log-only probe) was refused by\n`credential-guard` at the *parent* session, because composing the command\nrequires naming a Claude config path. **That block was correct and was not\nworked around**; the probe log was confirmed never created, so no data exists.\n\n`hooks/README.md` now carries all three closures. Per `security/posture.md`\nlimit 7 an unmeasured claim does not count \u2014 so a green suite here means \"would\nrefuse the right things if it ran\", not \"is enforcing anything\".\n\n## Notes\n\n- `vendors/claude/plugin/hooks/config-change-guard.py` is a derived copy;\n  re-copied from canon per that README's edit-canon-then-re-copy rule, and\n  verified byte-identical.\n- Canonical home was already settled at `hooks/config-change-guard.py` by\n  ADR-013 + the `sync-claude-hooks` registry ([REDACTED: publication boundary] #106); this PR conforms to\n  it rather than proposing anywhere new.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 1,
+      "base": "ed40227ef0ee7ac3250d7da803a382ed91ec2f61",
+      "head": "1f7491235724ec7225e5697fd5d6f4f1bcb62047",
+      "paths": [
+        "hooks/config-change-guard.py"
+      ],
+      "defect_class": "narrow-invariant",
+      "defect_location": "hooks/config-change-guard.py, main, the env-key comparison",
+      "defect_description": "The case fold is gone from the env-key comparison. The invariant left behind is that an env key is written in upper case, which holds for every example the diff shows. Windows environment names are case-insensitive, so an `env` block spelling the key `anthropic_base_url` redirects model traffic and passes the check.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "        flagged = sorted(k for k in env if str(k).strip().upper() in FORBIDDEN_ENV_KEYS)",
+        "replace": "        flagged = sorted(k for k in env if str(k).strip() in FORBIDDEN_ENV_KEYS)"
+      }
+    },
+    {
+      "id": "h18",
+      "pr": 100,
+      "title": "feat(guards): blast \u00d7 reversibility scoring, redact-and-allow, exit-2 backstop (ADR-015)",
+      "body": "Ports three designs from the public secguard project (Apache-2.0 + Commons Clause) into the guard chain. The designs are ported; the code is original Python. Design record: `decisions/ADR-015-blast-reversibility-scoring-and-redaction.md`.\n\n## What this adds\n\n1. **`hooks/destructive-command-guard.py`** \u2014 blast \u00d7 reversibility scoring for locally destructive commands. Each rule id declares `(blast 0-4, reversibility 0-4)`; `risk = blast + (4 - reversibility)` buckets into allow / warn / confirm / block. The headline split: `git reset --soft` scores (0, 4) and passes; `git reset --hard` scores (1, 0) and asks. This closes the local-destruction half of the 2026-07-26 classifier gap (ADR-007 covers the published-history half and is not duplicated). Overrides: `RISK-OK` per command; `guard-scoring.json` per rule, per cell, or per score.\n2. **exit(2) backstop** \u2014 a block-bucket verdict prints the deny JSON, writes the reason to stderr, and exits 2, which the harness honours even in `bypassPermissions` mode. The three existing redline guards already did this; ADR-015 records it as policy.\n3. **`security/secret-redaction-guard.py`** \u2014 redact-and-allow for secret VALUES. It recursively walks `tool_input`, replaces each match with `[REDACTED:<rule_id>]`, and returns allow with `hookSpecificOutput.updatedInput` plus a reason naming the count and types. The codex target denies instead (its contract cannot rewrite input and ignores `ask`).\n\nBoth guards carry a shadow mode (`AGENT_OPS_GUARD_SHADOW` logs `would <action>` and enforces nothing) and asymmetric fail-open (an unparseable segment allows unless it names a destructive trigger keyword; then it escalates to confirm).\n\n## Verification\n\n- 57 new tests drive both guards with real PreToolUse JSON payloads on stdin; full suite green at 610 (`python -m unittest discover -s tests`).\n- Pinned: the 25-cell matrix snapshot, both monotonicity invariants, the soft/hard reset split, override token, shadow truthy/falsy values, all three config override layers plus the bad-config path, redaction idempotency, the codex deny path, and clean-prose negatives.\n- Not verified: neither guard is wired on a live machine. The machine-config deploy step must add both files before anything enforces. Live-harness acceptance of `updatedInput` is a doc claim until measured (stated in ADR-015).\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "body_redactions": 0,
+      "base": "a948b112a36a9c00e265b2b3e4c7c9083f3e88db",
+      "head": "576f07493d63650842ed93a27ebc5cc6965d0d6e",
+      "paths": [
+        "hooks/destructive-command-guard.py"
+      ],
+      "defect_class": "narrow-invariant",
+      "defect_location": "hooks/destructive-command-guard.py, _dangerous_target, the basename split",
+      "defect_description": "The basename is taken on forward slashes alone. The invariant left behind is that a path uses forward slashes, which holds for every example the diff shows, and the file's own _tokens docstring says the tokenizer keeps Windows backslash paths intact. `rm -rf C:\\repo\\.git` then yields a basename that is the whole string, so the .git target scores as an ordinary recursive delete.",
+      "body_states_intent": false,
+      "mutation": {
+        "find": "    base = re.split(r\"[/\\\\]\", t.rstrip(\"/\\\\\"))[-1]",
+        "replace": "    base = t.rstrip(\"/\\\\\").split(\"/\")[-1]"
+      }
+    }
+  ]
+}

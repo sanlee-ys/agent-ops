@@ -126,6 +126,66 @@ class TestBuildPrompt(unittest.TestCase):
             run_eval.build_prompt("R", "t", "x" * (run_eval.DIFF_CHAR_CAP + 1))
         self.assertIn("over the", str(ctx.exception))
 
+    def test_version_1_never_carries_the_body(self):
+        """Version 1 is the 2026-09-04 pilot's prompt and must not move. A
+        changed prompt is a different experiment, so a stored pilot prompt has
+        to keep matching what this harness builds for version 1."""
+        prompt = run_eval.build_prompt("R", "t", "d", "THE-BODY", 1)
+        self.assertNotIn("THE-BODY", prompt)
+        self.assertNotIn("PR body:", prompt)
+
+    def test_version_2_carries_the_body(self):
+        prompt = run_eval.build_prompt("R", "t", "d", "THE-BODY", 2)
+        self.assertIn("PR body:", prompt)
+        self.assertIn("THE-BODY", prompt)
+
+    def test_version_2_names_an_absent_body_rather_than_dropping_it(self):
+        """A reader of a stored prompt must be able to tell a pull request
+        with no body from a harness that lost one."""
+        prompt = run_eval.build_prompt("R", "t", "d", "   ", 2)
+        self.assertIn("(this pull request has no body)", prompt)
+
+    def test_an_unknown_prompt_version_raises(self):
+        with self.assertRaises(run_eval.CaseError) as ctx:
+            run_eval.build_prompt("R", "t", "d", "b", 99)
+        self.assertIn("unknown prompt version", str(ctx.exception))
+
+
+class TestReadReviewRules(unittest.TestCase):
+    """The rules slice is the other half of the prompt version."""
+
+    def _repo(self, tmp: Path) -> Path:
+        path = tmp / run_eval.RULES_FILE
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            "# Shared\n\n## Review finding disposition\nlabel rule\n\n"
+            "## Code Review Rules\nreview rule\n",
+            encoding="utf-8",
+        )
+        return tmp
+
+    def test_the_default_reads_the_section_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text, _ = run_eval.read_review_rules(self._repo(Path(tmp)))
+        self.assertIn("review rule", text)
+        self.assertNotIn("label rule", text)
+
+    def test_whole_reads_the_file(self):
+        """Version 2 sends the whole file, as the production workflow does, so
+        the label definitions that sit BEFORE the rules section reach the
+        reviewer."""
+        with tempfile.TemporaryDirectory() as tmp:
+            text, _ = run_eval.read_review_rules(self._repo(Path(tmp)), whole=True)
+        self.assertIn("label rule", text)
+        self.assertIn("review rule", text)
+
+    def test_the_digest_covers_the_whole_file_either_way(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            _, section = run_eval.read_review_rules(repo)
+            _, whole = run_eval.read_review_rules(repo, whole=True)
+        self.assertEqual(section, whole)
+
 
 class TestMcNemar(unittest.TestCase):
     def test_no_discordant_pair_is_undefined_not_one(self):
@@ -363,6 +423,86 @@ class TestRedactLocalPaths(unittest.TestCase):
 
     def test_an_empty_home_is_a_no_op(self):
         self.assertEqual(run_eval.redact_local_paths("anything", ""), "anything")
+
+
+_FAKE_GUARD = '''
+import hashlib, re
+LITERAL_PATTERNS = [("a literal rule", re.compile(r"home-of-\\w+"))]
+HASHED_ALWAYS = {hashlib.sha256(b"secretname").hexdigest()}
+HASHED_REPO_CONTEXT = {hashlib.sha256(b"contextname").hexdigest()}
+OWNER_SLUG = re.compile(r"owner/([\\w.-]+)")
+WORD = re.compile(r"[A-Za-z0-9_]+")
+def sha(word):
+    return hashlib.sha256(word.lower().encode()).hexdigest()
+'''
+
+
+class TestRedactPublicationBoundary(unittest.TestCase):
+    """A pull request body is outside text, and this repository is public."""
+
+    def _repo(self, tmp: Path, guard: str | None = _FAKE_GUARD) -> Path:
+        if guard is not None:
+            path = tmp / run_eval.REDLINE_SCRIPT
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(guard, encoding="utf-8")
+        return tmp
+
+    def test_it_replaces_a_hashed_term(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, count = run_eval.redact_publication_boundary(
+                "see SecretName for the rest", self._repo(Path(tmp)))
+        self.assertNotIn("SecretName", out)
+        self.assertIn(run_eval.BOUNDARY_PLACEHOLDER, out)
+        self.assertEqual(count, 1)
+
+    def test_a_context_term_is_replaced_wherever_it_sits(self):
+        """Over-redaction costs a placeholder. Under-redaction costs the
+        boundary, so the context rule is not applied here."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out, count = run_eval.redact_publication_boundary(
+                "contextname with no neighbouring word", self._repo(Path(tmp)))
+        self.assertNotIn("contextname", out)
+        self.assertEqual(count, 1)
+
+    def test_it_replaces_a_whole_owner_slug(self):
+        """Half a slug still identifies the repository, so the owner goes too."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out, count = run_eval.redact_publication_boundary(
+                "lives in owner/secretname today", self._repo(Path(tmp)))
+        self.assertNotIn("owner/", out)
+        self.assertNotIn("secretname", out)
+        self.assertEqual(count, 1)
+
+    def test_a_slug_the_guard_does_not_name_is_left_alone(self):
+        """This repository's own slug is public and must stay readable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out, count = run_eval.redact_publication_boundary(
+                "lives in owner/public-thing today", self._repo(Path(tmp)))
+        self.assertIn("owner/public-thing", out)
+        self.assertEqual(count, 0)
+
+    def test_it_replaces_a_literal_pattern(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, count = run_eval.redact_publication_boundary(
+                "written under home-of-someone here", self._repo(Path(tmp)))
+        self.assertNotIn("home-of-someone", out)
+        self.assertEqual(count, 1)
+
+    def test_clean_text_is_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, count = run_eval.redact_publication_boundary(
+                "an ordinary body", self._repo(Path(tmp)))
+        self.assertEqual(out, "an ordinary body")
+        self.assertEqual(count, 0)
+
+    def test_a_missing_guard_raises_rather_than_publishes(self):
+        """Publishing text the harness could not scan is worse than a failed
+        build."""
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(run_eval.CaseError) as ctx:
+                run_eval.redact_publication_boundary(
+                    "anything", self._repo(Path(tmp), guard=None))
+        self.assertIn("publication boundary", str(ctx.exception))
 
 
 class TestResolveExecutable(unittest.TestCase):
