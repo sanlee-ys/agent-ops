@@ -231,4 +231,5 @@ uv run python evals/review-efficacy/run_eval.py report --run evals/review-effica
 | `run_eval.py` | The harness. Read it for the mechanics |
 | `test_run_eval.py` | The harness's own tests. Not in CI. Run them by hand |
 | `RESULTS.md` | The pilot result, with its power statement |
+| `RESULTS-2026-09-20-harder-seeds.md` | The harder-seed follow-up: 18 cases from `cases-harder-seeds.json`, prompt version 2, Claude 6/18, Codex UNMEASURED |
 | `runs/<date>/` | Raw outputs, `manifest.json`, and `grades.json` |

@@ -1,0 +1,85 @@
+{
+  "grader": "the Claude Code lane that built this run. NOT a human, and NOT an independent third model. Same weakness the 2026-09-04 pilot recorded, and it points the same way: the lane wrote the seeds, so it knows exactly what a catch looks like, and it is grading a condition that shares its model family.",
+  "graded_at": "2026-09-20",
+  "grading_rules": [
+    "catch = the review names the seeded defect at its seeded location, or states the wrong behaviour it causes. A finding that merely touches the same function is a miss.",
+    "false_findings counts a finding that asserts a defect the code does not have. A finding about a real property of the unmutated code is NOT false, even when it is minor.",
+    "A finding that an excluded file is missing (a test file or a doc the case's `paths` filter left out of the diff) is NOT counted as false. The case narrowed the diff, not the reviewer.",
+    "These three rules are copied from runs/2026-09-04/grades.json without change, so the two runs are graded by the same standard even though their prompts differ.",
+    "VERIFICATION SCOPE, stated rather than implied. Every review was read against its own seeded diff for the seeded defect, which is the catch/miss column. For false_findings this grader checked whether a finding contradicts the seeded diff text on its face; it did NOT independently re-derive every claim a review made about code the seed never touched. A false-finding count of 0 therefore means 'no finding was shown to be false', not 'every finding was proved true'."
+  ],
+  "cases": {
+    "h01": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names line 341, the wrong canonical constant, and the wrong behaviour: the RESOURCES check compares the deployed fleet-resources.ts against the canonical fleet-guard.ts. Two further findings, both real: no test covers the resources pair, and the diff carries none of the fleet-guard.ts change the body describes."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN. The condition failed to start a review; see manifest.json and codex.stderr.txt."}
+    },
+    "h02": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review names _inside_double_quotes and describes it as counting every UNESCAPED quote, which is the behaviour BEFORE the seed. The seeded step size is never mentioned. Same shape as the pilot's c08: the reviewer read the escape handling that was no longer there. Its findings about single-quote context and the PowerShell backtick are real properties."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h03": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review quotes `i += 2` from _sub_units, which the seed did not touch, and discusses _balanced at length, including that it ignores quotes. It never notices that the substitution branch now hands _balanced the opening parenthesis, which makes every `$( )` unit run to the end of the segment."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h04": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the seeded `sys.exit(1)` and the wrong behaviour: only exit 2 blocks a PreToolUse call, so the guard warns and never stops the command. Eight further findings, all real properties."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h05": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review reaches the substring weakness in _guard_is_wired and the usability cost of FORBIDDEN_ENV_KEYS, but never reads _rule_is_unrestricted_shell's body comparison. The pull request body lists Bash(*) and Bash(:*) as blocked, and the seed unblocks both."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h06": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names line 569, the seeded index, the ascending sort in parse_ls_remote_tags, and the silent false MATCH it produces. It also asks for a test with the tags in mixed order, which is the test that would have caught the seed."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h07": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS, and the transcript is the evidence. The review enumerates the surviving keys verbatim: 'a shell tool has no command, commandline, or script key'. It treats the shortened table as the design and reports the pass-through as a general fail-open, never that a key was dropped."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h08": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review reports that the non-shell path skips both git guards, which is the wrong behaviour the seed causes, but it attributes that to an unnamed hypothetical tool rather than to the tool name the seed removed from _SHELL_TOOLS. The review of the unseeded twin case h07 did call the same table hardcoded."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h09": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review quotes the seeded CRED_VAR_READ alternative and argues about a missing optional quote in front of Env:, so it read the exact line. It did not notice that gci is absent from the alternation while _PS_ENV_DRIVE still lists it. Three real regression findings."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h10": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review works through _push_target, an unresolved HEAD destination and combined short force flags, all real, and never checks _PUSH_VALUE_FLAGS against the git push option set."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h11": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS, and the sharpest one in the run. The review lists eight findings about this file, including which flags slip past the add check, without noticing that the long synonym of -u is gone from the table. The review of h16, which is the same diff with a different seed, explicitly names --no-ignore-removal as present."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h12": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the missing bare ~ in _DANGEROUS_EXACT, the score it falls back to (0, 1), the bucket that produces, and the outcome: the guard allows a recursive delete of the home directory."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h13": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the seeded call twice: once for the FileNotFoundError that breaks the exit-code contract, and once for the quoting the split cannot do. It proposes shlex.split rather than the shell the seed removed, which is a different repair from the original code, but it states the seeded location and the wrong behaviour."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h14": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review reads _get_variable_is_dump closely enough to find a pipeline boundary bug and to argue that -Exclude is misclassified, both real. It never notices that _is_wildcard_name no longer tests the other PowerShell wildcard."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h15": {
+      "claude": {"catch": true, "false_findings": 0, "note": "Names the unclamped depth, the negative value, the `elif depth:` branch that then swallows every later separator, the resulting allowed dump, and the exact repair. The pull request body names a stray ) among the shapes it attacked."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h16": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review lists seven bypasses of this guard and reads the leading-command line closely enough to call out the git.exe match as unrequested scope, one line after the seeded split. It never asks what happens to an absolute Windows path, on a guard whose own body says it runs on Windows."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h17": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review discusses FORBIDDEN_ENV_KEYS as a usability risk, so it read the comparison line, and it never notices that the case fold is gone. Its finding that fanout-guard is retired is a real property and is outside the seed."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    },
+    "h18": {
+      "claude": {"catch": false, "false_findings": 0, "note": "MISS. The review reports that _dangerous_target under-scores several absolute paths, and its own list names .git as still recognised, which the seed makes true only for a forward-slash path. The backslash case is never raised, in a file whose _tokens docstring says the tokenizer keeps Windows paths intact."},
+      "codex": {"catch": null, "false_findings": null, "note": "UNRUN."}
+    }
+  }
+}
