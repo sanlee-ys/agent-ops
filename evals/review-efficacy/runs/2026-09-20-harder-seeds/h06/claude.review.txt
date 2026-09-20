@@ -1,0 +1,11 @@
+The diff has one clear bug: the tag check reads the oldest tag as the newest. I saw only `scripts/handoff_check.py`, so I could not review the 63 tests, the convention page or the README rows.
+
+- auto-fix: `scripts/handoff_check.py:569` sets `newest = tags[0]`, but `parse_ls_remote_tags` (line 402) sorts ascending. `tags[0]` is therefore the oldest tag. With remote tags `v1.0.0` and `v3.2.0` and a State section that names `v3.2.0`, the check compares against `v1.0.0` and reports MATCH. A State section that names `v1.0.0` while the remote holds `v3.2.0` is missed as well. The fix is `tags[-1]`. A test whose fake `ls-remote` output lists the newest tag first would still pass with this bug, so add a test with the tags in mixed order.
+
+- auto-fix: `scripts/handoff_check.py:471` runs `gh pr list --json number` without `--limit`, and `gh` returns 30 results by default. A repo with more than 30 open pull requests has `actual` truncated. A number the State section correctly calls open can then be missing from `actual`, and the check reports a false DRIFT. Your own rule says a false DRIFT is the expensive error. Add `--limit 1000`, or report UNMEASURED when the result count equals the default limit.
+
+- ask-user: `check_changelog_top` (line 601) and `check_latest_tag` count only `vX.Y.Z` in the State prose, but a CHANGELOG heading is often `[3.2.1]` with no `v`. A State section that writes "released 3.2.1" gets a DRIFT for the changelog. Should the changelog check accept a bare version, given that the `v` requirement was added only to keep dependency bumps out of the tag check? The two checks may need different parsers.
+
+- ask-user: `check_branch` (lines 508 to 517) treats a detached HEAD as an empty branch name. Any claimed branch then reports DRIFT with `derived: nothing`. Should a detached HEAD report UNMEASURED with a reason instead? That would follow the "under-report rather than guess" rule.
+
+Scope fidelity: the diff adds nothing beyond the six checks, and it never writes to `HANDOFF.md`. I cannot confirm that `TestNeverWrites` and the other claimed tests exist, because they are not in this diff.

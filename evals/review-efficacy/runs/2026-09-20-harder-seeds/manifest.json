@@ -72,6 +72,34 @@
       "base": "d564a559fb1e3741645c606bf58c491e33247513",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "fdbb75102e0409c04a5db92cb41cf4dfffa9b9651d8fe1b276d60b19380ffc49",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 67.6
+        },
         "codex": {
           "command": [
             "codex",
@@ -112,6 +140,34 @@
       "base": "1d48f433536a040aacf23ed07450764bf1552caf",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "94916ec436fa9664230594fad7a06c56e135550d855cee86ab6fb9f133857b15",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 68.8
+        },
         "codex": {
           "command": [
             "codex",
@@ -152,6 +208,34 @@
       "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
       "body_redactions": 1,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "ef833f62bfb87ece23bc41277e4c24c9e9ac92222c1e557904b3caa7f36d6a4e",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 62.4
+        },
         "codex": {
           "command": [
             "codex",
@@ -192,6 +276,34 @@
       "base": "ed40227ef0ee7ac3250d7da803a382ed91ec2f61",
       "body_redactions": 1,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "25e22f295e3e5c7e5b66f3270c35a23abf3041e7ed374f679e346af2b0d44470",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 31.3
+        },
         "codex": {
           "command": [
             "codex",
@@ -232,6 +344,34 @@
       "base": "e6a8c4566624e0a55b4e0afac3f717a55dc1857e",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "7e9679f8f3d8ac64b4835cbf6396cf69b267c28312350bdc3ff7a14ce18ed3c9",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 30.2
+        },
         "codex": {
           "command": [
             "codex",
@@ -272,6 +412,34 @@
       "base": "0ed3fee67f0428a861bb8e141d61e549e7874f89",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "2eff4dccc61f5b3c7bfff9235d51e5944251c7dfaa73a927a992c5e7d9dfc075",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 31.8
+        },
         "codex": {
           "command": [
             "codex",
@@ -312,6 +480,34 @@
       "base": "0ed3fee67f0428a861bb8e141d61e549e7874f89",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "46d91fede0c28da3805dcf70c51b717d11336870ee93d66897934e5876241bd7",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 31.9
+        },
         "codex": {
           "command": [
             "codex",
@@ -352,6 +548,34 @@
       "base": "cf9b1c26df5e1ccb75de3b51442236a1052daddb",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "7d7c127343bee9f5be15968661fc232ccd4c0e1ab7e4faaa978ff392cffbd89f",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 46.8
+        },
         "codex": {
           "command": [
             "codex",
@@ -392,6 +616,34 @@
       "base": "9cb086230565f02d765bf4f89920ac9760252216",
       "body_redactions": 1,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "0cdfdc7fe57ce2e1f9a4ff4115a05351bbe47dd56877f8068494a3946ef9e4c3",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 40.3
+        },
         "codex": {
           "command": [
             "codex",
@@ -432,6 +684,34 @@
       "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
       "body_redactions": 1,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "a1d2954614f5f042a58764af3e5f65e5efb92624bb3cf612d6243a14a4d084c7",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 64.6
+        },
         "codex": {
           "command": [
             "codex",
@@ -472,6 +752,34 @@
       "base": "a948b112a36a9c00e265b2b3e4c7c9083f3e88db",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "a26222b3fdc46257315155766443fe631e09866e1ea0169b1d33d06341174624",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 73.1
+        },
         "codex": {
           "command": [
             "codex",
@@ -512,6 +820,34 @@
       "base": "fb8854c434d10407614000b7b118bc79a3d51267",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "b851518c6ad07e36bdca19a97c29f856c240f3eac7a1e48af644e4a43ce3d1a1",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 32.3
+        },
         "codex": {
           "command": [
             "codex",
@@ -552,6 +888,34 @@
       "base": "68e64c706375f1c2a86dfb88dce07ea5dec8d845",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "910f36d7ce8536ff8d1da5a40e70a217dd3b739cfa67aece96009ebe11a259de",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 43.3
+        },
         "codex": {
           "command": [
             "codex",
@@ -592,6 +956,34 @@
       "base": "4c8509e7b90b5803bffe480e0708e6275060ed58",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "63328f28cf0782380a01ff2c3f31b4540b3ff108a104b871a91e003c42b25214",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 29.4
+        },
         "codex": {
           "command": [
             "codex",
@@ -632,6 +1024,34 @@
       "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
       "body_redactions": 1,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "61989e8bbc9fb508f6ed852491a0f7c0914f0e3ca46cf7d6089a0480af94beda",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 55.3
+        },
         "codex": {
           "command": [
             "codex",
@@ -672,6 +1092,34 @@
       "base": "ed40227ef0ee7ac3250d7da803a382ed91ec2f61",
       "body_redactions": 1,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "43dc839020cfa790dae4635c25b5254e4051ba126d4cce988235f6036a907613",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 38.1
+        },
         "codex": {
           "command": [
             "codex",
@@ -712,6 +1160,34 @@
       "base": "a948b112a36a9c00e265b2b3e4c7c9083f3e88db",
       "body_redactions": 0,
       "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "66df67e3c8f827f114fb2f172cd7b0a3e930a75cb80829358884b458871492ca",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 82.6
+        },
         "codex": {
           "command": [
             "codex",
@@ -761,10 +1237,13 @@
   "generated_at": [
     "2026-09-20T21:59:50.891102+00:00",
     "2026-09-20T22:00:31.571441+00:00",
-    "2026-09-20T22:03:13.559853+00:00"
+    "2026-09-20T22:03:13.559853+00:00",
+    "2026-09-20T22:04:42.005317+00:00",
+    "2026-09-20T22:10:16.239405+00:00",
+    "2026-09-20T22:14:44.748606+00:00"
   ],
   "prompt_version": 2,
-  "repo_head": "4732ee0fade9b4824a17c4d0ecfa6abdd8ab2165",
+  "repo_head": "2bd69b39a09b80b3cd235f61543948bb55d49730",
   "rules_file": "vendors/shared/AGENTS.md",
   "rules_scope": "whole file",
   "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf"
