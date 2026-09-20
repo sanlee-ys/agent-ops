@@ -102,6 +102,13 @@ _PR_REF = re.compile(r"#(\d+)")
 _OPEN_WINDOW = 60
 _OPEN_WORD = re.compile(r"\bopen\b", re.IGNORECASE)
 
+# Where the window ends early. The next `#` starts another number's claim, a
+# period followed by a space ends the sentence, and a new bullet ends the
+# thought. Without the last two, a number at the end of one bullet reaches the
+# word "open" in the NEXT bullet, and the check reports a claim nobody made.
+# A period inside `4.37.3` is followed by a digit, so it stops nothing.
+_WINDOW_STOP = re.compile(r"#|\.(?=[\s)]|$)|\n\s*[-*]")
+
 # "branch `tool/handoff-check`" or "on branch `x`". The name is in backticks,
 # because that is how every HANDOFF in this fleet writes an identifier.
 _BRANCH_CLAIM = re.compile(
@@ -196,16 +203,31 @@ def claimed_open_prs(text: str) -> set:
     the window stops at the next `#`. A narrow window is deliberate. A sentence
     that lists ten merged pull requests and one open one must attach the word to
     the one it describes, not to the ten it does not.
+
+    This detector UNDER-reports on purpose. English attaches the word in ways no
+    window catches, as in "both open: #208 and #209". `check_open_prs` therefore
+    never asks whether this set equals the forge. It asks only whether every
+    number IN it is still open, which an under-report can never get wrong.
     """
     found = set()
     for match in _PR_REF.finditer(text or ""):
         tail = (text or "")[match.end():match.end() + _OPEN_WINDOW]
-        cut = tail.find("#")
-        if cut >= 0:
-            tail = tail[:cut]
+        stop = _WINDOW_STOP.search(tail)
+        if stop:
+            tail = tail[:stop.start()]
         if _OPEN_WORD.search(tail):
             found.add(int(match.group(1)))
     return found
+
+
+def mentioned_prs(text: str) -> set:
+    """Every pull request number the text names, in any role.
+
+    The other half of the comparison, and it reads no English at all. A number
+    is present or it is not. That is what makes the second direction of
+    `check_open_prs` immune to the attribution problem above.
+    """
+    return {int(match.group(1)) for match in _PR_REF.finditer(text or "")}
 
 
 def claimed_branch(text: str) -> str | None:
@@ -429,7 +451,22 @@ def result_row(check: str, status: str, claimed="", derived="", reason="") -> di
 
 
 def check_open_prs(state: str, repo: Path) -> dict:
+    """Compare the State section against `gh pr list`, in two directions.
+
+    Each direction is a separate question, and only the second one reads
+    English:
+
+      stale-open   a pull request the State CALLS open that the forge does not
+                   list. The prose is wrong about a number it names.
+      unmentioned  a pull request the forge lists as open that the State names
+                   NOWHERE. The prose predates it.
+
+    The second direction needs no attribution at all. A number is on the page
+    or it is not, so the detector's under-report cannot produce a false DRIFT
+    there.
+    """
     claimed = claimed_open_prs(state)
+    named = mentioned_prs(state)
     try:
         payload = run(["gh", "pr", "list", "--json", "number"], repo)
         actual = parse_gh_pr_list(payload)
@@ -440,14 +477,29 @@ def check_open_prs(state: str, repo: Path) -> dict:
             reason="gh did not answer: %s. An unread forge is not an empty "
                    "one." % exc,
         )
-    if not claimed:
-        return result_row(
-            "open-prs", UNMEASURED, derived=_numbers(actual),
-            reason="the State section names no open pull request",
-        )
-    if claimed == actual:
-        return result_row("open-prs", MATCH, _numbers(claimed), _numbers(actual))
-    return result_row("open-prs", DRIFT, _numbers(claimed), _numbers(actual))
+    stale_open = claimed - actual
+    unmentioned = actual - named
+    shown_claimed = "open per State: " + _numbers(claimed)
+    shown_actual = "open per gh: " + _numbers(actual)
+
+    if not stale_open and not unmentioned:
+        if not named and not actual:
+            return result_row(
+                "open-prs", UNMEASURED,
+                reason="neither the State section nor the forge names a pull "
+                       "request",
+            )
+        return result_row("open-prs", MATCH, shown_claimed, shown_actual)
+
+    reasons = []
+    if stale_open:
+        reasons.append("The State calls %s open. The forge does not"
+                       % _numbers(stale_open))
+    if unmentioned:
+        reasons.append("The forge lists %s open. The State never names them"
+                       % _numbers(unmentioned))
+    return result_row("open-prs", DRIFT, shown_claimed, shown_actual,
+                      reason=". ".join(reasons))
 
 
 def check_branch(state: str, repo: Path) -> dict:
