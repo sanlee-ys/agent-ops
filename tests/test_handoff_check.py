@@ -403,6 +403,18 @@ class TestAbsentIsNotZero(unittest.TestCase):
             self.assertEqual(entry["status"], hc.UNMEASURED)
         self.assertEqual(result["drift"], 0)
 
+    def test_a_check_that_could_answer_still_runs(self) -> None:
+        """The job cross-check never reads State, so a missing State is no
+        excuse for it. A check that COULD have answered must not report that
+        it could not."""
+        handoff = HANDOFF.split("## Next jobs")[1]
+        with repo_with(handoff="## Next jobs" + handoff) as root:
+            result = hc.check_repo(root)
+        entry = row(result, "job-consistency")
+        self.assertEqual(entry["status"], hc.DRIFT)
+        self.assertIn("job 3", entry["derived"])
+        self.assertEqual(row(result, "open-prs")["status"], hc.UNMEASURED)
+
     def test_unmeasured_rows_are_counted_apart_from_matches(self) -> None:
         with repo_with(fail=("gh pr list",)) as root:
             result = hc.check_repo(root)
