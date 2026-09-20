@@ -71,7 +71,7 @@ with Pi's harness/model split in
   [`dead-rules-audit.md`](conventions/dead-rules-audit.md) — rule adherence is
   measured, not assumed, and the measurement states what it cannot see
   ([`scripts/dead_rules_audit.py`](scripts/dead_rules_audit.py)); and
-  [`handoff-check.md`](conventions/handoff-check.md) — a HANDOFF State section
+  [`handoff-check.md`](conventions/handoff-check.md): a HANDOFF State section
   restates facts that `git` and `gh` hold exactly, so check them and never
   rewrite the file
   ([`scripts/handoff_check.py`](scripts/handoff_check.py)). And from a rename that
