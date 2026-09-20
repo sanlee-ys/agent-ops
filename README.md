@@ -81,6 +81,8 @@ record is in [`incidents/`](incidents/).
     this clone hosts live hooks
   - [`agent-success-signals.md`](conventions/agent-success-signals.md):
     ask what a green signal measures
+  - [`adr-citations.md`](conventions/adr-citations.md): cite a heading or
+    anchor, never a line number
 - [`evals/`](evals/): measurements of the operating layer's own claims.
   - [`review-efficacy/`](evals/review-efficacy/): does a Codex review of
     a Claude diff catch a defect Claude alone misses? Paired seeded
