@@ -1,0 +1,7 @@
+Summary: One real bug in the new resources-drift check; the diff also only covers half of what the PR title/body describes.
+
+- **auto-fix:** In `main()` at line 341, the resources drift check passes `_CANONICAL_GUARD` instead of `_CANONICAL_RESOURCES` as the canonical path: `check_copy(_RESOURCES_NAME, _CANONICAL_GUARD, deployed_resources, reporter)`. This makes the "RESOURCES COPY DRIFT" check compare the deployed `fleet-resources.ts` against the canonical `fleet-guard.ts`, so it will report a mismatch (or the wrong result) even when `fleet-resources.ts` is correctly deployed. It should be `_CANONICAL_RESOURCES`.
+
+- **ask-user:** The PR body states 12 tests pass, but none of them caught the wrong-canonical-path bug above. This means the test suite has no case that checks `fleet-resources.ts` against its own correct canonical file, so the "missing or weakened test" gap should be closed with a test that would fail on this bug.
+
+- **ask-user:** The PR title and body describe a second change — `fleet-guard.ts` routing Pi's `user_bash` (`!command`) through the same adapter, with a deny returning exit 2 — but the diff contains no changes to `fleet-guard.ts`, only to `check-park.py`. Confirm whether that change belongs in this diff or was left out by mistake.

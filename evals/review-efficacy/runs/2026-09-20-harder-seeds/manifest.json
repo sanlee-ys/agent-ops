@@ -1,0 +1,771 @@
+{
+  "cases": {
+    "h01": {
+      "base": "3936513b16b7d35f3134bd488db74b0e2758c6ef",
+      "body_redactions": 0,
+      "conditions": {
+        "claude": {
+          "command": [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+            "--disallowedTools",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "Task",
+            "NotebookEdit"
+          ],
+          "error": null,
+          "model": "claude-sonnet-5",
+          "ok": true,
+          "prompt_sha256": "2da56612a4ba08150370e0f4511463dfaf053b158ed07ee86891ab260dd443f5",
+          "returncode": 0,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 42.9
+        },
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "2da56612a4ba08150370e0f4511463dfaf053b158ed07ee86891ab260dd443f5",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.2
+        }
+      },
+      "defect_class": "wrong-constant",
+      "defect_description": "The resources check receives the wrong canonical constant. It compares the canonical fleet-guard.ts against the DEPLOYED fleet-resources.ts, so the check reports drift on every correct deployment and can never report a real fleet-resources.ts drift. No comment in the diff names the constant. The pull request body does state that fleet-resources.ts is hashed against its deployed copy.",
+      "defect_location": "vendors/pi/scripts/check-park.py, main, the RESOURCES COPY DRIFT call",
+      "diff_chars": 6321,
+      "head": "f63143b2e1977ee10159d22779ef6ddd7898c647",
+      "paths": [
+        "vendors/pi/scripts/check-park.py"
+      ],
+      "pr": 108,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 0,
+        "commits": 1,
+        "detail": "0 of 1 commits name Claude"
+      }
+    },
+    "h02": {
+      "base": "d564a559fb1e3741645c606bf58c491e33247513",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "fdbb75102e0409c04a5db92cb41cf4dfffa9b9651d8fe1b276d60b19380ffc49",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.8
+        }
+      },
+      "defect_class": "wrong-constant",
+      "defect_description": "The backslash branch advances by one character instead of two, so the escaped character is scanned again. An escaped quote then toggles the quote state, and _is_literal_quoted reads a nested single-quoted value as literal. Nothing in the diff names the step size.",
+      "defect_location": "security/credential-guard.py, _inside_double_quotes, the backslash branch",
+      "diff_chars": 6567,
+      "head": "3e95d75ceb3fbd13ddb234d80589a8d8bfa6757e",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "pr": 87,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h03": {
+      "base": "1d48f433536a040aacf23ed07450764bf1552caf",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "94916ec436fa9664230594fad7a06c56e135550d855cee86ab6fb9f133857b15",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.0
+        }
+      },
+      "defect_class": "wrong-constant",
+      "defect_description": "The scan for the matching parenthesis starts one character too early. For `$(` it starts on the opening parenthesis, so _balanced counts that parenthesis again and runs to the end of the segment. Every substitution then swallows the rest of the command, and the outer text is blanked away. Nothing in the diff names the offset.",
+      "defect_location": "security/credential-guard.py, _sub_units, the substitution branch",
+      "diff_chars": 15516,
+      "head": "c777ef4130b7e15b541827b9cf530b305dba4c0f",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "pr": 26,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h04": {
+      "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
+      "body_redactions": 1,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "ef833f62bfb87ece23bc41277e4c24c9e9ac92222c1e557904b3caa7f36d6a4e",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.1
+        }
+      },
+      "defect_class": "wrong-constant",
+      "defect_description": "The block path exits 1 instead of 2. A PreToolUse hook blocks a tool call with exit code 2 only; exit 1 is a hook error that the harness ignores. The guard therefore writes its message and allows the command. Nothing in the diff names the exit code.",
+      "defect_location": "hooks/git-staging-guard.py, main, the block path",
+      "diff_chars": 9118,
+      "head": "feb33c639f706037531979a0963ce86be1c168f1",
+      "paths": [
+        "hooks/git-staging-guard.py"
+      ],
+      "pr": 18,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 2,
+        "commits": 2,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h05": {
+      "base": "ed40227ef0ee7ac3250d7da803a382ed91ec2f61",
+      "body_redactions": 1,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "25e22f295e3e5c7e5b66f3270c35a23abf3041e7ed374f679e346af2b0d44470",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.4
+        }
+      },
+      "defect_class": "wrong-constant",
+      "defect_description": "The closing parenthesis is no longer removed before the comparison. `partition` leaves it on the body, so `Bash(*)` yields `*)`, which is in no entry of _UNRESTRICTED_BODIES. Every parenthesised unrestricted rule passes the check. Nothing in the diff names the slice. The pull request body does list those rules as blocked.",
+      "defect_location": "hooks/config-change-guard.py, _rule_is_unrestricted_shell, the body test",
+      "diff_chars": 16709,
+      "head": "1f7491235724ec7225e5697fd5d6f4f1bcb62047",
+      "paths": [
+        "hooks/config-change-guard.py"
+      ],
+      "pr": 88,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 0,
+        "commits": 1,
+        "detail": "0 of 1 commits name Claude"
+      }
+    },
+    "h06": {
+      "base": "e6a8c4566624e0a55b4e0afac3f717a55dc1857e",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "7e9679f8f3d8ac64b4835cbf6396cf69b267c28312350bdc3ff7a14ce18ed3c9",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.2
+        }
+      },
+      "defect_class": "wrong-constant",
+      "defect_description": "The tag list is indexed at the front instead of the back. parse_ls_remote_tags returns the tags sorted by version, so index 0 is the OLDEST tag. The drift check then compares the claim against the oldest tag and reports MATCH while the remote is tagged past the claim, which is the silent failure this check exists to catch. Nothing in the diff names the index.",
+      "defect_location": "scripts/handoff_check.py, check_latest_tag, the newest-tag index",
+      "diff_chars": 36372,
+      "head": "2db544bb50c8b03cfc0554af2446abebb7583a17",
+      "paths": [
+        "scripts/handoff_check.py"
+      ],
+      "pr": 143,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 12,
+        "commits": 12,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h07": {
+      "base": "0ed3fee67f0428a861bb8e141d61e549e7874f89",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "2eff4dccc61f5b3c7bfff9235d51e5944251c7dfaa73a927a992c5e7d9dfc075",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.1
+        }
+      },
+      "defect_class": "missing-branch",
+      "defect_description": "The `cmd` key is gone from the command-key table. A shell payload that carries its command under `cmd` yields no command, _translate returns None, and the adapter passes the call through with no guard run at all. No comment or test in the diff names the key.",
+      "defect_location": "vendors/cursor/hooks/cursor-guard-adapter.py, the _COMMAND_KEYS table",
+      "diff_chars": 13603,
+      "head": "df319193115d9ca785a72ba4f39609e3c4edec09",
+      "paths": [
+        "vendors/cursor/hooks/cursor-guard-adapter.py"
+      ],
+      "pr": 96,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 0,
+        "commits": 1,
+        "detail": "0 of 1 commits name Claude"
+      }
+    },
+    "h08": {
+      "base": "0ed3fee67f0428a861bb8e141d61e549e7874f89",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "46d91fede0c28da3805dcf70c51b717d11336870ee93d66897934e5876241bd7",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.9
+        }
+      },
+      "defect_class": "missing-branch",
+      "defect_description": "The `run_terminal_cmd` tool name is gone from the shell-tool table. A call under that name is no longer translated to a Bash payload, so both shell-only guards are skipped for it and the command never reaches git-staging-guard or published-history-guard. No comment or test in the diff names the tool.",
+      "defect_location": "vendors/cursor/hooks/cursor-guard-adapter.py, the _SHELL_TOOLS table",
+      "diff_chars": 13590,
+      "head": "df319193115d9ca785a72ba4f39609e3c4edec09",
+      "paths": [
+        "vendors/cursor/hooks/cursor-guard-adapter.py"
+      ],
+      "pr": 96,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 0,
+        "commits": 1,
+        "detail": "0 of 1 commits name Claude"
+      }
+    },
+    "h09": {
+      "base": "cf9b1c26df5e1ccb75de3b51442236a1052daddb",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "7d7c127343bee9f5be15968661fc232ccd4c0e1ab7e4faaa978ff392cffbd89f",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 9.2
+        }
+      },
+      "defect_class": "missing-branch",
+      "defect_description": "The `gci` alias is gone from the listing cmdlets in CRED_VAR_READ. The same alias is still in _PS_ENV_DRIVE, which this change narrows to the drive ROOT, so `gci Env:GITHUB_TOKEN` now matches neither rule and the targeted credential read is allowed. No comment or test in the diff names that alias in this position.",
+      "defect_location": "security/credential-guard.py, the CRED_VAR_READ listing cmdlets",
+      "diff_chars": 4591,
+      "head": "73f69702f9061436c975f18b8609e855d2e58e05",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "pr": 25,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h10": {
+      "base": "9cb086230565f02d765bf4f89920ac9760252216",
+      "body_redactions": 1,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "0cdfdc7fe57ce2e1f9a4ff4115a05351bbe47dd56877f8068494a3946ef9e4c3",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 9.3
+        }
+      },
+      "defect_class": "missing-branch",
+      "defect_description": "The `--exec` flag is gone from the value-flag table. Its value is then read as the first positional, so `git push --exec <path> origin main` takes <path> as the remote and `origin` as the branch. The guard asks the wrong branch about the rewrite and lets the push through. No comment or test in the diff names the flag.",
+      "defect_location": "hooks/published-history-guard.py, the _PUSH_VALUE_FLAGS table",
+      "diff_chars": 22468,
+      "head": "2e4243ebe8b595ad7d921b9d3066be47035c00ab",
+      "paths": [
+        "hooks/published-history-guard.py"
+      ],
+      "pr": 37,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h11": {
+      "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
+      "body_redactions": 1,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "a1d2954614f5f042a58764af3e5f65e5efb92624bb3cf612d6243a14a4d084c7",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.7
+        }
+      },
+      "defect_class": "missing-branch",
+      "defect_description": "The `--no-ignore-removal` flag is gone from the whole-tree table. It is the long synonym of `-u`, so `git add --no-ignore-removal` stages every tracked change and the guard allows it. Neither the docstring nor the pull request body names that flag.",
+      "defect_location": "hooks/git-staging-guard.py, the _ADD_WHOLE_TREE table",
+      "diff_chars": 9095,
+      "head": "feb33c639f706037531979a0963ce86be1c168f1",
+      "paths": [
+        "hooks/git-staging-guard.py"
+      ],
+      "pr": 18,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 2,
+        "commits": 2,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h12": {
+      "base": "a948b112a36a9c00e265b2b3e4c7c9083f3e88db",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "a26222b3fdc46257315155766443fe631e09866e1ea0169b1d33d06341174624",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.3
+        }
+      },
+      "defect_class": "missing-branch",
+      "defect_description": "The bare `~` target is gone from the dangerous-path table. `rm -rf ~` then scores as rm.recursive (0, 1) rather than rm.dangerous_path (3, 0), so a recursive delete of the home directory warns instead of blocks. No comment or test in the diff names that target.",
+      "defect_location": "hooks/destructive-command-guard.py, the _DANGEROUS_EXACT table",
+      "diff_chars": 19745,
+      "head": "576f07493d63650842ed93a27ebc5cc6965d0d6e",
+      "paths": [
+        "hooks/destructive-command-guard.py"
+      ],
+      "pr": 100,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h13": {
+      "base": "fb8854c434d10407614000b7b118bc79a3d51267",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "b851518c6ad07e36bdca19a97c29f856c240f3eac7a1e48af644e4a43ce3d1a1",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.3
+        }
+      },
+      "defect_class": "narrow-invariant",
+      "defect_description": "The build command is split on whitespace and run without a shell. That works for every example the diff shows (`python build_site.py`), and it breaks any build command holding a quoted argument, a pipe, a redirection or an environment prefix. The config format documents a free string, so the narrowed invariant is invisible until a consumer writes one.",
+      "defect_location": "scripts/check-generated-drift.py, main, the build invocation",
+      "diff_chars": 7925,
+      "head": "e21a567734a17956b10194ae50f308bc2df73cad",
+      "paths": [
+        "scripts/check-generated-drift.py"
+      ],
+      "pr": 49,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h14": {
+      "base": "68e64c706375f1c2a86dfb88dce07ea5dec8d845",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "910f36d7ce8536ff8d1da5a40e70a217dd3b739cfa67aece96009ebe11a259de",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 7.8
+        }
+      },
+      "defect_class": "narrow-invariant",
+      "defect_description": "The `?` wildcard test is gone. The invariant left behind is that a globbing name holds a `*`, which is true of every example the diff shows. PowerShell also globs with `?`, so `Get-Variable ??` enumerates many variables and is read as a targeted read. The docstring names only the `*` forms.",
+      "defect_location": "security/credential-guard.py, _is_wildcard_name",
+      "diff_chars": 8572,
+      "head": "4451e2bf138e91bdfebdc0cdca39c1799c3dabfb",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "pr": 27,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h15": {
+      "base": "4c8509e7b90b5803bffe480e0708e6275060ed58",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "63328f28cf0782380a01ff2c3f31b4540b3ff108a104b871a91e003c42b25214",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.2
+        }
+      },
+      "defect_class": "narrow-invariant",
+      "defect_description": "The depth counter is no longer clamped at zero. The invariant left behind is that parentheses are balanced, which holds for every shape the diff discusses. An unmatched `)` drives the depth negative, the `elif depth:` branch then swallows every later separator, and a chained dump such as `echo hi) ; env` is never split into the segment the anchored rule needs. The pull request body does name a stray `)` among the shapes it attacked.",
+      "defect_location": "security/credential-guard.py, _split_segments, the closing paren branch",
+      "diff_chars": 8437,
+      "head": "eabf9d4df565dea43e926d338615196ef5fe034b",
+      "paths": [
+        "security/credential-guard.py"
+      ],
+      "pr": 28,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h16": {
+      "base": "80a56407be2bcb83d3276c8ec0697229e4064bd0",
+      "body_redactions": 1,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "61989e8bbc9fb508f6ed852491a0f7c0914f0e3ca46cf7d6089a0480af94beda",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 9.2
+        }
+      },
+      "defect_class": "narrow-invariant",
+      "defect_description": "The backslash split is gone from the leading-command basename. The invariant left behind is that a program path uses forward slashes, which holds for every example the diff shows. A Windows path such as `C:\\Program Files\\Git\\git.exe` then fails the git test, and every whole-tree staging command spelled with an absolute Windows path is allowed. This guard runs on Windows.",
+      "defect_location": "hooks/git-staging-guard.py, _git_invocation, the leading-command split",
+      "diff_chars": 9098,
+      "head": "feb33c639f706037531979a0963ce86be1c168f1",
+      "paths": [
+        "hooks/git-staging-guard.py"
+      ],
+      "pr": 18,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 2,
+        "commits": 2,
+        "detail": "every commit in base..head names Claude"
+      }
+    },
+    "h17": {
+      "base": "ed40227ef0ee7ac3250d7da803a382ed91ec2f61",
+      "body_redactions": 1,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "43dc839020cfa790dae4635c25b5254e4051ba126d4cce988235f6036a907613",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.3
+        }
+      },
+      "defect_class": "narrow-invariant",
+      "defect_description": "The case fold is gone from the env-key comparison. The invariant left behind is that an env key is written in upper case, which holds for every example the diff shows. Windows environment names are case-insensitive, so an `env` block spelling the key `anthropic_base_url` redirects model traffic and passes the check.",
+      "defect_location": "hooks/config-change-guard.py, main, the env-key comparison",
+      "diff_chars": 16706,
+      "head": "1f7491235724ec7225e5697fd5d6f4f1bcb62047",
+      "paths": [
+        "hooks/config-change-guard.py"
+      ],
+      "pr": 88,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 0,
+        "commits": 1,
+        "detail": "0 of 1 commits name Claude"
+      }
+    },
+    "h18": {
+      "base": "a948b112a36a9c00e265b2b3e4c7c9083f3e88db",
+      "body_redactions": 0,
+      "conditions": {
+        "codex": {
+          "command": [
+            "codex",
+            "exec",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--cd",
+            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "-"
+          ],
+          "error": "exit 1",
+          "model": "gpt-6-astra",
+          "ok": false,
+          "prompt_sha256": "66df67e3c8f827f114fb2f172cd7b0a3e930a75cb80829358884b458871492ca",
+          "returncode": 1,
+          "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
+          "seconds": 8.6
+        }
+      },
+      "defect_class": "narrow-invariant",
+      "defect_description": "The basename is taken on forward slashes alone. The invariant left behind is that a path uses forward slashes, which holds for every example the diff shows, and the file's own _tokens docstring says the tokenizer keeps Windows backslash paths intact. `rm -rf C:\\repo\\.git` then yields a basename that is the whole string, so the .git target scores as an ordinary recursive delete.",
+      "defect_location": "hooks/destructive-command-guard.py, _dangerous_target, the basename split",
+      "diff_chars": 19741,
+      "head": "576f07493d63650842ed93a27ebc5cc6965d0d6e",
+      "paths": [
+        "hooks/destructive-command-guard.py"
+      ],
+      "pr": 100,
+      "prompt_version": 2,
+      "writer_provenance": {
+        "claude_commits": 1,
+        "commits": 1,
+        "detail": "every commit in base..head names Claude"
+      }
+    }
+  },
+  "conditions": {
+    "claude": {
+      "model": "claude-sonnet-5"
+    },
+    "codex": {
+      "model": "gpt-6-astra"
+    }
+  },
+  "diff_char_cap": 45000,
+  "generated_at": [
+    "2026-09-20T21:59:50.891102+00:00",
+    "2026-09-20T22:00:31.571441+00:00",
+    "2026-09-20T22:03:13.559853+00:00"
+  ],
+  "prompt_version": 2,
+  "repo_head": "4732ee0fade9b4824a17c4d0ecfa6abdd8ab2165",
+  "rules_file": "vendors/shared/AGENTS.md",
+  "rules_scope": "whole file",
+  "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf"
+}
