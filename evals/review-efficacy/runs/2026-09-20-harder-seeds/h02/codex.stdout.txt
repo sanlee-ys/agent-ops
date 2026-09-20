@@ -1,0 +1,7 @@
+Three in-scope issues: a PowerShell bypass and two promised changes missing from the diff.
+
+- ask-user: `_inside_double_quotes` (lines 558–570) handles backslash-escaped quotes but not PowerShell’s backtick-escaped quotes. An escaped `"` inside an outer PowerShell double-quoted command can therefore flip `in_dq` incorrectly, causing a nested single-quoted credential expansion to be treated as literal and blanked. Should this use shell-aware quote parsing, or conservatively deny ambiguous PowerShell nesting?
+
+- auto-fix: The PR body claims five new regression tests (“124 → 129”), but the diff contains no test changes. Add tests covering the newly allowed literal cases and, critically, PowerShell nesting with escaped double quotes.
+
+- auto-fix: The PR body says the canonical guard is recopied into `vendors/claude/plugin/hooks/`, but that synchronization is absent from the diff. Update the required vendor copy to match version 2.11.

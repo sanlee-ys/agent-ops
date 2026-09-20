@@ -1,0 +1,6 @@
+The core check has one correctness bug and the diff omits several promised deliverables.
+
+- auto-fix: `check_latest_tag` selects `tags[0]` at line 569, but `parse_ls_remote_tags` sorts versions ascending at line 402. It therefore compares against the oldest tag and can report MATCH while newer tags exist. Select the maximum/newest version instead.
+- auto-fix: `parse_gh_pr_list` silently ignores list entries without `"number"` at line 387. Malformed or partial forge output can therefore become an empty/partial authoritative set and produce false MATCH/DRIFT results, contrary to the stated “absent is not zero” contract. Reject any malformed entry so the check reports UNMEASURED.
+- auto-fix: `bullet_actions` calls `line.strip()` before applying the “top-level bullet” regex at lines 327–330. This converts nested bullets into top-level owner actions and can produce false job-consistency DRIFT. Preserve leading indentation when matching.
+- ask-user: The presented diff adds only `scripts/handoff_check.py`; it does not include the 63 tests, convention page, README rows, scripts index, or CLAUDE.md update promised by the PR body. Should those omitted deliverables be added to this PR before merge?

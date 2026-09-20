@@ -1,0 +1,7 @@
+Three in-scope issues found; no unrelated scope expansion.
+
+- auto-fix: At lines 161–166, `_rule_is_unrestricted_shell()` leaves the closing `)` in `body`, so `Bash(*)`, `Bash(:*)`, and `Bash(*:*)` all return `False`. Only bare shell-tool names are actually blocked, contradicting the PR’s core requirement. Remove the final `)` before comparing the body.
+
+- ask-user: At lines 184–196, `needle in command` is still a substring check, so commands containing names such as `credential-guard.py-disabled` or `credential-guard.py.bak` pass despite the claimed exact-filename requirement. The intended command/path boundary must be defined before choosing a safe matcher.
+
+- auto-fix: The diff contains no test changes, despite the PR claiming `tests/test_config_change_guard.py` grew from 22 to 36 cases. The new permission, environment, and structural checks—especially the currently broken parenthesized shell cases—therefore ship without the stated regression coverage.

@@ -1,0 +1,7 @@
+Three in-scope issues found.
+
+- auto-fix: `_guard_is_wired()` at line 192 iterates `entry.get("hooks")` without confirming it is a list. A valid JSON settings file containing `"hooks": 1` in an event entry raises an uncaught `TypeError`, contradicting both the fail-open guarantee and the stated allowance for junk in the hooks tree. Type-check the nested value before iterating it.
+
+- ask-user: Line 195 still uses a substring search for `<guard>.py`, so commands such as `credential-guard.py.disabled` or `echo credential-guard.py` satisfy the check without executing the required guard. Meeting the claimed “exact file” contract requires deciding which command forms and wrappers are valid, then validating an actual command token accordingly.
+
+- auto-fix: The shown diff adds substantial detection logic but no tests, despite the PR body claiming 14 new cases. Add the referenced test changes to the PR so each new blocked form, allowed form, malformed hooks shape, and filename-boundary bypass is proved by the submitted diff.

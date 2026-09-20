@@ -1,0 +1,13 @@
+The diff does not reliably meet the requested guard behavior; it introduces bypasses and false positives, while adding no unrequested scope.
+
+- ask-user: Lines 46–49 and 183 describe `STAGE-ALL-OK` as a command prefix, but the hook only searches for the substring and does not remove it before execution. A literal `STAGE-ALL-OK git add -A` is not valid Bash or PowerShell, while mentioning the token anywhere—including in a later commit message—bypasses the entire guard. The override’s executable cross-shell syntax must be decided and enforced only in that position.
+
+- auto-fix: Lines 119–123 discard everything after `--`, allowing `git add -- .` even though it still stages the whole tree and the PR explicitly promises to block `git add .`.
+
+- auto-fix: Line 67 splits shell operators before tokenization, including operators inside quoted prose. For example, `echo "text && git add -A"` is split at `&&`; quote recovery can then turn the second fragment into a detected Git command. This violates the central requirement that quoted prose must remain allowed.
+
+- auto-fix: Lines 138–145 treat every single-dash alphabetic argument containing `a` as combined flags. Valid message forms such as `git commit -madd` use the remainder as `-m`’s value but are incorrectly blocked as though they included `-a`.
+
+- auto-fix: Lines 124–130 only recognize exact add-option tokens, so valid combined forms such as `git add -Av` bypass the guard while still enabling whole-tree staging.
+
+- auto-fix: The PR claims 25 cases, but the diff adds no tests. The bypasses and false positives above therefore ship without regression coverage proving the behavior described in the PR.

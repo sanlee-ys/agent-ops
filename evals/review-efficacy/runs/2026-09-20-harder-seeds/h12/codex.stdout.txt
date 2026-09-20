@@ -1,0 +1,13 @@
+The diff has multiple guard bypasses and does not match the PR’s stated scope.
+
+- auto-fix: Lines 402–403 allow any command containing `RISK-OK`, although the contract requires it as a prefix. For example, `echo RISK-OK && rm -rf /` bypasses the guard completely. Validate and remove only a leading override token.
+
+- ask-user: Lines 164 and 176 erase every heredoc before classification, including executable shell input such as `bash <<'EOF'\nrm -rf /\nEOF`. Decide which heredocs are documentation versus executable input; the current behavior creates a direct destructive-command bypass.
+
+- ask-user: Lines 224–261 describe `rm.recursive` as project-relative but never verify that a target is project-relative. Absolute paths such as `/Users/name/Documents` or `C:\Users\name\Documents` receive only the routine-cleanup warning. The intended boundary for machine-scope paths needs to be defined and enforced.
+
+- ask-user: Lines 275–282 classify every reset other than `--hard`, `--merge`, or `--keep` as `git.reset_soft`. Consequently, default `git reset` and explicit `git reset --mixed` are allowed as though they preserved the index, despite discarding staged state.
+
+- ask-user: Lines 294–299 miss common destructive checkout pathspec forms such as `git checkout README.md`, which can overwrite local edits. Supporting ambiguous branch-or-path syntax requires an explicit decision about whether to conservatively confirm or resolve repository state.
+
+- ask-user: The supplied diff adds only `destructive-command-guard.py`; it omits the advertised secret-redaction guard, ADR, configuration/deployment changes, and all 57 claimed tests. Therefore the diff neither delivers nor verifies the PR body’s stated scope.

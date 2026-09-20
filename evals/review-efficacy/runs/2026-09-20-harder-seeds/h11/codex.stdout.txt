@@ -1,0 +1,9 @@
+The diff stays within scope, but the guard has several reachable correctness gaps and includes none of the claimed tests.
+
+- ask-user: Lines 46–49 and 183 make the documented override unusable as written: `STAGE-ALL-OK git add -A` is not a valid Bash or PowerShell command. Meanwhile, merely including `STAGE-ALL-OK` anywhere—including quoted prose or a comment—bypasses the guard. Choose a shell-valid cross-platform override contract, then require it in that exact position.
+
+- auto-fix: Line 67 splits on shell separators and newlines before tokenization, including separators inside quoted strings and continued commands. For example, `git commit -m "context && git add -A"` is falsely blocked, while a multiline `git \` + newline + `add -A` evades detection. Preserve quoting and line continuations when identifying command segments.
+
+- auto-fix: Line 63 does not correctly strip `<<-EOF` heredocs whose terminator is tab-indented, despite explicitly accepting `<<-`; a body containing `git add -A` will be falsely blocked. Handle the tab-stripping heredoc form correctly.
+
+- auto-fix: The PR body claims 25 tests, but the diff adds no test file. Add the stated blocked, allowed, prose, override, and fail-open cases so the guard’s core behavior is actually regression-tested.

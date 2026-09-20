@@ -1,0 +1,7 @@
+The guard has three reachable gaps that contradict the PR’s stated behavior.
+
+- ask-user: Lines 46–49 and 183–184 do not provide a usable per-command override. `STAGE-ALL-OK git add -A` is not valid Bash or PowerShell syntax, and the hook does not remove the prefix before execution. The override interface needs a cross-shell design decision. The substring check is also overly broad: prose containing `STAGE-ALL-OK` anywhere disables scanning of the entire command.
+
+- auto-fix: Lines 67 and 186 split shell segments before parsing quotes. Thus `git commit -m "mention && git add -A"` is split inside the quoted message and can be falsely blocked, violating the central requirement that prose pass. Segment boundaries must be recognized quote-aware.
+
+- auto-fix: Lines 119–129 stop inspecting arguments at `--`, allowing `git add -- .` even though it performs the same prohibited whole-tree staging as `git add .`. The `.` pathspec must remain blocked after the option terminator.

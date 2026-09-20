@@ -1,0 +1,5 @@
+The adapter has one fail-open path, and the diff omits two deliverables promised by the PR.
+
+- auto-fix: Lines 248–249 allow the tool call when reading stdin raises an exception. That contradicts the stated guarantee that “an internal error anywhere” denies the call; this path should emit the internal-error denial instead.
+
+- ask-user: The PR body promises `vendors/cursor/hooks/hooks.json` and `tests/test_cursor_guard_adapter.py`, but neither appears in the diff. This drops the reference wiring and all claimed test coverage; confirm whether those files must be restored before merging.
