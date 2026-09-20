@@ -652,12 +652,18 @@ def check_repo(repo: Path) -> dict:
     state = find_section(sections, "state")
 
     if state is None:
+        # Four checks read the State section and report that it is absent. The
+        # other two do not depend on it, so they still run. A check that COULD
+        # have answered must not report that it could not.
+        no_state = "HANDOFF.md has no State section"
         rows = [
-            result_row(name, UNMEASURED,
-                       reason="HANDOFF.md has no State section")
-            for name in CHECKS if CHECK_SOURCE[name] == "handoff"
+            result_row("open-prs", UNMEASURED, reason=no_state),
+            result_row("branch", UNMEASURED, reason=no_state),
+            check_main_vs_origin(repo),
+            result_row("latest-tag", UNMEASURED, reason=no_state),
+            result_row("changelog-top", UNMEASURED, reason=no_state),
+            check_job_consistency(sections),
         ]
-        rows.insert(2, check_main_vs_origin(repo))
     else:
         rows = [
             check_open_prs(state, repo),
