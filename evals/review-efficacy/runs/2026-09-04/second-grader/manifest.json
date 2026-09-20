@@ -1,0 +1,148 @@
+{
+  "command_note": "The prompt arrives on stdin through `-`, not as an argument. A multi-kilobyte argument does not survive the Windows command line. `--cd` points at an empty scratch directory, not at the repository, so the read-only sandbox cannot reach grades.json or cases.json.",
+  "command_template": "codex exec --skip-git-repo-check --cd <empty-scratch-dir> --sandbox read-only -m gpt-5.6-sol - < <prompt file>",
+  "grader": "Codex, model gpt-5.6-sol, through the cross-agent channel. One call per (case, condition). The grader saw the grading rules, the seeded defect, the diff and one review. It did not see the first grade and it did not see which lane wrote the review.",
+  "grading_rules_sha256": "955087faa4f35ebbaf496eeb826dea16a387781197789649decbfccee9fc70cd",
+  "units": [
+    {
+      "case": "c01",
+      "condition": "claude",
+      "prompt": "c01/claude.prompt.txt",
+      "prompt_chars": 9246,
+      "prompt_sha256": "425a24804f095e9fea970cc2d781f6c021d5ed7f5c1e47c58ea4c3e040b77232"
+    },
+    {
+      "case": "c01",
+      "condition": "codex",
+      "prompt": "c01/codex.prompt.txt",
+      "prompt_chars": 8375,
+      "prompt_sha256": "79d999a3945bbbce09fe2e3dbdeb007ec5f8dcb7c9f3b10ce6ab14b75de44bd9"
+    },
+    {
+      "case": "c02",
+      "condition": "claude",
+      "prompt": "c02/claude.prompt.txt",
+      "prompt_chars": 11922,
+      "prompt_sha256": "29a4118e292d105c8a5a3ad6aa729741bec6471d9c6a4ea9241d0b25309a25de"
+    },
+    {
+      "case": "c02",
+      "condition": "codex",
+      "prompt": "c02/codex.prompt.txt",
+      "prompt_chars": 11408,
+      "prompt_sha256": "7a6b5914fa3457b7e77a1d3d31b15306fbf39390525c0c5cfa34695311f957ba"
+    },
+    {
+      "case": "c03",
+      "condition": "claude",
+      "prompt": "c03/claude.prompt.txt",
+      "prompt_chars": 9564,
+      "prompt_sha256": "58bfc5d22d22b6ece459451dc109ab1e1c4484394ef1d30a3d8ffe06358862ce"
+    },
+    {
+      "case": "c03",
+      "condition": "codex",
+      "prompt": "c03/codex.prompt.txt",
+      "prompt_chars": 8790,
+      "prompt_sha256": "6158671b0fe48197db3ccf0f08215843b6b6b1ddc6a54d4130814d9344cab5c2"
+    },
+    {
+      "case": "c04",
+      "condition": "claude",
+      "prompt": "c04/claude.prompt.txt",
+      "prompt_chars": 7149,
+      "prompt_sha256": "9933842ea180b0aa45d5b14dd1ede7972390341746acab2960bd81423cd2f087"
+    },
+    {
+      "case": "c04",
+      "condition": "codex",
+      "prompt": "c04/codex.prompt.txt",
+      "prompt_chars": 5931,
+      "prompt_sha256": "2a6b8d04e5d54766668539f53713d3c77d3a09db83f5b22bced6165de52ae638"
+    },
+    {
+      "case": "c05",
+      "condition": "claude",
+      "prompt": "c05/claude.prompt.txt",
+      "prompt_chars": 17033,
+      "prompt_sha256": "4a407ce2257b818346b5a848b2e89ca3714f4dae3d5b87de046b37a3fcad74b6"
+    },
+    {
+      "case": "c05",
+      "condition": "codex",
+      "prompt": "c05/codex.prompt.txt",
+      "prompt_chars": 16502,
+      "prompt_sha256": "2d93b3e9ced5456bce65364daf7e4e506a69bb3120a556ff3170ab6b24812d19"
+    },
+    {
+      "case": "c06",
+      "condition": "claude",
+      "prompt": "c06/claude.prompt.txt",
+      "prompt_chars": 6517,
+      "prompt_sha256": "c92605a370aba32521db493b28f100c5470978b85844863821e25bf0dfdc7e5a"
+    },
+    {
+      "case": "c06",
+      "condition": "codex",
+      "prompt": "c06/codex.prompt.txt",
+      "prompt_chars": 6348,
+      "prompt_sha256": "2e40f8cf0b7c9b6ae0a1a56495e28bcd7a6bffe29386e43b96ebdda3a43f4b09"
+    },
+    {
+      "case": "c07",
+      "condition": "claude",
+      "prompt": "c07/claude.prompt.txt",
+      "prompt_chars": 6433,
+      "prompt_sha256": "8615317b17439eb1a0b39f83a53e7e8efbcd88f729e02da6a2866c86dc8873c2"
+    },
+    {
+      "case": "c07",
+      "condition": "codex",
+      "prompt": "c07/codex.prompt.txt",
+      "prompt_chars": 5608,
+      "prompt_sha256": "5b903b19ffffc2f1d7b509a46b5f150d7c17766a0a7f9c32d4fd8a2f117c68f0"
+    },
+    {
+      "case": "c08",
+      "condition": "claude",
+      "prompt": "c08/claude.prompt.txt",
+      "prompt_chars": 12122,
+      "prompt_sha256": "f03c294ec9be8d149ab15eb8f24a905a00460017985e65b651d316770ffc343b"
+    },
+    {
+      "case": "c08",
+      "condition": "codex",
+      "prompt": "c08/codex.prompt.txt",
+      "prompt_chars": 10526,
+      "prompt_sha256": "15b8c56256d1bc263d6f1208082238ccfd49b3fe2331ca6b1fc938f91bdd6c3b"
+    },
+    {
+      "case": "c09",
+      "condition": "claude",
+      "prompt": "c09/claude.prompt.txt",
+      "prompt_chars": 18790,
+      "prompt_sha256": "161fc71d95939bf8769c6f0aa08feacd643106e00e6026948b04f98b65b14fc3"
+    },
+    {
+      "case": "c09",
+      "condition": "codex",
+      "prompt": "c09/codex.prompt.txt",
+      "prompt_chars": 17362,
+      "prompt_sha256": "234737a533e5b892ac31ae21fb97dadab3626d71401af9c259697c7094bf9d50"
+    },
+    {
+      "case": "c10",
+      "condition": "claude",
+      "prompt": "c10/claude.prompt.txt",
+      "prompt_chars": 8012,
+      "prompt_sha256": "a374209b338352938c9d46326d1e6ec6255cc492b5744a2b9cad8f7a929a81e0"
+    },
+    {
+      "case": "c10",
+      "condition": "codex",
+      "prompt": "c10/codex.prompt.txt",
+      "prompt_chars": 6965,
+      "prompt_sha256": "029d259a619f73a49b90fbff16367fa29763f23df1a68f6a5f9edac07be42adb"
+    }
+  ]
+}
