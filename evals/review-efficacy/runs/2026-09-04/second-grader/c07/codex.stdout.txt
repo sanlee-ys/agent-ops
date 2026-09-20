@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the duplicate fanout-guard key in REQUIRED_GUARDS and explains that it overwrites PreToolUse with PostToolUse. It asserts no nonexistent defect."}

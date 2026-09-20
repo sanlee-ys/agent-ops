@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the unchecked None comparison in filter_merged_since and the resulting TypeError. Its other findings describe real limitations, while the missing-tests observation is not false under the grading rules."}

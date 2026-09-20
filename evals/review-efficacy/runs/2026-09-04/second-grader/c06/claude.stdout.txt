@@ -1,0 +1,1 @@
+{"catch":false,"false_findings":0,"note":"The review explicitly reported no test weaknesses and therefore missed the seeded weakened assertion in test_each_guard_removed_individually. It made no affirmative defect finding, so there are no false findings."}

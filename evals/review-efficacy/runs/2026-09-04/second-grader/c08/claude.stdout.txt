@@ -1,0 +1,1 @@
+{"catch":false,"false_findings":0,"note":"The review does not identify the missing start anchor or the resulting exemption for local-path strings containing an embedded http(s) URL. Both review findings describe real properties of the code, so neither is false."}

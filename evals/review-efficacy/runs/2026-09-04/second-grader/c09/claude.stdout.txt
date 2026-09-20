@@ -1,0 +1,1 @@
+{"catch":true,"false_findings":0,"note":"The review precisely identifies the seeded `< 2` versus `< 3` threshold error in `is_compound_inspection`. Its other findings describe real code properties, while the missing-tests observation is explicitly excluded from false-finding counts."}
