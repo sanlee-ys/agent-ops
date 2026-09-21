@@ -1,0 +1,7 @@
+The diff has two security gaps and does not include the tests claimed by the PR.
+
+- auto-fix: Lines 115 and 178 exempt `id_rsa.pub` even when it is only a directory component. For example, `cat ~/.ssh/id_rsa.pub/private` matches only `id_rsa.pub`; `PUBLIC_KEY` then exempts that substring, allowing the read. Require the `.pub` match to end at the path basename boundary, not immediately before `/` or `\`.
+
+- auto-fix: Lines 634–638 stop recursively inspecting nested units after depth 8 but do not conservatively deny them. A sufficiently nested reader can therefore be hidden beneath a value-only leading command such as `test`/`Test-Path`. Reaching the recursion limit while an unresolved sensitive nested unit remains should block.
+
+- auto-fix: The PR body claims `TestNestedMetadataFalsePositive` and `TestPublicKeyNotASecret`, but the diff adds no tests. Add the claimed regression coverage, including the `.pub` directory-component case and recursion-limit behavior.

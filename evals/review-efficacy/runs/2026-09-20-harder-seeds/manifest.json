@@ -40,16 +40,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "2da56612a4ba08150370e0f4511463dfaf053b158ed07ee86891ab260dd443f5",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.2
+          "seconds": 14.1
         }
       },
       "defect_class": "wrong-constant",
@@ -62,6 +64,8 @@
       ],
       "pr": 108,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 0,
         "commits": 1,
@@ -108,16 +112,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "fdbb75102e0409c04a5db92cb41cf4dfffa9b9651d8fe1b276d60b19380ffc49",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.8
+          "seconds": 44.8
         }
       },
       "defect_class": "wrong-constant",
@@ -130,6 +136,8 @@
       ],
       "pr": 87,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -176,16 +184,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "94916ec436fa9664230594fad7a06c56e135550d855cee86ab6fb9f133857b15",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.0
+          "seconds": 59.6
         }
       },
       "defect_class": "wrong-constant",
@@ -198,6 +208,8 @@
       ],
       "pr": 26,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -244,16 +256,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "ef833f62bfb87ece23bc41277e4c24c9e9ac92222c1e557904b3caa7f36d6a4e",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.1
+          "seconds": 38.8
         }
       },
       "defect_class": "wrong-constant",
@@ -266,6 +280,8 @@
       ],
       "pr": 18,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 1,
       "writer_provenance": {
         "claude_commits": 2,
         "commits": 2,
@@ -312,16 +328,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "25e22f295e3e5c7e5b66f3270c35a23abf3041e7ed374f679e346af2b0d44470",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.4
+          "seconds": 20.4
         }
       },
       "defect_class": "wrong-constant",
@@ -334,6 +352,8 @@
       ],
       "pr": 88,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 1,
       "writer_provenance": {
         "claude_commits": 0,
         "commits": 1,
@@ -380,16 +400,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "7e9679f8f3d8ac64b4835cbf6396cf69b267c28312350bdc3ff7a14ce18ed3c9",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.2
+          "seconds": 31.7
         }
       },
       "defect_class": "wrong-constant",
@@ -402,6 +424,8 @@
       ],
       "pr": 143,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 12,
         "commits": 12,
@@ -448,16 +472,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "2eff4dccc61f5b3c7bfff9235d51e5944251c7dfaa73a927a992c5e7d9dfc075",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.1
+          "seconds": 29.4
         }
       },
       "defect_class": "missing-branch",
@@ -470,6 +496,8 @@
       ],
       "pr": 96,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 0,
         "commits": 1,
@@ -516,16 +544,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "46d91fede0c28da3805dcf70c51b717d11336870ee93d66897934e5876241bd7",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.9
+          "seconds": 26.8
         }
       },
       "defect_class": "missing-branch",
@@ -538,6 +568,8 @@
       ],
       "pr": 96,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 0,
         "commits": 1,
@@ -584,16 +616,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "7d7c127343bee9f5be15968661fc232ccd4c0e1ab7e4faaa978ff392cffbd89f",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 9.2
+          "seconds": 28.6
         }
       },
       "defect_class": "missing-branch",
@@ -606,6 +640,8 @@
       ],
       "pr": 25,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -652,16 +688,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "0cdfdc7fe57ce2e1f9a4ff4115a05351bbe47dd56877f8068494a3946ef9e4c3",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 9.3
+          "seconds": 49.7
         }
       },
       "defect_class": "missing-branch",
@@ -674,6 +712,8 @@
       ],
       "pr": 37,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 1,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -720,16 +760,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "a1d2954614f5f042a58764af3e5f65e5efb92624bb3cf612d6243a14a4d084c7",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.7
+          "seconds": 33.9
         }
       },
       "defect_class": "missing-branch",
@@ -742,6 +784,8 @@
       ],
       "pr": 18,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 1,
       "writer_provenance": {
         "claude_commits": 2,
         "commits": 2,
@@ -788,16 +832,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "a26222b3fdc46257315155766443fe631e09866e1ea0169b1d33d06341174624",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.3
+          "seconds": 29.8
         }
       },
       "defect_class": "missing-branch",
@@ -810,6 +856,8 @@
       ],
       "pr": 100,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -856,16 +904,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "b851518c6ad07e36bdca19a97c29f856c240f3eac7a1e48af644e4a43ce3d1a1",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.3
+          "seconds": 27.2
         }
       },
       "defect_class": "narrow-invariant",
@@ -878,6 +928,8 @@
       ],
       "pr": 49,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -924,16 +976,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "910f36d7ce8536ff8d1da5a40e70a217dd3b739cfa67aece96009ebe11a259de",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 7.8
+          "seconds": 43.9
         }
       },
       "defect_class": "narrow-invariant",
@@ -946,6 +1000,8 @@
       ],
       "pr": 27,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -992,16 +1048,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "63328f28cf0782380a01ff2c3f31b4540b3ff108a104b871a91e003c42b25214",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.2
+          "seconds": 43.1
         }
       },
       "defect_class": "narrow-invariant",
@@ -1014,6 +1072,8 @@
       ],
       "pr": 28,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -1060,16 +1120,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "61989e8bbc9fb508f6ed852491a0f7c0914f0e3ca46cf7d6089a0480af94beda",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 9.2
+          "seconds": 34.2
         }
       },
       "defect_class": "narrow-invariant",
@@ -1082,6 +1144,8 @@
       ],
       "pr": 18,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 1,
       "writer_provenance": {
         "claude_commits": 2,
         "commits": 2,
@@ -1128,16 +1192,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "43dc839020cfa790dae4635c25b5254e4051ba126d4cce988235f6036a907613",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.3
+          "seconds": 32.6
         }
       },
       "defect_class": "narrow-invariant",
@@ -1150,6 +1216,8 @@
       ],
       "pr": 88,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 1,
       "writer_provenance": {
         "claude_commits": 0,
         "commits": 1,
@@ -1196,16 +1264,18 @@
             "--sandbox",
             "read-only",
             "--cd",
-            "~\\AppData\\Local\\Temp\\review-efficacy-z_740nie",
+            "~\\AppData\\Local\\Temp\\review-efficacy-3kvc35f2",
+            "-m",
+            "gpt-5.6-sol",
             "-"
           ],
-          "error": "exit 1",
-          "model": "gpt-6-astra",
-          "ok": false,
+          "error": null,
+          "model": "gpt-5.6-sol",
+          "ok": true,
           "prompt_sha256": "66df67e3c8f827f114fb2f172cd7b0a3e930a75cb80829358884b458871492ca",
-          "returncode": 1,
+          "returncode": 0,
           "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf",
-          "seconds": 8.6
+          "seconds": 25.7
         }
       },
       "defect_class": "narrow-invariant",
@@ -1218,6 +1288,8 @@
       ],
       "pr": 100,
       "prompt_version": 2,
+      "redactions_at_runtime": 0,
+      "redactions_from_cases_file": 0,
       "writer_provenance": {
         "claude_commits": 1,
         "commits": 1,
@@ -1230,7 +1302,9 @@
       "model": "claude-sonnet-5"
     },
     "codex": {
-      "model": "gpt-6-astra"
+      "config_model": "gpt-6-astra",
+      "model": "gpt-5.6-sol",
+      "model_source": "pinned with -m"
     }
   },
   "diff_char_cap": 45000,
@@ -1240,10 +1314,11 @@
     "2026-09-20T22:03:13.559853+00:00",
     "2026-09-20T22:04:42.005317+00:00",
     "2026-09-20T22:10:16.239405+00:00",
-    "2026-09-20T22:14:44.748606+00:00"
+    "2026-09-20T22:14:44.748606+00:00",
+    "2026-09-20T23:12:27.348733+00:00"
   ],
   "prompt_version": 2,
-  "repo_head": "2bd69b39a09b80b3cd235f61543948bb55d49730",
+  "repo_head": "65875614f3b0773bd364dfb9ee325ce639170231",
   "rules_file": "vendors/shared/AGENTS.md",
   "rules_scope": "whole file",
   "rules_sha256": "697cca69693e0ea5c61b4646022768c8902f6b67910d463d641943cce1fa5dbf"

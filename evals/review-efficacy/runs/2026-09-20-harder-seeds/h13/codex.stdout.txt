@@ -1,0 +1,7 @@
+The gate has two reachable contract violations and lacks visible regression coverage.
+
+- auto-fix: Lines 77–78 and 136 can raise uncaught exceptions—for example, malformed TOML or a missing executable—causing Python to exit with status `1`. That violates the documented interface that configuration and build-command errors return `2`; catch these errors and return `ERROR`.
+
+- ask-user: Line 136 parses commands with `cmd.split()`, so quoted arguments such as `python build.py --title "Hello world"` are split incorrectly. The intended command contract needs clarification: support shell-style command strings with an appropriate parser, or require TOML arrays of arguments and validate them.
+
+- auto-fix: The diff adds no tests despite introducing parsing, validation, subprocess, dirty-tree, drift, and exit-code behavior. Add regression tests covering malformed TOML, missing executables, and commands containing quoted arguments.

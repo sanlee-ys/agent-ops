@@ -60,6 +60,24 @@ RULES_HEADING = "## Code Review Rules"
 
 CONDITIONS = ("claude", "codex")
 
+# The Codex condition PINS its model with `-m`. It does not inherit the model
+# in the machine's Codex config.
+#
+# WHY. On 2026-09-20 the config named `gpt-6-astra`, the installed
+# `codex-cli 0.151.0` refused that id with an HTTP 400 that says the model
+# "requires a newer version of Codex", and all 18 Codex conditions of the
+# harder-seeds run failed before they reached a model. The config is a machine
+# setting, and an upgrade of the CLI is the machine owner's decision, so the
+# harness cannot depend on either one being right. A pin is the harness's own
+# control: the run names the model it wants, `manifest.json` records it, and a
+# refused id is then a named failure of one flag rather than of every case.
+#
+# `second_grader.py` keeps the same id in `GRADER_MODEL`. Neither module
+# imports the other, because the grader reads the runner's output and a back
+# reference would invert that order. A test asserts the two constants are
+# equal instead, so a drift onto two different models is a red build.
+DEFAULT_CODEX_MODEL = "gpt-5.6-sol"
+
 # Per-condition subprocess ceiling. A review that needs longer than this is
 # recorded as a failure, never as a miss: an unrun condition is not a result.
 CONDITION_TIMEOUT = 900
@@ -355,12 +373,25 @@ def claude_command(model: str) -> list[str]:
     ]
 
 
-def codex_command(workdir: str) -> list[str]:
+def codex_command(workdir: str, model: str) -> list[str]:
+    """The Codex invocation: a pinned model, and the prompt on stdin.
+
+    `-m` pins the model, for the reason `DEFAULT_CODEX_MODEL` states.
+
+    `-` is the last argument, and `_run` writes the prompt to the process's
+    stdin. THE PROMPT MUST NEVER TRAVEL IN ARGV. A Windows command line stops
+    at 32767 characters, and case h06 of the 2026-09-20 harder-seeds run builds
+    a 47934-byte prompt. An argument that long fails before the model sees it,
+    and the failure reads as a refused tool rather than as a prompt that did
+    not fit. `second_grader.py` sends its grading prompts the same way, and 20
+    of those calls went through on this machine on 2026-09-20.
+    """
     return [
         "codex", "exec",
         "--skip-git-repo-check",
         "--sandbox", "read-only",
         "--cd", workdir,
+        "-m", model,
         "-",
     ]
 
@@ -375,11 +406,14 @@ def codex_command(workdir: str) -> list[str]:
 
 
 def resolve_codex_model() -> str:
-    """The model id from the Codex config, or a marker saying it was not read.
+    """The model id in the Codex config, or a marker saying it was not read.
 
-    An honest result names the model. A hard-coded id in this file would go
-    stale the moment the lane's model changes, so the id is read at run time
-    from the same config the `codex` CLI reads.
+    THIS IS NO LONGER THE MODEL THAT RUNS. `codex_command` pins the model with
+    `-m`, so the config id is provenance only: it records what this machine was
+    configured to use on the day of the run. `manifest.json` stores it beside
+    the pinned id under `conditions.codex.config_model`, so a reader can see
+    when the two disagree, which is exactly the state that cost the 2026-09-20
+    harder-seeds run its whole Codex condition.
     """
     path = Path.home() / ".codex" / "config.toml"
     try:
@@ -684,6 +718,7 @@ def run_cases(
     conditions: tuple[str, ...],
     only: set[str] | None,
     claude_model: str,
+    codex_model: str,
     validate_only: bool,
 ) -> int:
     # The cases file owns the prompt version. A run directory therefore holds
@@ -696,7 +731,10 @@ def run_cases(
         )
     whole_rules = PROMPT_VERSIONS[prompt_version]["whole_rules"]
     rules, rules_digest = read_review_rules(repo, whole=whole_rules)
-    codex_model = resolve_codex_model()
+    # The pinned id is what runs. The config id is read anyway and recorded
+    # beside it, because a disagreement between the two is the failure this
+    # pin exists to survive.
+    codex_config_model = resolve_codex_model()
     if not validate_only:
         out_dir.mkdir(parents=True, exist_ok=True)
     # A re-run of ONE condition must not delete the other condition's records.
@@ -819,7 +857,7 @@ def run_cases(
                 if condition == "claude":
                     cmd = claude_command(claude_model)
                 else:
-                    cmd = codex_command(scratch)
+                    cmd = codex_command(scratch, codex_model)
                 result = _run(cmd, prompt, scratch)
                 (case_dir / f"{condition}.stdout.txt").write_text(
                     redact_local_paths(result["stdout"]), encoding="utf-8")
@@ -846,7 +884,14 @@ def run_cases(
                     manifest["conditions"].setdefault("claude", {})["model"] = model
                 else:
                     record["model"] = codex_model
-                    manifest["conditions"].setdefault("codex", {})["model"] = codex_model
+                    codex_meta = manifest["conditions"].setdefault("codex", {})
+                    codex_meta["model"] = codex_model
+                    # How the id was chosen, and what the machine was set to.
+                    # Without both, a reader cannot tell a run that inherited
+                    # its model from one that overrode a config the CLI
+                    # refuses, and those are different experiments.
+                    codex_meta["model_source"] = "pinned with -m"
+                    codex_meta["config_model"] = codex_config_model
                 entry["conditions"][condition] = record
                 if not result["ok"]:
                     failures += 1
@@ -1099,9 +1144,15 @@ def main(argv: list[str] | None = None) -> int:
     run_p.add_argument("--cases", default=None, help="path to the cases JSON")
     run_p.add_argument("--repo", default=None, help="repository root (default: this repo)")
     run_p.add_argument("--out", default=None, help="output directory (default: runs/<UTC date>)")
-    run_p.add_argument("--conditions", default=",".join(CONDITIONS))
+    run_p.add_argument("--conditions", default=",".join(CONDITIONS),
+                       help="comma-separated condition names; one name runs "
+                            "that condition alone and keeps the other "
+                            "condition's stored records")
     run_p.add_argument("--only", default=None, help="comma-separated case ids")
     run_p.add_argument("--claude-model", default="sonnet")
+    run_p.add_argument("--codex-model", default=DEFAULT_CODEX_MODEL,
+                       help="the model id the Codex condition pins with -m "
+                            "(default: %(default)s)")
     run_p.add_argument("--validate-only", action="store_true",
                        help="build and check every case, run no reviewer")
 
@@ -1135,7 +1186,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return run_cases(repo, spec, out_dir, conditions, only,
-                         args.claude_model, args.validate_only)
+                         args.claude_model, args.codex_model,
+                         args.validate_only)
     except CaseError as exc:
         # A run-level build error (an unknown prompt version, a missing rules
         # section) is a usage error, not a traceback. A traceback here would

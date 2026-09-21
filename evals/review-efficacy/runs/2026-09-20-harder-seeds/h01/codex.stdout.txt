@@ -1,0 +1,4 @@
+The copy-drift expansion is incorrect, and the advertised `user_bash` guard is absent.
+
+- auto-fix: `check_copy(_RESOURCES_NAME, _CANONICAL_GUARD, ...)` at line 341 hashes `fleet-guard.ts` against deployed `fleet-resources.ts`, so the resources check will fail even when correctly deployed. Pass `_CANONICAL_RESOURCES` instead and add a test proving each deployed file is compared with its matching canonical file.
+- ask-user: The PR claims `fleet-guard.ts` now guards Pi `user_bash`, but the diff contains no such change or corresponding denial-path test. Was that required behavior accidentally omitted from this PR?

@@ -1,0 +1,6 @@
+The new detection has three reachable classification bugs, and the claimed tests are absent from the diff.
+
+- auto-fix: `_GET_VARIABLE` still does not establish command position (lines 269, 293). For example, `Write-Output Get-Variable` matches the argument text and, because no tokens follow it, is classified as a dump. This retains the false-positive class the PR says it removes.
+- auto-fix: Treating `-Exclude` as a naming flag (lines 278, 301–303) creates a bypass: `Get-Variable -Exclude PATH` enumerates every variable except `PATH`, but is allowed as a targeted read. `-Exclude` should not satisfy the requirement to name a specific variable.
+- auto-fix: `_get_variable_is_dump` examines only the first match (line 293). A segment such as `Get-Variable PATH; Get-Variable` is allowed based on the targeted first invocation while the later full dump is ignored.
+- auto-fix: No test changes appear in the supplied diff, despite the PR claiming new targeted-read, wildcard, alias, PSDrive, and regression coverage. The parser and newly blocked/allowed command shapes therefore ship without tests proving their behavior.

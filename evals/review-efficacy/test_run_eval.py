@@ -3,16 +3,18 @@
 
 The harness decides what a reviewer sees and how a run is scored, so a silent
 defect here turns into a wrong measurement rather than a red build. These tests
-cover the four places that can produce a wrong measurement: seed validation,
-the line numbering, the paired statistic, and the exclusion of a case that did
-not run or was not graded.
+cover the five places that can produce a wrong measurement: seed validation,
+the line numbering, the paired statistic, the exclusion of a case that did not
+run or was not graded, and the invocation each condition receives.
 
 Run them:
 
     uv run python -m unittest discover -s evals/review-efficacy -p "test_*.py" -v
 
-They are NOT in this repository's CI job. `.github/workflows/ci.yml` discovers
-`tests/` only, and this lane does not edit that file.
+CI runs them. `.github/workflows/ci.yml` carries the step "Run the
+review-efficacy eval harness tests", which discovers this directory (added by
+PR #137 on 2026-09-04). The paragraph here said the opposite until 2026-09-20;
+read the workflow, not this docstring, when the two disagree.
 """
 from __future__ import annotations
 
@@ -576,6 +578,116 @@ class TestCodexModel(unittest.TestCase):
     def test_it_never_raises(self):
         """A missing or odd config is reported, never crashed on."""
         self.assertIsInstance(run_eval.resolve_codex_model(), str)
+
+
+class TestCodexCommand(unittest.TestCase):
+    """The two properties that cost the 2026-09-20 run its Codex condition."""
+
+    def test_it_pins_the_model_with_dash_m(self):
+        """An unpinned run inherits the machine's Codex config. On 2026-09-20
+        that config named a model the installed CLI refused, and all 18 Codex
+        conditions failed before they reached a model."""
+        cmd = run_eval.codex_command("/scratch", "some-model")
+        self.assertIn("-m", cmd)
+        self.assertEqual(cmd[cmd.index("-m") + 1], "some-model")
+
+    def test_the_prompt_goes_on_stdin_not_in_argv(self):
+        """A Windows command line stops at 32767 characters, and case h06 of
+        the harder-seeds run builds a 47934-byte prompt."""
+        cmd = run_eval.codex_command("/scratch", "some-model")
+        self.assertEqual(cmd[-1], "-")
+        self.assertNotIn("--prompt", cmd)
+        for part in cmd:
+            self.assertLess(len(part), 200)
+
+    def test_the_default_model_matches_the_second_grader(self):
+        """Both modules name the id themselves, so neither imports the other.
+        This test is what stops the two lanes drifting onto two models."""
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import second_grader  # noqa: E402
+        self.assertEqual(run_eval.DEFAULT_CODEX_MODEL, second_grader.GRADER_MODEL)
+
+    def test_the_sandbox_and_the_scratch_directory_are_unchanged(self):
+        """The isolation is a property README.md states, so a model pin must
+        not move it."""
+        cmd = run_eval.codex_command("/scratch", "some-model")
+        self.assertEqual(cmd[:5],
+                         ["codex", "exec", "--skip-git-repo-check",
+                          "--sandbox", "read-only"])
+        self.assertEqual(cmd[cmd.index("--cd") + 1], "/scratch")
+
+
+class TestClaudeCommand(unittest.TestCase):
+    def test_it_is_byte_identical_to_the_stored_run(self):
+        """The 18 stored Claude conditions must stay comparable to a re-run, so
+        this list is written out in full rather than derived. A change here is
+        a new experiment, not a fix."""
+        self.assertEqual(
+            run_eval.claude_command("sonnet"),
+            ["claude", "-p", "--model", "sonnet", "--output-format", "json",
+             "--disallowedTools", "Bash", "Read", "Edit", "Write", "Glob",
+             "Grep", "WebFetch", "WebSearch", "Task", "NotebookEdit"],
+        )
+
+
+class TestConditionSelection(unittest.TestCase):
+    """`--conditions codex` re-runs one lane and keeps the other lane's records.
+
+    `run_cases` already merges into an existing manifest. What these tests
+    cover is the argument path in front of it: the condition list a run
+    actually receives, and the model id the flag carries.
+    """
+
+    def _main(self, extra: list[str]):
+        captured: dict = {}
+
+        def fake_run_cases(repo, spec, out_dir, conditions, only,
+                           claude_model, codex_model, validate_only):
+            captured["conditions"] = conditions
+            captured["claude_model"] = claude_model
+            captured["codex_model"] = codex_model
+            return run_eval.OK
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = Path(tmp) / "cases.json"
+            cases.write_text('{"cases": []}', encoding="utf-8")
+            real = run_eval.run_cases
+            run_eval.run_cases = fake_run_cases
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stderr(buf):
+                    code = run_eval.main(
+                        ["run", "--cases", str(cases), "--repo", tmp,
+                         "--out", str(Path(tmp) / "out"), *extra])
+            finally:
+                run_eval.run_cases = real
+        return code, captured
+
+    def test_one_condition_name_selects_that_condition_alone(self):
+        code, captured = self._main(["--conditions", "codex"])
+        self.assertEqual(code, run_eval.OK)
+        self.assertEqual(captured["conditions"], ("codex",))
+
+    def test_both_conditions_are_the_default(self):
+        _, captured = self._main([])
+        self.assertEqual(captured["conditions"], run_eval.CONDITIONS)
+
+    def test_an_unknown_condition_is_a_usage_error(self):
+        code, captured = self._main(["--conditions", "gemini"])
+        self.assertEqual(code, run_eval.USAGE_ERROR)
+        self.assertEqual(captured, {})
+
+    def test_the_codex_model_defaults_to_the_pinned_id(self):
+        _, captured = self._main([])
+        self.assertEqual(captured["codex_model"], run_eval.DEFAULT_CODEX_MODEL)
+
+    def test_the_codex_model_flag_overrides_the_default(self):
+        _, captured = self._main(["--codex-model", "gpt-other"])
+        self.assertEqual(captured["codex_model"], "gpt-other")
+
+    def test_the_claude_model_default_does_not_move(self):
+        _, captured = self._main([])
+        self.assertEqual(captured["claude_model"], "sonnet")
 
 
 if __name__ == "__main__":

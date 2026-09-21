@@ -1,0 +1,6 @@
+Three regressions/gaps found; scope otherwise matches the request.
+
+- auto-fix: `CRED_VAR_READ` at line 245 omits the `gci` alias. Tightening `ENV_DUMP_PATTERN` therefore unblocks reachable credential reads such as `gci Env:GITHUB_TOKEN`, which the old alias rule blocked.
+- auto-fix: The targeted-read pattern at lines 245–246 does not accept quoted paths, so `Get-ChildItem "Env:GITHUB_TOKEN"` is now allowed even though the previous dump rule caught it.
+- auto-fix: `_PS_ENV_DRIVE` only handles valueless flags before the path. Commands such as `Get-ChildItem -ErrorAction SilentlyContinue Env:` evade the dump rule; the same argument-bearing-parameter gap affects targeted credential reads.
+- auto-fix: The PR body claims a new bidirectional regression suite, but the diff contains no test changes. Add the promised allow/block cases, including the bypasses above.

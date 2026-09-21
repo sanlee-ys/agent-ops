@@ -1,0 +1,7 @@
+The adapter has two fail-closed gaps, and the diff omits two deliverables promised by the PR.
+
+- auto-fix: Lines 218–220 recognize only `cursor_version`. A camelCase `cursorVersion` payload—explicitly supported elsewhere by the adapter—will emit empty stdout on allow, which lines 214–216 say cursor-agent treats as a failed hook run. Accept both spellings.
+
+- auto-fix: Lines 247–254 allow execution when stdin cannot be read or parsed. That contradicts the stated fail-closed contract that internal adapter failures deny the call; a malformed/truncated hook payload can therefore bypass every guard. Unreadable or invalid input should deny unless it was successfully parsed and positively identified as an irrelevant event.
+
+- ask-user: The PR body promises `hooks.json` and 225 lines of adapter tests, but this diff contains only the adapter. Confirm whether the diff is incomplete; otherwise the reference configuration and all claimed test coverage are missing.

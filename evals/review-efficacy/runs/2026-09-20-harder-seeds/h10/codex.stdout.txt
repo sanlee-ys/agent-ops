@@ -1,0 +1,13 @@
+The guard has several bypasses, a false positive, and none of the claimed tests or supporting changes appear in the diff.
+
+- auto-fix: Lines 290–305 always compare the remote tip with `HEAD`, ignoring the refspec’s source. `git push --force origin old:main` can therefore be allowed when `HEAD` contains the remote tip even though `old` would discard it; deletion refspecs such as `:main` have the same problem. Resolve and compare the actual source being pushed.
+
+- auto-fix: Lines 247–258 inspect only the first refspec, while `--mirror` and `--all` are treated as though they target the current branch. Thus `git push --force origin feature main`, or `git push --mirror` while on a feature branch, can rewrite `main` without being checked.
+
+- auto-fix: Lines 452–453 disable the entire guard when `REWRITE-MAIN-OK` appears anywhere in the command. For example, `echo REWRITE-MAIN-OK && git push --force origin main` bypasses it, contrary to the documented requirement that the override prefix the protected command. Validate the override per parsed command segment and position.
+
+- auto-fix: Lines 329–346 misclassify `git reset HEAD~1 path` as a branch-moving reset. That valid pathspec form only resets the index, but the guard can block it whenever `HEAD~1..HEAD` contains published commits. The parser must distinguish reset’s pathspec form even when `--` is omitted.
+
+- auto-fix: The PR claims 26 new checks, including mutation coverage, but this diff adds no tests. The source/refspec, multi-refspec, mirror, override-position, and pathspec-reset cases need regression coverage before this guard can substantiate its claimed behavior.
+
+- ask-user: The PR body says the conventions document, README entry, and CI syntax check are “also here,” but none appears in the supplied diff. Are those required changes missing, or should the PR body be corrected to remove those claims?
